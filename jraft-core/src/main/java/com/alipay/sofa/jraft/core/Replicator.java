@@ -144,6 +144,10 @@ public class Replicator implements ThreadId.OnError {
      * @author dennis
      */
     public enum State {
+        /**
+         * Leader 节点在通过 Replicator 和 Follower 建立连接之后，要发送一个 Probe 类型的探针请求，
+         * 目的是知道 Follower 已经拥有的的日志位置，以便于向 Follower 发送后续的日志。
+         */
         Probe, // probe follower state
         Snapshot, // installing snapshot to follower
         Replicate, // replicate logs normally
@@ -232,6 +236,8 @@ public class Replicator implements ThreadId.OnError {
 
     /**
      * In-flight request.
+     *
+     * Inflight 是对批量发送出去的 logEntry 的一种抽象，他表示哪些 logEntry 已经被封装成日志复制 request 发送出去了。
      *
      * @author dennis
      */
@@ -580,6 +586,11 @@ public class Replicator implements ThreadId.OnError {
         return true;
     }
 
+    /**
+     * 发送探针获取 follower 的 LastLogIndex
+     *
+     * @param isHeartbeat
+     */
     private void sendEmptyEntries(final boolean isHeartbeat) {
         this.sendEmptyEntries(isHeartbeat, null);
     }
@@ -1151,6 +1162,19 @@ public class Replicator implements ThreadId.OnError {
         this.releaseReader();
     }
 
+    /**
+     * 处理日志复制的 Response
+     *
+     * @param id
+     * @param inflight
+     * @param status
+     * @param request
+     * @param response
+     * @param rpcSendTime
+     * @param startTimeMs
+     * @param r
+     * @return
+     */
     private static boolean onAppendEntriesReturned(final ThreadId id, final Inflight inflight, final Status status,
                                                    final AppendEntriesRequest request,
                                                    final AppendEntriesResponse response, final long rpcSendTime,
@@ -1169,8 +1193,7 @@ public class Replicator implements ThreadId.OnError {
         if (request.getEntriesCount() > 0) {
             r.nodeMetrics.recordLatency("replicate-entries", Utils.monotonicMs() - rpcSendTime);
             r.nodeMetrics.recordSize("replicate-entries-count", request.getEntriesCount());
-            r.nodeMetrics.recordSize("replicate-entries-bytes", request.getData() != null ? request.getData().size()
-                    : 0);
+            r.nodeMetrics.recordSize("replicate-entries-bytes", request.getData() != null ? request.getData().size() : 0);
         }
 
         final boolean isLogDebugEnabled = LOG.isDebugEnabled();
@@ -1326,6 +1349,8 @@ public class Replicator implements ThreadId.OnError {
 
     /**
      * Send as many requests as possible.
+     *
+     * 批量发送日志给 follower
      */
     void sendEntries() {
         boolean doUnlock = true;

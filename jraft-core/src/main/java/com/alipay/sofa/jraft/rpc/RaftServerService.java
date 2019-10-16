@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc;
 
 import com.alipay.sofa.jraft.rpc.RpcRequests.AppendEntriesRequest;
@@ -36,7 +37,9 @@ public interface RaftServerService {
     /**
      * Handle pre-vote request.
      *
-     * @param request   data of the pre vote
+     * 处理预投票请求
+     *
+     * @param request data of the pre vote
      * @return the response message
      */
     Message handlePreVoteRequest(RequestVoteRequest request);
@@ -44,37 +47,38 @@ public interface RaftServerService {
     /**
      * Handle request-vote request.
      *
-     * @param request   data of the vote
+     * 处理投票请求
+     *
+     * @param request data of the vote
      * @return the response message
      */
     Message handleRequestVoteRequest(RequestVoteRequest request);
 
     /**
-     * Handle append-entries request, return response message or
-     * called done.run() with response.
+     * Handle append-entries request, return response message or called done.run() with response.
      *
-     * @param request   data of the entries to append
-     * @param done      callback
+     * 处理 leader 发送过来的日志复制请求
+     *
+     * @param request data of the entries to append
+     * @param done callback
      * @return the response message
      */
     Message handleAppendEntriesRequest(AppendEntriesRequest request, RpcRequestClosure done);
 
     /**
-     * Handle install-snapshot request, return response message or
-     * called done.run() with response.
+     * Handle install-snapshot request, return response message or called done.run() with response.
      *
-     * @param request   data of the install snapshot request
-     * @param done      callback
+     * @param request data of the install snapshot request
+     * @param done callback
      * @return the response message
      */
     Message handleInstallSnapshot(InstallSnapshotRequest request, RpcRequestClosure done);
 
     /**
-     * Handle time-out-now request, return response message or
-     * called done.run() with response.
+     * Handle time-out-now request, return response message or called done.run() with response.
      *
-     * @param request   data of the timeout now request
-     * @param done      callback
+     * @param request data of the timeout now request
+     * @param done callback
      * @return the response message
      */
     Message handleTimeoutNowRequest(TimeoutNowRequest request, RpcRequestClosure done);
@@ -82,8 +86,8 @@ public interface RaftServerService {
     /**
      * Handle read-index request, call the RPC closure with response.
      *
-     * @param request   data of the readIndex read
-     * @param done      callback
+     * @param request data of the readIndex read
+     * @param done callback
      */
     void handleReadIndexRequest(ReadIndexRequest request, RpcResponseClosure<ReadIndexResponse> done);
 }
