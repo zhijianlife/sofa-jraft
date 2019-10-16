@@ -14,15 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.metadata;
 
-import java.io.Serializable;
-import java.util.List;
-import java.util.Objects;
+package com.alipay.sofa.jraft.rhea.metadata;
 
 import com.alipay.sofa.jraft.rhea.util.Lists;
 import com.alipay.sofa.jraft.util.BytesUtil;
 import com.alipay.sofa.jraft.util.Copiable;
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Region is the most basic kv data unit.  Each region has a left-closed
@@ -36,23 +37,27 @@ import com.alipay.sofa.jraft.util.Copiable;
  * the load situation. The raft snapshot is used to migrate the region between
  * the store nodes to ensure the load balance of the cluster.
  *
+ * 最小的 KV 数据单元，可理解为一个数据分区或者分片，每个 Region 都有一个左闭右开的区间 [startKey, endKey)，
+ * 能够根据请求流量/负载/数据量大小等指标自动分裂以及自动副本搬迁。Region 有多个副本 Replication 构建 Raft Groups 存储在不同的 Store 节点，
+ * 通过 Raft 协议日志复制功能数据同步到同 Group 的全部节点。
+ *
  * @author jiachun.fjc
  */
 public class Region implements Copiable<Region>, Serializable {
 
-    private static final long serialVersionUID        = -2610978803578899118L;
+    private static final long serialVersionUID = -2610978803578899118L;
 
     // To distinguish the id automatically assigned by the PD,
     // the manually configured id ranges from [-1, 1000000L).
-    public static final long  MIN_ID_WITH_MANUAL_CONF = -1L;
-    public static final long  MAX_ID_WITH_MANUAL_CONF = 1000000L;
+    public static final long MIN_ID_WITH_MANUAL_CONF = -1L;
+    public static final long MAX_ID_WITH_MANUAL_CONF = 1000000L;
 
-    private long              id;                                             // region id
+    private long id;                                             // region id
     // Region key range [startKey, endKey)
-    private byte[]            startKey;                                       // inclusive
-    private byte[]            endKey;                                         // exclusive
-    private RegionEpoch       regionEpoch;                                    // region term
-    private List<Peer>        peers;                                          // all peers in the region
+    private byte[] startKey;                                       // inclusive
+    private byte[] endKey;                                         // exclusive
+    private RegionEpoch regionEpoch;                                    // region term
+    private List<Peer> peers;                                          // all peers in the region
 
     public Region() {
     }
@@ -123,10 +128,12 @@ public class Region implements Copiable<Region>, Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
-        if (o == null || getClass() != o.getClass())
+        }
+        if (o == null || this.getClass() != o.getClass()) {
             return false;
+        }
         Region region = (Region) o;
         return id == region.id && Objects.equals(regionEpoch, region.regionEpoch);
     }
@@ -139,6 +146,6 @@ public class Region implements Copiable<Region>, Serializable {
     @Override
     public String toString() {
         return "Region{" + "id=" + id + ", startKey=" + BytesUtil.toHex(startKey) + ", endKey="
-               + BytesUtil.toHex(endKey) + ", regionEpoch=" + regionEpoch + ", peers=" + peers + '}';
+                + BytesUtil.toHex(endKey) + ", regionEpoch=" + regionEpoch + ", peers=" + peers + '}';
     }
 }

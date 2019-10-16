@@ -14,20 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.metadata;
 
-import java.io.Serializable;
-import java.util.List;
-import java.util.Objects;
+package com.alipay.sofa.jraft.rhea.metadata;
 
 import com.alipay.sofa.jraft.rhea.util.Lists;
 import com.alipay.sofa.jraft.util.Copiable;
 import com.alipay.sofa.jraft.util.Endpoint;
 
+import java.io.Serializable;
+import java.util.List;
+import java.util.Objects;
+
 /**
  * A physical node in the cluster, embedded in an app java process,
  * store corresponds to a local file based rocksDB, a store contains
  * multiple regions, all regions share a rocksDB.
+ *
+ * 集群中的一个物理存储节点，一个 Store 包含一个或多个 Region。
  *
  * @author jiachun.fjc
  */
@@ -35,11 +38,11 @@ public class Store implements Copiable<Store>, Serializable {
 
     private static final long serialVersionUID = 8566110829366373797L;
 
-    private long              id;                                     // store id
-    private Endpoint          endpoint;                               // address
-    private StoreState        state;                                  // store's state
-    private List<Region>      regions;                                // list of included regions
-    private List<StoreLabel>  labels;                                 // key/value label
+    private long id;                                     // store id
+    private Endpoint endpoint;                               // address
+    private StoreState state;                                  // store's state
+    private List<Region> regions;                                // list of included regions
+    private List<StoreLabel> labels;                                 // key/value label
 
     public Store() {
     }
@@ -105,10 +108,12 @@ public class Store implements Copiable<Store>, Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
+        if (this == o) {
             return true;
-        if (o == null || getClass() != o.getClass())
+        }
+        if (o == null || this.getClass() != o.getClass()) {
             return false;
+        }
         Store store = (Store) o;
         return id == store.id && Objects.equals(endpoint, store.endpoint);
     }
@@ -121,6 +126,6 @@ public class Store implements Copiable<Store>, Serializable {
     @Override
     public String toString() {
         return "Store{" + "id=" + id + ", endpoint=" + endpoint + ", state=" + state + ", regions=" + regions
-               + ", labels=" + labels + '}';
+                + ", labels=" + labels + '}';
     }
 }

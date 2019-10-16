@@ -14,22 +14,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
-
-import java.io.Serializable;
-
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.util.AsciiStringUtil;
 import com.alipay.sofa.jraft.util.Copiable;
 import com.alipay.sofa.jraft.util.CrcUtil;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Utils;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.Serializable;
 
 /**
  * Represent a participant in a replicating group.
+ *
+ * PeerId 表示 Raft 协议的参与者(Leader/Follower/Candidate etc.)， 由三元素组成： ip:port:index，
+ * 其中 ip 是节点的 IP， port 是端口， index 表示同一个端口的序列号。
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -37,20 +40,20 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class PeerId implements Copiable<PeerId>, Serializable, Checksum {
 
-    private static final long   serialVersionUID = 8083529734784884641L;
+    private static final long serialVersionUID = 8083529734784884641L;
 
-    private static final Logger LOG              = LoggerFactory.getLogger(PeerId.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PeerId.class);
 
     /** peer address */
-    private Endpoint            endpoint         = new Endpoint(Utils.IP_ANY, 0);
+    private Endpoint endpoint = new Endpoint(Utils.IP_ANY, 0);
     /** index in same addr, default is 0. */
-    private int                 idx;
-    /** cached toString result*/
-    private String              str;
+    private int idx;
+    /** cached toString result */
+    private String str;
 
-    public static final PeerId  ANY_PEER         = new PeerId();
+    public static final PeerId ANY_PEER = new PeerId();
 
-    private long                checksum;
+    private long checksum;
 
     public PeerId() {
         super();
@@ -59,13 +62,14 @@ public class PeerId implements Copiable<PeerId>, Serializable, Checksum {
     @Override
     public long checksum() {
         if (this.checksum == 0) {
-            this.checksum = CrcUtil.crc64(AsciiStringUtil.unsafeEncode(toString()));
+            this.checksum = CrcUtil.crc64(AsciiStringUtil.unsafeEncode(this.toString()));
         }
         return this.checksum;
     }
 
     /**
      * Create an empty peer.
+     *
      * @return empty peer
      */
     public static PeerId emptyPeer() {
@@ -128,7 +132,7 @@ public class PeerId implements Copiable<PeerId>, Serializable, Checksum {
      * Returns true when ip is ANY_IP, port is zero and idx is zero too.
      */
     public boolean isEmpty() {
-        return getIp().equals(Utils.IP_ANY) && getPort() == 0 && this.idx == 0;
+        return this.getIp().equals(Utils.IP_ANY) && this.getPort() == 0 && this.idx == 0;
     }
 
     @Override
@@ -184,7 +188,7 @@ public class PeerId implements Copiable<PeerId>, Serializable, Checksum {
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (this.getClass() != obj.getClass()) {
             return false;
         }
         final PeerId other = (PeerId) obj;

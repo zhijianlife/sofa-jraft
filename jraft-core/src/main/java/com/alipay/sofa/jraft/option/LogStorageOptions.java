@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.option;
 
 import com.alipay.sofa.jraft.conf.ConfigurationManager;
@@ -21,8 +22,8 @@ import com.alipay.sofa.jraft.entity.codec.LogEntryCodecFactory;
 
 /**
  * Log storage initialize options
- * @author boyan(boyan@antfin.com)
  *
+ * @author boyan(boyan @ antfin.com)
  */
 public class LogStorageOptions {
 

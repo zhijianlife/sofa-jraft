@@ -14,21 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
+
+import com.alipay.sofa.jraft.util.internal.UnsafeUtf8Util;
+import com.alipay.sofa.jraft.util.internal.UnsafeUtil;
 
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
-
-import com.alipay.sofa.jraft.util.internal.UnsafeUtf8Util;
-import com.alipay.sofa.jraft.util.internal.UnsafeUtil;
 
 /**
  * @author jiachun.fjc
  */
 public final class BytesUtil {
 
-    public static final byte[]               EMPTY_BYTES             = new byte[0];
+    public static final byte[] EMPTY_BYTES = new byte[0];
 
     // A byte array comparator based on lexicograpic ordering.
     private static final ByteArrayComparator BYTES_LEXICO_COMPARATOR = new LexicographicByteArrayComparator();
@@ -79,7 +80,7 @@ public final class BytesUtil {
         Requires.requireNonNull(bytes, "bytes");
         final int len = bytes.length;
         if (len == 0) { // fast path
-            return new byte[] { 0 };
+            return new byte[] {0};
         }
         final byte[] nextBytes = new byte[len + 1];
         System.arraycopy(bytes, 0, nextBytes, 0, len);
@@ -115,7 +116,7 @@ public final class BytesUtil {
 
         @Override
         public int compare(final byte[] buffer1, final byte[] buffer2) {
-            return compare(buffer1, 0, buffer1.length, buffer2, 0, buffer2.length);
+            return this.compare(buffer1, 0, buffer1.length, buffer2, 0, buffer2.length);
         }
 
         @Override
@@ -144,6 +145,7 @@ public final class BytesUtil {
     /**
      * Dump byte array into a hex string.
      * See https://stackoverflow.com/questions/9655181/how-to-convert-a-byte-array-to-a-hex-string-in-java
+     *
      * @param bytes bytes
      * @return hex string
      */
@@ -163,6 +165,7 @@ public final class BytesUtil {
     /**
      * Convert a string representation of a hex dump to a byte array.
      * See https://stackoverflow.com/questions/140131/convert-a-string-representation-of-a-hex-dump-to-a-byte-array-using-java
+     *
      * @param s hex string
      * @return bytes
      */

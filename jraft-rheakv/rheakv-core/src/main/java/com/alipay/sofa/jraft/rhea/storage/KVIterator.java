@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
 
 /**
@@ -63,7 +64,7 @@ public interface KVIterator extends AutoCloseable {
      * a key that comes at or past target.
      *
      * @param target byte array describing a key or a
-     *               key prefix to seek for.
+     * key prefix to seek for.
      */
     void seek(final byte[] target);
 
@@ -75,7 +76,7 @@ public interface KVIterator extends AutoCloseable {
      * a key that comes at or before target.
      *
      * @param target byte array describing a key or a
-     *               key prefix to seek for.
+     * key prefix to seek for.
      */
     void seekForPrev(final byte[] target);
 

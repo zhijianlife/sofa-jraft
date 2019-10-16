@@ -14,22 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.snapshot.local;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.option.RaftOptions;
@@ -43,9 +29,25 @@ import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.Utils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Snapshot storage based on local file storage.
+ *
+ * 基于本地文件存储 Raft 状态机镜像
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -53,17 +55,17 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class LocalSnapshotStorage implements SnapshotStorage {
 
-    private static final Logger                      LOG       = LoggerFactory.getLogger(LocalSnapshotStorage.class);
+    private static final Logger LOG = LoggerFactory.getLogger(LocalSnapshotStorage.class);
 
-    private static final String                      TEMP_PATH = "temp";
-    private final ConcurrentMap<Long, AtomicInteger> refMap    = new ConcurrentHashMap<>();
-    private final String                             path;
-    private Endpoint                                 addr;
-    private boolean                                  filterBeforeCopyRemote;
-    private long                                     lastSnapshotIndex;
-    private final Lock                               lock;
-    private final RaftOptions                        raftOptions;
-    private SnapshotThrottle                         snapshotThrottle;
+    private static final String TEMP_PATH = "temp";
+    private final ConcurrentMap<Long, AtomicInteger> refMap = new ConcurrentHashMap<>();
+    private final String path;
+    private Endpoint addr;
+    private boolean filterBeforeCopyRemote;
+    private long lastSnapshotIndex;
+    private final Lock lock;
+    private final RaftOptions raftOptions;
+    private SnapshotThrottle snapshotThrottle;
 
     @Override
     public void setSnapshotThrottle(SnapshotThrottle snapshotThrottle) {
@@ -97,6 +99,9 @@ public class LocalSnapshotStorage implements SnapshotStorage {
 
     @Override
     public boolean init(Void v) {
+
+        // 删除文件命名为 temp 的临时镜像 Snapshot，销毁文件前缀为 snapshot_ 的旧快照 Snapshot，获取快照最后一个索引 lastSnapshotIndex。
+
         final File dir = new File(this.path);
 
         try {
@@ -142,13 +147,13 @@ public class LocalSnapshotStorage implements SnapshotStorage {
 
             for (int i = 0; i < snapshotCount - 1; i++) {
                 final long index = snapshots.get(i);
-                final String snapshotPath = getSnapshotPath(index);
-                if (!destroySnapshot(snapshotPath)) {
+                final String snapshotPath = this.getSnapshotPath(index);
+                if (!this.destroySnapshot(snapshotPath)) {
                     return false;
                 }
             }
             this.lastSnapshotIndex = snapshots.get(snapshotCount - 1);
-            ref(this.lastSnapshotIndex);
+            this.ref(this.lastSnapshotIndex);
         }
 
         return true;
@@ -159,7 +164,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
     }
 
     void ref(long index) {
-        final AtomicInteger refs = getRefs(index);
+        final AtomicInteger refs = this.getRefs(index);
         refs.incrementAndGet();
     }
 
@@ -176,10 +181,10 @@ public class LocalSnapshotStorage implements SnapshotStorage {
     }
 
     void unref(long index) {
-        final AtomicInteger refs = getRefs(index);
+        final AtomicInteger refs = this.getRefs(index);
         if (refs.decrementAndGet() == 0) {
             if (this.refMap.remove(index, refs)) {
-                destroySnapshot(getSnapshotPath(index));
+                this.destroySnapshot(this.getSnapshotPath(index));
             }
         }
     }
@@ -196,6 +201,14 @@ public class LocalSnapshotStorage implements SnapshotStorage {
         return refs;
     }
 
+    /**
+     * 按照快照最后一个索引 lastSnapshotIndex 和镜像编写器 LocalSnapshotWriter 快照索引重命名临时镜像 Snapshot 文件，
+     * 销毁编写器 LocalSnapshotWriter 存储路径快照。
+     *
+     * @param writer
+     * @param keepDataOnError
+     * @throws IOException
+     */
     void close(LocalSnapshotWriter writer, boolean keepDataOnError) throws IOException {
         int ret = writer.getCode();
         // noinspection ConstantConditions
@@ -221,9 +234,9 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             }
             // rename temp to new
             final String tempPath = this.path + File.separator + TEMP_PATH;
-            final String newPath = getSnapshotPath(newIndex);
+            final String newPath = this.getSnapshotPath(newIndex);
 
-            if (!destroySnapshot(newPath)) {
+            if (!this.destroySnapshot(newPath)) {
                 LOG.warn("Delete new snapshot path failed, path is {}", newPath);
                 ret = RaftError.EIO.getNumber();
                 break;
@@ -234,7 +247,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
                 ret = RaftError.EIO.getNumber();
                 break;
             }
-            ref(newIndex);
+            this.ref(newIndex);
             this.lock.lock();
             try {
                 Requires.requireTrue(oldIndex == this.lastSnapshotIndex);
@@ -242,10 +255,10 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             } finally {
                 lock.unlock();
             }
-            unref(oldIndex);
+            this.unref(oldIndex);
         } while (false);
         if (ret != 0 && !keepDataOnError) {
-            destroySnapshot(writer.getPath());
+            this.destroySnapshot(writer.getPath());
         }
         if (ret == RaftError.EIO.getNumber()) {
             throw new IOException();
@@ -268,6 +281,13 @@ public class LocalSnapshotStorage implements SnapshotStorage {
         return this.create(true);
     }
 
+    /**
+     * 销毁文件命名为 temp 的临时快照 Snapshot，基于临时镜像存储路径创建初始化快照编写器 LocalSnapshotWriter，
+     * 加载文件命名为 __raft_snapshot_meta 的 Raft 快照元数据至内存。
+     *
+     * @param fromEmpty
+     * @return
+     */
     public SnapshotWriter create(boolean fromEmpty) {
         LocalSnapshotWriter writer = null;
         // noinspection ConstantConditions
@@ -276,7 +296,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             // delete temp
             // TODO: Notify watcher before deleting
             if (new File(snapshotPath).exists() && fromEmpty) {
-                if (!destroySnapshot(snapshotPath)) {
+                if (!this.destroySnapshot(snapshotPath)) {
                     break;
                 }
             }
@@ -292,12 +312,18 @@ public class LocalSnapshotStorage implements SnapshotStorage {
 
     @Override
     public SnapshotReader open() {
+
+        /*
+         * 根据快照最后一个索引 lastSnapshotIndex 获取文件前缀为 snapshot_ 快照存储路径，
+         * 基于快照存储路径创建初始化快照阅读器 LocalSnapshotReader，加载文件命名为 __raft_snapshot_meta 的 Raft 镜像元数据至内存。
+         */
+
         long lsIndex = 0;
         lock.lock();
         try {
             if (this.lastSnapshotIndex != 0) {
                 lsIndex = this.lastSnapshotIndex;
-                ref(lsIndex);
+                this.ref(lsIndex);
             }
         } finally {
             lock.unlock();
@@ -306,12 +332,12 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             LOG.warn("No data for snapshot reader {}", this.path);
             return null;
         }
-        final String snapshotPath = getSnapshotPath(lsIndex);
+        final String snapshotPath = this.getSnapshotPath(lsIndex);
         final SnapshotReader reader = new LocalSnapshotReader(this, this.snapshotThrottle, this.addr, raftOptions,
-            snapshotPath);
+                snapshotPath);
         if (!reader.init(null)) {
             LOG.error("Fail to init reader for path {}", snapshotPath);
-            unref(lsIndex);
+            this.unref(lsIndex);
             return null;
         }
         return reader;
@@ -337,6 +363,14 @@ public class LocalSnapshotStorage implements SnapshotStorage {
 
     @Override
     public SnapshotCopier startToCopyFrom(String uri, SnapshotCopierOptions opts) {
+
+        /*
+         * 创建初始化状态机快照复制器 LocalSnapshotCopier，生成远程文件复制器 RemoteFileCopier，
+         * 基于远程服务地址 Endpoint 获取 Raft 客户端 RPC 服务连接指定 Uri，启动后台线程复制 Snapshot 镜像数据，
+         * 加载 Raft 快照元数据获取远程快照 Snapshot 镜像文件，读取远程指定快照存储路径数据拷贝到 BoltSession，
+         * 快照复制器 LocalSnapshotCopier 同步 Raft 快照元数据。
+         */
+
         final LocalSnapshotCopier copier = new LocalSnapshotCopier();
         copier.setStorage(this);
         copier.setSnapshotThrottle(this.snapshotThrottle);

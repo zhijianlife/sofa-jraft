@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.storage;
 
-import java.util.List;
+package com.alipay.sofa.jraft.storage;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.Lifecycle;
@@ -28,8 +27,12 @@ import com.alipay.sofa.jraft.entity.RaftOutter.SnapshotMeta;
 import com.alipay.sofa.jraft.option.LogManagerOptions;
 import com.alipay.sofa.jraft.util.Describer;
 
+import java.util.List;
+
 /**
  * Log manager.
+ *
+ * 日志存储管理，负责调用 Log 日志存储 LogStorage，对 LogStorage 调用进行缓存管理、批量提交、检查优化。
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -46,9 +49,9 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
      */
     abstract class StableClosure implements Closure {
 
-        protected long           firstLogIndex = 0;
+        protected long firstLogIndex = 0;
         protected List<LogEntry> entries;
-        protected int            nEntries;
+        protected int nEntries;
 
         public StableClosure() {
             // NO-OP
@@ -77,7 +80,7 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
 
         public StableClosure(List<LogEntry> entries) {
             super();
-            setEntries(entries);
+            this.setEntries(entries);
         }
 
     }
@@ -112,7 +115,7 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
      * Wait the log manager to be shut down.
      *
      * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     *                              while waiting
      */
     void join() throws InterruptedException;
 
@@ -120,7 +123,7 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
      * Append log entry vector and wait until it's stable (NOT COMMITTED!)
      *
      * @param entries log entries
-     * @param done    callback
+     * @param done callback
      */
     void appendEntries(List<LogEntry> entries, StableClosure done);
 
@@ -202,7 +205,7 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
         /**
          * Called while new log come in.
          *
-         * @param arg       the waiter pass-in argument
+         * @param arg the waiter pass-in argument
          * @param errorCode error code
          */
         boolean onNewLog(Object arg, int errorCode);
@@ -211,10 +214,10 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
     /**
      * Wait until there are more logs since |last_log_index| and |on_new_log|
      * would be called after there are new logs or error occurs, return the waiter id.
-     * 
-     * @param expectedLastLogIndex  expected last index of log
-     * @param cb                    callback
-     * @param arg                   the waiter pass-in argument
+     *
+     * @param expectedLastLogIndex expected last index of log
+     * @param cb callback
+     * @param arg the waiter pass-in argument
      */
     long wait(long expectedLastLogIndex, onNewLogCallback cb, Object arg);
 
@@ -234,6 +237,7 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
 
     /**
      * Check log consistency, returns the status
+     *
      * @return status
      */
     Status checkConsistency();

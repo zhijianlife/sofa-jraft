@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage;
 
 /**
@@ -21,7 +22,7 @@ package com.alipay.sofa.jraft.storage;
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
- * 2018-Mar-12 3:52:36 PM 
+ * 2018-Mar-12 3:52:36 PM
  */
 public interface Storage {
 }

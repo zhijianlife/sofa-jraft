@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 /**
@@ -30,6 +31,7 @@ public interface Describer {
 
         /**
          * Prints an object.
+         *
          * @param x The <code>Object</code> to be printed
          * @return this printer
          */
