@@ -14,10 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.core;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package com.alipay.sofa.jraft.core;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.StateMachine;
@@ -27,6 +25,8 @@ import com.alipay.sofa.jraft.entity.LeaderChangeContext;
 import com.alipay.sofa.jraft.error.RaftException;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * State machine adapter that implements all methods with default behavior
@@ -47,13 +47,18 @@ public abstract class StateMachineAdapter implements StateMachine {
 
     @Override
     public void onSnapshotSave(SnapshotWriter writer, Closure done) {
-        error("onSnapshotSave");
-        runClosure(done, "onSnapshotSave");
+
+        // 定期保存 Snapshot
+
+        this.error("onSnapshotSave");
+        this.runClosure(done, "onSnapshotSave");
     }
 
     @Override
     public boolean onSnapshotLoad(SnapshotReader reader) {
-        error("onSnapshotLoad", "while a snapshot is saved in " + reader.getPath());
+        // 启动或者安装 Snapshot 后加载 Snapshot
+
+        this.error("onSnapshotLoad", "while a snapshot is saved in " + reader.getPath());
         return false;
     }
 
@@ -70,8 +75,8 @@ public abstract class StateMachineAdapter implements StateMachine {
     @Override
     public void onError(RaftException e) {
         LOG.error(
-            "Encountered an error={} on StateMachine {}, it's highly recommended to implement this method as raft stops working since some error ocurrs, you should figure out the cause and repair or remove this node.",
-            e.getStatus(), getClassName(), e);
+                "Encountered an error={} on StateMachine {}, it's highly recommended to implement this method as raft stops working since some error ocurrs, you should figure out the cause and repair or remove this node.",
+                e.getStatus(), this.getClassName(), e);
     }
 
     @Override
@@ -91,7 +96,7 @@ public abstract class StateMachineAdapter implements StateMachine {
 
     @SuppressWarnings("SameParameterValue")
     private void runClosure(Closure done, String methodName) {
-        done.run(new Status(-1, "%s doesn't implement %s", getClassName(), methodName));
+        done.run(new Status(-1, "%s doesn't implement %s", this.getClassName(), methodName));
     }
 
     private String getClassName() {
@@ -104,6 +109,6 @@ public abstract class StateMachineAdapter implements StateMachine {
     }
 
     private void error(String methodName, String msg) {
-        LOG.error("{} doesn't implement {} {}", getClassName(), methodName, msg);
+        LOG.error("{} doesn't implement {} {}", this.getClassName(), methodName, msg);
     }
 }

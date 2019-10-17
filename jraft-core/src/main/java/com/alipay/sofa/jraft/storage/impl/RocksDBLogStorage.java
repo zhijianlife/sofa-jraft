@@ -85,11 +85,11 @@ public class RocksDBLogStorage implements LogStorage {
      * 2017-Nov-08 11:19:22 AM
      */
     private interface WriteBatchTemplate {
-
         void execute(WriteBatch batch) throws RocksDBException;
     }
 
     private final String path;
+    /** 同步刷盘还是异步刷盘 */
     private final boolean sync;
     private RocksDB db;
     private DBOptions dbOptions;
@@ -116,13 +116,13 @@ public class RocksDBLogStorage implements LogStorage {
     }
 
     private static BlockBasedTableConfig createTableConfig() {
-        return new BlockBasedTableConfig(). //
-                setIndexType(IndexType.kHashSearch). // use hash search(btree) for prefix scan.
-                setBlockSize(4 * SizeUnit.KB).//
-                setFilter(new BloomFilter(16, false)). //
-                setCacheIndexAndFilterBlocks(true). //
-                setBlockCacheSize(512 * SizeUnit.MB). //
-                setCacheNumShardBits(8);
+        return new BlockBasedTableConfig()
+                .setIndexType(IndexType.kHashSearch) // use hash search(btree) for prefix scan.
+                .setBlockSize(4 * SizeUnit.KB)
+                .setFilter(new BloomFilter(16, false))
+                .setCacheIndexAndFilterBlocks(true)
+                .setBlockCacheSize(512 * SizeUnit.MB)
+                .setCacheNumShardBits(8);
     }
 
     public static DBOptions createDBOptions() {
@@ -130,24 +130,22 @@ public class RocksDBLogStorage implements LogStorage {
     }
 
     public static ColumnFamilyOptions createColumnFamilyOptions() {
-        final BlockBasedTableConfig tConfig = createTableConfig();
-        final ColumnFamilyOptions options = StorageOptionsFactory
-                .getRocksDBColumnFamilyOptions(RocksDBLogStorage.class);
-        return options.useFixedLengthPrefixExtractor(8). //
-                setTableFormatConfig(tConfig). //
-                setMergeOperator(new StringAppendOperator());
+        final BlockBasedTableConfig config = createTableConfig();
+        final ColumnFamilyOptions options = StorageOptionsFactory.getRocksDBColumnFamilyOptions(RocksDBLogStorage.class);
+        return options.useFixedLengthPrefixExtractor(8)
+                .setTableFormatConfig(config)
+                .setMergeOperator(new StringAppendOperator());
     }
 
+    /**
+     * 创建 RocksDB 配置选项调用 RocksDB#open() 方法构建 RocksDB 实例，添加 default 默认列族及其配置选项获取列族处理器，
+     * 通过 newIterator() 生成 RocksDB 迭代器，遍历 K/V 数据检查 Value 类型，加载 Raft 配置变更到配置管理器 ConfigurationManager。
+     *
+     * @param opts
+     * @return
+     */
     @Override
     public boolean init(final LogStorageOptions opts) {
-
-        /*
-         * 创建 RocksDB 配置选项调用 RocksDB#open() 方法构建 RocksDB 实例，添加 default 默认列族及其配置选项获取列族处理器，
-         * 通过 newIterator() 生成 RocksDB 迭代器遍历 KeyValue 数据检查 Value 类型加载 Raft 配置变更到配置管理器 ConfigurationManager。
-         * RocksDB 引入列族 ColumnFamily 概念，所谓列族是指一系列 KeyValue 组成的数据集，RocksDB 读写操作需要指定列族，
-         * 创建 RocksDB 默认构建命名为default 的列族。
-         */
-
         Requires.requireNonNull(opts.getConfigurationManager(), "Null conf manager");
         Requires.requireNonNull(opts.getLogEntryCodecFactory(), "Null log entry codec factory");
         this.writeLock.lock();
@@ -167,6 +165,7 @@ public class RocksDBLogStorage implements LogStorage {
             this.totalOrderReadOptions = new ReadOptions();
             this.totalOrderReadOptions.setTotalOrderSeek(true);
 
+            // 从 RocksDB 加载配置到配置管理器
             return this.initAndLoad(opts.getConfigurationManager());
         } catch (final RocksDBException e) {
             LOG.error("Fail to init RocksDBLogStorage, path={}", this.path, e);
@@ -174,9 +173,15 @@ public class RocksDBLogStorage implements LogStorage {
         } finally {
             this.writeLock.unlock();
         }
-
     }
 
+    /**
+     * 加载配置到配置管理器
+     *
+     * @param confManager
+     * @return
+     * @throws RocksDBException
+     */
     private boolean initAndLoad(final ConfigurationManager confManager) throws RocksDBException {
         this.hasLoadFirstLogIndex = false;
         this.firstLogIndex = 1;
@@ -187,11 +192,18 @@ public class RocksDBLogStorage implements LogStorage {
         // default column family
         columnFamilyDescriptors.add(new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, cfOption));
 
+        // 打开 RocksDB
         this.openDB(columnFamilyDescriptors);
+        // 加载配置到配置管理器
         this.load(confManager);
         return true;
     }
 
+    /**
+     * 遍历加载数据
+     *
+     * @param confManager
+     */
     private void load(final ConfigurationManager confManager) {
         try (RocksIterator it = this.db.newIterator(this.confHandle, this.totalOrderReadOptions)) {
             it.seekToFirst();
@@ -201,8 +213,10 @@ public class RocksDBLogStorage implements LogStorage {
 
                 // LogEntry index
                 if (ks.length == 8) {
+                    // 解码
                     final LogEntry entry = this.logEntryDecoder.decode(bs);
                     if (entry != null) {
+                        // 当前是配置对象
                         if (entry.getType() == EntryType.ENTRY_TYPE_CONFIGURATION) {
                             final ConfigurationEntry confEntry = new ConfigurationEntry();
                             confEntry.setId(new LogId(entry.getId().getIndex(), entry.getId().getTerm()));
@@ -215,8 +229,7 @@ public class RocksDBLogStorage implements LogStorage {
                             }
                         }
                     } else {
-                        LOG.warn("Fail to decode conf entry at index {}, the log data is: {}",
-                                Bits.getLong(it.key(), 0), BytesUtil.toHex(bs));
+                        LOG.warn("Fail to decode conf entry at index {}, the log data is: {}", Bits.getLong(it.key(), 0), BytesUtil.toHex(bs));
                     }
                 } else {
                     if (Arrays.equals(FIRST_LOG_IDX_KEY, ks)) {
@@ -237,7 +250,7 @@ public class RocksDBLogStorage implements LogStorage {
     }
 
     /**
-     * First log inex and last log index key in configuration column family.
+     * First log index and last log index key in configuration column family.
      */
     public static final byte[] FIRST_LOG_IDX_KEY = Utils.getBytes("meta/firstLogIndex");
 
@@ -259,6 +272,12 @@ public class RocksDBLogStorage implements LogStorage {
         }
     }
 
+    /**
+     * 打开 RocksDB
+     *
+     * @param columnFamilyDescriptors
+     * @throws RocksDBException
+     */
     private void openDB(final List<ColumnFamilyDescriptor> columnFamilyDescriptors) throws RocksDBException {
         final List<ColumnFamilyHandle> columnFamilyHandles = new ArrayList<>();
 
@@ -432,6 +451,13 @@ public class RocksDBLogStorage implements LogStorage {
         return 0;
     }
 
+    /**
+     * conf 数据会在 default 和 conf family 中都写一份
+     *
+     * @param entry
+     * @param batch
+     * @throws RocksDBException
+     */
     private void addConfBatch(final LogEntry entry, final WriteBatch batch) throws RocksDBException {
         final byte[] ks = this.getKeyBytes(entry.getId().getIndex());
         final byte[] content = this.logEntryEncoder.encode(entry);
@@ -439,6 +465,13 @@ public class RocksDBLogStorage implements LogStorage {
         batch.put(this.confHandle, ks, content);
     }
 
+    /**
+     * data 数据只写入 default family
+     *
+     * @param entry
+     * @param batch
+     * @throws RocksDBException
+     */
     private void addDataBatch(final LogEntry entry, final WriteBatch batch) throws RocksDBException {
         final byte[] ks = this.getKeyBytes(entry.getId().getIndex());
         final byte[] content = this.logEntryEncoder.encode(entry);
@@ -453,11 +486,13 @@ public class RocksDBLogStorage implements LogStorage {
          * 用户提交任务的日志基于处理器 defaultHandle 和 LogEntry 对象调用 RocksDB#put() 方法存储。
          */
 
+        // 如果是配置日志，在 default 和 conf family 中都写一份
         if (entry.getType() == EntryType.ENTRY_TYPE_CONFIGURATION) {
             return this.executeBatch(batch -> this.addConfBatch(entry, batch));
         } else {
             this.readLock.lock();
             try {
+                // 写入 default family
                 this.db.put(this.defaultHandle, this.getKeyBytes(entry.getId().getIndex()), this.logEntryEncoder.encode(entry));
                 return true;
             } catch (final RocksDBException e) {

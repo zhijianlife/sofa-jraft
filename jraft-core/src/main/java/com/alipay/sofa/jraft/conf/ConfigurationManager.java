@@ -14,18 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.conf;
+
+import com.alipay.sofa.jraft.util.Requires;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.LinkedList;
 import java.util.ListIterator;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.alipay.sofa.jraft.util.Requires;
-
 /**
  * Configuration manager
+ *
+ * 配置管理器
  *
  * @author boyan (boyan@alibaba-inc.com)
  * <p>
@@ -33,10 +35,10 @@ import com.alipay.sofa.jraft.util.Requires;
  */
 public class ConfigurationManager {
 
-    private static final Logger                  LOG            = LoggerFactory.getLogger(ConfigurationManager.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationManager.class);
 
     private final LinkedList<ConfigurationEntry> configurations = new LinkedList<>();
-    private ConfigurationEntry                   snapshot       = new ConfigurationEntry();
+    private ConfigurationEntry snapshot = new ConfigurationEntry();
 
     /**
      * Adds a new conf entry.
@@ -53,6 +55,8 @@ public class ConfigurationManager {
 
     /**
      * [1, first_index_kept) are being discarded
+     *
+     * 移除 firstIndexKept 前面的配置
      */
     public void truncatePrefix(long firstIndexKept) {
         while (!this.configurations.isEmpty() && this.configurations.peekFirst().getId().getIndex() < firstIndexKept) {
@@ -62,6 +66,8 @@ public class ConfigurationManager {
 
     /**
      * (last_index_kept, infinity) are being discarded
+     *
+     * 移除 lastIndexKept 之后的对象
      */
     public void truncateSuffix(long lastIndexKept) {
         while (!this.configurations.isEmpty() && this.configurations.peekLast().getId().getIndex() > lastIndexKept) {
@@ -88,8 +94,7 @@ public class ConfigurationManager {
     public ConfigurationEntry get(long lastIncludedIndex) {
         if (this.configurations.isEmpty()) {
             Requires.requireTrue(lastIncludedIndex >= this.snapshot.getId().getIndex(),
-                "lastIncludedIndex %d is less than snapshot index %d", lastIncludedIndex, this.snapshot.getId()
-                    .getIndex());
+                    "lastIncludedIndex %d is less than snapshot index %d", lastIncludedIndex, this.snapshot.getId().getIndex());
             return snapshot;
         }
         ListIterator<ConfigurationEntry> it = this.configurations.listIterator();

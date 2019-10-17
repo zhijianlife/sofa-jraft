@@ -14,13 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.entity;
 
-import java.io.Serializable;
+package com.alipay.sofa.jraft.entity;
 
 import com.alipay.sofa.jraft.util.Bits;
 import com.alipay.sofa.jraft.util.Copiable;
 import com.alipay.sofa.jraft.util.CrcUtil;
+
+import java.io.Serializable;
 
 /**
  * Log identifier.
@@ -33,8 +34,8 @@ public class LogId implements Comparable<LogId>, Copiable<LogId>, Serializable, 
 
     private static final long serialVersionUID = -6680425579347357313L;
 
-    private long              index;
-    private long              term;
+    private long index;
+    private long term;
 
     @Override
     public LogId copy() {
@@ -55,8 +56,8 @@ public class LogId implements Comparable<LogId>, Copiable<LogId>, Serializable, 
 
     public LogId(final long index, final long term) {
         super();
-        setIndex(index);
-        setTerm(term);
+        this.setIndex(index);
+        this.setTerm(term);
     }
 
     @Override
@@ -76,7 +77,7 @@ public class LogId implements Comparable<LogId>, Copiable<LogId>, Serializable, 
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (this.getClass() != obj.getClass()) {
             return false;
         }
         final LogId other = (LogId) obj;
@@ -93,9 +94,9 @@ public class LogId implements Comparable<LogId>, Copiable<LogId>, Serializable, 
     @Override
     public int compareTo(final LogId o) {
         // Compare term at first
-        final int c = Long.compare(getTerm(), o.getTerm());
+        final int c = Long.compare(this.getTerm(), o.getTerm());
         if (c == 0) {
-            return Long.compare(getIndex(), o.getIndex());
+            return Long.compare(this.getIndex(), o.getIndex());
         } else {
             return c;
         }

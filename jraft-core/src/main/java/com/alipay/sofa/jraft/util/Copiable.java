@@ -14,15 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 /**
  * Copiable mark interface.
  *
+ * 可复制标记接口
+ *
+ * @param <T>
  * @author boyan (boyan@alibaba-inc.com)
  *
- * 2018-Apr-03 11:15:34 AM 
- * @param <T>
+ * 2018-Apr-03 11:15:34 AM
  */
 public interface Copiable<T> {
 

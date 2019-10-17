@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity.codec.v1;
 
 import com.alipay.sofa.jraft.entity.codec.LogEntryCodecFactory;
@@ -21,9 +22,9 @@ import com.alipay.sofa.jraft.entity.codec.LogEntryDecoder;
 import com.alipay.sofa.jraft.entity.codec.LogEntryEncoder;
 
 /**
- *  Old V1 log entry codec implementation.
- * @author boyan(boyan@antfin.com)
+ * Old V1 log entry codec implementation.
  *
+ * @author boyan(boyan @ antfin.com)
  */
 public class LogEntryV1CodecFactory implements LogEntryCodecFactory {
 
@@ -37,6 +38,7 @@ public class LogEntryV1CodecFactory implements LogEntryCodecFactory {
 
     /**
      * Returns a singleton instance of DefaultLogEntryCodecFactory.
+     *
      * @return a singleton instance
      */
     public static LogEntryV1CodecFactory getInstance() {

@@ -14,18 +14,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
 
 /**
  * Checksum for entity.
  *
- * @author boyan(boyan@antfin.com)
+ * @author boyan(boyan @ antfin.com)
  * @since 1.2.6
  */
 public interface Checksum {
 
     /**
      * Caculate a checksum value for this entity.
+     *
      * @return checksum value
      */
     long checksum();

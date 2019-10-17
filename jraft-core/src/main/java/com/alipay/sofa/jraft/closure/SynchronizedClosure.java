@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.closure;
 
-import java.util.concurrent.CountDownLatch;
+package com.alipay.sofa.jraft.closure;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.Status;
+
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A special Closure which provides synchronization primitives.
@@ -30,12 +31,12 @@ import com.alipay.sofa.jraft.Status;
  */
 public class SynchronizedClosure implements Closure {
 
-    private CountDownLatch  latch;
+    private CountDownLatch latch;
     private volatile Status status;
     /**
      * Latch count to reset
      */
-    private int             count;
+    private int count;
 
     public SynchronizedClosure() {
         this(1);

@@ -14,24 +14,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.util.Copiable;
 
-//A Status encapsulates the result of an operation. It may indicate success,
-
-//or it may indicate an error with an associated error message. It's suitable
-//for passing status of functions with richer information than just error_code
-//in exception-forbidden code. This utility is inspired by leveldb::Status.
-//
-//Multiple threads can invoke const methods on a Status without
-//external synchronization, but if any of the threads may call a
-//non-const method, all threads accessing the same Status must use
-//external synchronization.
-//
-//Since failed status needs to allocate memory, you should be careful when
-//failed status is frequent.
+/**
+ * A Status encapsulates the result of an operation. It may indicate success,
+ * or it may indicate an error with an associated error message. It's suitable
+ * for passing status of functions with richer information than just error_code
+ * in exception-forbidden code. This utility is inspired by leveldb::Status.
+ *
+ * Multiple threads can invoke const methods on a Status without
+ * external synchronization, but if any of the threads may call a
+ * non-const method, all threads accessing the same Status must use
+ * external synchronization.
+ *
+ * Since failed status needs to allocate memory, you should be careful when
+ * failed status is frequent.
+ */
 public class Status implements Copiable<Status> {
 
     /**
@@ -43,8 +45,8 @@ public class Status implements Copiable<Status> {
      */
     private static class State {
         /** error code */
-        int    code;
-        /** error msg*/
+        int code;
+        /** error msg */
         String msg;
 
         State(int code, String msg) {
@@ -70,7 +72,7 @@ public class Status implements Copiable<Status> {
             if (obj == null) {
                 return false;
             }
-            if (getClass() != obj.getClass()) {
+            if (this.getClass() != obj.getClass()) {
                 return false;
             }
             State other = (State) obj;
@@ -134,7 +136,7 @@ public class Status implements Copiable<Status> {
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (this.getClass() != obj.getClass()) {
             return false;
         }
         Status other = (Status) obj;
@@ -211,11 +213,11 @@ public class Status implements Copiable<Status> {
 
     @Override
     public String toString() {
-        if (isOk()) {
+        if (this.isOk()) {
             return "Status[OK]";
         } else {
             return "Status[" + RaftError.describeCode(this.state.code) + "<" + this.state.code + ">: " + this.state.msg
-                   + "]";
+                    + "]";
         }
     }
 

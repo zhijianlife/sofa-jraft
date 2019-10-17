@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 /**
  * CRC utilities to compute CRC64 checksum.
  *
- * @author boyan(boyan@antfin.com)
+ * @author boyan(boyan @ antfin.com)
  */
 public final class CrcUtil {
 
@@ -42,7 +43,7 @@ public final class CrcUtil {
     /**
      * Compute CRC64 checksum for byte[].
      *
-     * @param array  source array
+     * @param array source array
      * @param offset starting position in the source array
      * @param length the number of array elements to be computed
      * @return checksum value

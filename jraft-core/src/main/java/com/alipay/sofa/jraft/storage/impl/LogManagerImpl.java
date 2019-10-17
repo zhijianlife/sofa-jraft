@@ -193,14 +193,12 @@ public class LogManagerImpl implements LogManager {
             this.lastLogIndex = this.logStorage.getLastLogIndex();
             this.diskId = new LogId(this.lastLogIndex, this.getTermFromLogStorage(this.lastLogIndex));
             this.fsmCaller = opts.getFsmCaller();
-            this.disruptor = DisruptorBuilder.<StableClosureEvent>newInstance() //
-                    .setEventFactory(new StableClosureEventFactory()) //
-                    .setRingBufferSize(opts.getDisruptorBufferSize()) //
-                    .setThreadFactory(new NamedThreadFactory("JRaft-LogManager-Disruptor-", true)) //
-                    .setProducerType(ProducerType.MULTI) //
-                    /*
-                     *  Use timeout strategy in log manager. If timeout happens, it will called reportError to halt the node.
-                     */
+            this.disruptor = DisruptorBuilder.<StableClosureEvent>newInstance()
+                    .setEventFactory(new StableClosureEventFactory())
+                    .setRingBufferSize(opts.getDisruptorBufferSize())
+                    .setThreadFactory(new NamedThreadFactory("JRaft-LogManager-Disruptor-", true))
+                    .setProducerType(ProducerType.MULTI)
+                    // Use timeout strategy in log manager. If timeout happens, it will called reportError to halt the node.
                     .setWaitStrategy(new TimeoutBlockingWaitStrategy(
                             this.raftOptions.getDisruptorPublishEventWaitTimeoutSecs(), TimeUnit.SECONDS)) //
                     .build();
@@ -454,8 +452,7 @@ public class LogManagerImpl implements LogManager {
         List<LogEntry> toAppend;
         LogId lastId;
 
-        public AppendBatcher(final List<StableClosure> storage, final int cap, final List<LogEntry> toAppend,
-                             final LogId lastId) {
+        public AppendBatcher(final List<StableClosure> storage, final int cap, final List<LogEntry> toAppend, final LogId lastId) {
             super();
             this.storage = storage;
             this.cap = cap;
@@ -753,6 +750,12 @@ public class LogManagerImpl implements LogManager {
         return this.getTermFromLogStorage(index);
     }
 
+    /**
+     * 获取 term 值
+     *
+     * @param index
+     * @return
+     */
     private long getTermFromLogStorage(final long index) {
         LogEntry entry = this.logStorage.getEntry(index);
         if (entry != null) {
@@ -975,21 +978,23 @@ public class LogManagerImpl implements LogManager {
     private boolean checkAndResolveConflict(final List<LogEntry> entries, final StableClosure done) {
         final LogEntry firstLogEntry = ArrayDeque.peekFirst(entries);
         if (firstLogEntry.getId().getIndex() == 0) {
-            // Node is currently the leader and |entries| are from the user who
-            // don't know the correct indexes the logs should assign to. So we have
-            // to assign indexes to the appending entries
+            /*
+             * Node is currently the leader and |entries| are from the user who
+             * don't know the correct indexes the logs should assign to.
+             * So we have to assign indexes to the appending entries
+             */
             for (int i = 0; i < entries.size(); i++) {
                 entries.get(i).getId().setIndex(++this.lastLogIndex);
             }
             return true;
         } else {
-            // Node is currently a follower and |entries| are from the leader. We
-            // should check and resolve the conflicts between the local logs and
-            // |entries|
+            /*
+             * Node is currently a follower and |entries| are from the leader.
+             * We should check and resolve the conflicts between the local logs and |entries|
+             */
             if (firstLogEntry.getId().getIndex() > this.lastLogIndex + 1) {
                 Utils.runClosureInThread(done, new Status(RaftError.EINVAL,
-                        "There's gap between first_index=%d and last_log_index=%d", firstLogEntry.getId().getIndex(),
-                        this.lastLogIndex));
+                        "There's gap between first_index=%d and last_log_index=%d", firstLogEntry.getId().getIndex(), this.lastLogIndex));
                 return false;
             }
             final long appliedIndex = this.appliedId.getIndex();
@@ -1004,20 +1009,20 @@ public class LogManagerImpl implements LogManager {
                 // fast path
                 this.lastLogIndex = lastLogEntry.getId().getIndex();
             } else {
-                // Appending entries overlap the local ones. We should find if there
-                // is a conflicting index from which we should truncate the local
-                // ones.
+                /*
+                 * Appending entries overlap the local ones.
+                 * We should find if there is a conflicting index from which we should truncate the local ones.
+                 */
                 int conflictingIndex = 0;
                 for (; conflictingIndex < entries.size(); conflictingIndex++) {
-                    if (this.unsafeGetTerm(entries.get(conflictingIndex).getId().getIndex()) != entries
-                            .get(conflictingIndex).getId().getTerm()) {
+                    if (this.unsafeGetTerm(entries.get(conflictingIndex).getId().getIndex())
+                            != entries.get(conflictingIndex).getId().getTerm()) {
                         break;
                     }
                 }
                 if (conflictingIndex != entries.size()) {
                     if (entries.get(conflictingIndex).getId().getIndex() <= this.lastLogIndex) {
-                        // Truncate all the conflicting entries to make local logs
-                        // consensus with the leader.
+                        // Truncate all the conflicting entries to make local logs consensus with the leader.
                         this.unsafeTruncateSuffix(entries.get(conflictingIndex).getId().getIndex() - 1);
                     }
                     this.lastLogIndex = lastLogEntry.getId().getIndex();

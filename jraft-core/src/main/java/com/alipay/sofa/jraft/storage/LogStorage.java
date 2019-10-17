@@ -58,7 +58,8 @@ public interface LogStorage extends Lifecycle<LogStorageOptions>, Storage {
     LogEntry getEntry(long index);
 
     /**
-     * Get logEntry's term by index. This method is deprecated, you should use {@link #getEntry(long)} to get the log id's term.
+     * Get logEntry's term by index.
+     * This method is deprecated, you should use {@link #getEntry(long)} to get the log id's term.
      *
      * @deprecated
      */

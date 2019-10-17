@@ -14,24 +14,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.conf;
 
-import java.util.HashSet;
-import java.util.Set;
+package com.alipay.sofa.jraft.conf;
 
 import com.alipay.sofa.jraft.entity.LogId;
 import com.alipay.sofa.jraft.entity.PeerId;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * A configuration entry with current peers and old peers.
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-04 2:25:06 PM
  */
 public class ConfigurationEntry {
 
-    private LogId         id      = new LogId(0, 0);
-    private Configuration conf    = new Configuration();
+    private LogId id = new LogId(0, 0);
+    private Configuration conf = new Configuration();
     private Configuration oldConf = new Configuration();
 
     public LogId getId() {

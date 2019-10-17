@@ -14,7 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.conf;
+
+import com.alipay.sofa.jraft.entity.PeerId;
+import com.alipay.sofa.jraft.util.Copiable;
+import org.apache.commons.lang.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,13 +28,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.lang.StringUtils;
-
-import com.alipay.sofa.jraft.entity.PeerId;
-import com.alipay.sofa.jraft.util.Copiable;
-
 /**
  * A configuration with a set of peers.
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-15 11:00:26 AM
@@ -121,7 +122,7 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (this.getClass() != obj.getClass()) {
             return false;
         }
         final Configuration other = (Configuration) obj;
@@ -135,7 +136,7 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        final List<PeerId> peers = listPeers();
+        final List<PeerId> peers = this.listPeers();
         int i = 0;
         final int size = peers.size();
         for (final PeerId peer : peers) {
@@ -152,21 +153,21 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         if (conf == null) {
             return false;
         }
-        reset();
+        this.reset();
         final String[] peerStrs = StringUtils.split(conf, ",");
         for (final String peerStr : peerStrs) {
             final PeerId peer = new PeerId();
             if (peer.parse(peerStr)) {
-                addPeer(peer);
+                this.addPeer(peer);
             }
         }
         return true;
     }
 
     /**
-     *  Get the difference between |*this| and |rhs|
-     *  |included| would be assigned to |*this| - |rhs|
-     *  |excluded| would be assigned to |rhs| - |*this|
+     * Get the difference between |*this| and |rhs|
+     * |included| would be assigned to |*this| - |rhs|
+     * |excluded| would be assigned to |rhs| - |*this|
      */
     public void diff(final Configuration rhs, final Configuration included, final Configuration excluded) {
         included.peers = new ArrayList<>(this.peers);

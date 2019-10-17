@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 import java.io.Serializable;
@@ -30,9 +31,9 @@ public class Endpoint implements Copiable<Endpoint>, Serializable {
 
     private static final long serialVersionUID = -7329681263115546100L;
 
-    private String            ip               = Utils.IP_ANY;
-    private int               port;
-    private String            str;
+    private String ip = Utils.IP_ANY;
+    private int port;
+    private String str;
 
     public Endpoint() {
         super();
@@ -86,7 +87,7 @@ public class Endpoint implements Copiable<Endpoint>, Serializable {
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (this.getClass() != obj.getClass()) {
             return false;
         }
         final Endpoint other = (Endpoint) obj;

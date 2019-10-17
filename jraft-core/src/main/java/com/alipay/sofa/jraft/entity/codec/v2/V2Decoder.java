@@ -14,14 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity.codec.v2;
-
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.JRaftUtils;
 import com.alipay.sofa.jraft.entity.LogEntry;
@@ -32,15 +26,21 @@ import com.alipay.sofa.jraft.util.AsciiStringUtil;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.ZeroByteStringHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * V2 log entry decoder based on protobuf, see src/main/resources/log.proto
  *
- * @author boyan(boyan@antfin.com)
+ * @author boyan(boyan @ antfin.com)
  */
 public class V2Decoder implements LogEntryDecoder {
 
-    private static final Logger   LOG      = LoggerFactory.getLogger(V2Decoder.class);
+    private static final Logger LOG = LoggerFactory.getLogger(V2Decoder.class);
 
     public static final V2Decoder INSTANCE = new V2Decoder();
 

@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity.codec.v2;
 
 import com.alipay.sofa.jraft.entity.codec.AutoDetectDecoder;
@@ -24,14 +25,13 @@ import com.alipay.sofa.jraft.entity.codec.LogEntryEncoder;
 /**
  * V2(Now) log entry codec implementation, header format:
  *
- *   0  1     2    3  4  5
- *  +-+-+-+-+-+-+-+-++-+-+-+
- *  |Magic|Version|Reserved|
- *  +-+-+-+-+-+-+-+-++-+-+-+
+ * 0  1     2    3  4  5
+ * +-+-+-+-+-+-+-+-++-+-+-+
+ * |Magic|Version|Reserved|
+ * +-+-+-+-+-+-+-+-++-+-+-+
  *
- * @author boyan(boyan@antfin.com)
+ * @author boyan(boyan @ antfin.com)
  * @since 1.2.6
- *
  */
 public class LogEntryV2CodecFactory implements LogEntryCodecFactory {
 
@@ -42,13 +42,13 @@ public class LogEntryV2CodecFactory implements LogEntryCodecFactory {
     }
 
     // BB-8 and R2D2 are good friends.
-    public static final byte[] MAGIC_BYTES = new byte[] { (byte) 0xBB, (byte) 0xD2 };
+    public static final byte[] MAGIC_BYTES = new byte[] {(byte) 0xBB, (byte) 0xD2};
     // Codec version
-    public static final byte   VERSION     = 1;
+    public static final byte VERSION = 1;
 
-    public static final byte[] RESERVED    = new byte[3];
+    public static final byte[] RESERVED = new byte[3];
 
-    public static final int    HEADER_SIZE = MAGIC_BYTES.length + 1 + RESERVED.length;
+    public static final int HEADER_SIZE = MAGIC_BYTES.length + 1 + RESERVED.length;
 
     @Override
     public LogEntryEncoder encoder() {

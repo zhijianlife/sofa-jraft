@@ -14,14 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity.codec;
 
 import com.alipay.sofa.jraft.entity.LogEntry;
 
 /**
  * Default log entry codec factory
- * @author boyan(boyan@antfin.com)
  *
+ * @author boyan(boyan @ antfin.com)
  */
 public class DefaultLogEntryCodecFactory implements LogEntryCodecFactory {
 
@@ -32,6 +33,7 @@ public class DefaultLogEntryCodecFactory implements LogEntryCodecFactory {
 
     /**
      * Returns a singleton instance of DefaultLogEntryCodecFactory.
+     *
      * @return a singleton instance
      */
     public static DefaultLogEntryCodecFactory getInstance() {

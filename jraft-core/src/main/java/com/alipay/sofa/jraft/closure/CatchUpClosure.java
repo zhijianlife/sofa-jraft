@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.closure;
 
-import java.util.concurrent.ScheduledFuture;
+package com.alipay.sofa.jraft.closure;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.Status;
+
+import java.util.concurrent.ScheduledFuture;
 
 /**
  * A catchup closure for peer to catch up.
@@ -30,12 +31,12 @@ import com.alipay.sofa.jraft.Status;
  */
 public abstract class CatchUpClosure implements Closure {
 
-    private long               maxMargin;
+    private long maxMargin;
     private ScheduledFuture<?> timer;
-    private boolean            hasTimer;
-    private boolean            errorWasSet;
+    private boolean hasTimer;
+    private boolean errorWasSet;
 
-    private final Status       status = Status.OK();
+    private final Status status = Status.OK();
 
     public Status getStatus() {
         return this.status;

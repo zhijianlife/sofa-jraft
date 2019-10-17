@@ -49,6 +49,7 @@ import java.io.IOException;
 public class LocalRaftMetaStorage implements RaftMetaStorage {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalRaftMetaStorage.class);
+
     private static final String RAFT_META = "raft_meta";
 
     private boolean isInited;

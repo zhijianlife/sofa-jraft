@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.closure;
 
 import com.alipay.sofa.jraft.Closure;
@@ -31,14 +32,14 @@ public abstract class ReadIndexClosure implements Closure {
      * Invalid log index -1.
      */
     public static final long INVALID_LOG_INDEX = -1;
-    private long             index             = INVALID_LOG_INDEX;
-    private byte[]           requestContext;
+    private long index = INVALID_LOG_INDEX;
+    private byte[] requestContext;
 
     /**
      * Called when ReadIndex can be executed.
      *
      * @param status the readIndex status.
-     * @param index  the committed index when starts readIndex.
+     * @param index the committed index when starts readIndex.
      * @param reqCtx the request context passed by {@link Node#readIndex(byte[], ReadIndexClosure)}.
      * @see Node#readIndex(byte[], ReadIndexClosure)
      */
@@ -47,7 +48,7 @@ public abstract class ReadIndexClosure implements Closure {
     /**
      * Set callback result, called by jraft.
      *
-     * @param index  the committed index.
+     * @param index the committed index.
      * @param reqCtx the request context passed by {@link Node#readIndex(byte[], ReadIndexClosure)}.
      */
     public void setResult(long index, byte[] reqCtx) {
