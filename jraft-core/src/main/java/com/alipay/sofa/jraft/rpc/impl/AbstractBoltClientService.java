@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc.impl;
-
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.InvokeCallback;
 import com.alipay.remoting.InvokeContext;
@@ -46,27 +39,34 @@ import com.alipay.sofa.jraft.util.ThreadPoolMetricSet;
 import com.alipay.sofa.jraft.util.ThreadPoolUtil;
 import com.alipay.sofa.jraft.util.Utils;
 import com.google.protobuf.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Abstract RPC client service based on bolt.
-
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-09 3:27:33 PM
  */
 public abstract class AbstractBoltClientService implements ClientService {
 
-    protected static final Logger   LOG = LoggerFactory.getLogger(BoltRaftClientService.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(BoltRaftClientService.class);
 
     static {
         ProtobufMsgFactory.load();
     }
 
-    protected RpcClient             rpcClient;
-    protected ThreadPoolExecutor    rpcExecutor;
-    protected RpcOptions            rpcOptions;
+    protected RpcClient rpcClient;
+    protected ThreadPoolExecutor rpcExecutor;
+    protected RpcOptions rpcOptions;
     protected JRaftRpcAddressParser rpcAddressParser;
-    protected InvokeContext         defaultInvokeCtx;
+    protected InvokeContext defaultInvokeCtx;
 
     public RpcClient getRpcClient() {
         return this.rpcClient;
@@ -86,7 +86,7 @@ public abstract class AbstractBoltClientService implements ClientService {
         this.rpcAddressParser = new JRaftRpcAddressParser();
         this.defaultInvokeCtx = new InvokeContext();
         this.defaultInvokeCtx.put(InvokeContext.BOLT_CRC_SWITCH, this.rpcOptions.isEnableRpcChecksum());
-        return initRpcClient(this.rpcOptions.getRpcProcessorThreadPoolSize());
+        return this.initRpcClient(this.rpcOptions.getRpcProcessorThreadPoolSize());
     }
 
     protected void configRpcClient(final RpcClient rpcClient) {
@@ -95,20 +95,19 @@ public abstract class AbstractBoltClientService implements ClientService {
 
     protected boolean initRpcClient(final int rpcProcessorThreadPoolSize) {
         this.rpcClient = new RpcClient();
-        configRpcClient(this.rpcClient);
+        this.configRpcClient(this.rpcClient);
         this.rpcClient.init();
-        this.rpcExecutor = ThreadPoolUtil.newBuilder() //
-            .poolName("JRaft-RPC-Processor") //
-            .enableMetric(true) //
-            .coreThreads(rpcProcessorThreadPoolSize / 3) //
-            .maximumThreads(rpcProcessorThreadPoolSize) //
-            .keepAliveSeconds(60L) //
-            .workQueue(new ArrayBlockingQueue<>(10000)) //
-            .threadFactory(new NamedThreadFactory("JRaft-RPC-Processor-", true)) //
-            .build();
+        this.rpcExecutor = ThreadPoolUtil.newBuilder()
+                .poolName("JRaft-RPC-Processor")
+                .enableMetric(true)
+                .coreThreads(rpcProcessorThreadPoolSize / 3)
+                .maximumThreads(rpcProcessorThreadPoolSize)
+                .keepAliveSeconds(60L)
+                .workQueue(new ArrayBlockingQueue<>(10000))
+                .threadFactory(new NamedThreadFactory("JRaft-RPC-Processor-", true))
+                .build();
         if (this.rpcOptions.getMetricRegistry() != null) {
-            this.rpcOptions.getMetricRegistry().register("raft-rpc-client-thread-pool",
-                new ThreadPoolMetricSet(this.rpcExecutor));
+            this.rpcOptions.getMetricRegistry().register("raft-rpc-client-thread-pool", new ThreadPoolMetricSet(this.rpcExecutor));
             Utils.registerClosureExecutorMetrics(this.rpcOptions.getMetricRegistry());
         }
         return true;
@@ -128,15 +127,15 @@ public abstract class AbstractBoltClientService implements ClientService {
         if (this.rpcClient == null) {
             throw new IllegalStateException("Client service is not inited.");
         }
-        if (isConnected(endpoint)) {
+        if (this.isConnected(endpoint)) {
             return true;
         }
         try {
-            final PingRequest req = PingRequest.newBuilder() //
-                .setSendTimestamp(System.currentTimeMillis()) //
-                .build();
+            final PingRequest req = PingRequest.newBuilder()
+                    .setSendTimestamp(System.currentTimeMillis())
+                    .build();
             final ErrorResponse resp = (ErrorResponse) this.rpcClient.invokeSync(endpoint.toString(), req,
-                this.defaultInvokeCtx, this.rpcOptions.getRpcConnectTimeoutMs());
+                    this.defaultInvokeCtx, this.rpcOptions.getRpcConnectTimeoutMs());
             return resp.getErrorCode() == 0;
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -155,26 +154,34 @@ public abstract class AbstractBoltClientService implements ClientService {
     }
 
     @Override
-    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint, final Message request,
-                                                              final RpcResponseClosure<T> done, final int timeoutMs) {
-        return invokeWithDone(endpoint, request, this.defaultInvokeCtx, done, timeoutMs, this.rpcExecutor);
+    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint,
+                                                              final Message request,
+                                                              final RpcResponseClosure<T> done,
+                                                              final int timeoutMs) {
+        return this.invokeWithDone(endpoint, request, this.defaultInvokeCtx, done, timeoutMs, this.rpcExecutor);
     }
 
-    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint, final Message request,
-                                                              final RpcResponseClosure<T> done, final int timeoutMs,
+    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint,
+                                                              final Message request,
+                                                              final RpcResponseClosure<T> done,
+                                                              final int timeoutMs,
                                                               final Executor rpcExecutor) {
-        return invokeWithDone(endpoint, request, this.defaultInvokeCtx, done, timeoutMs, rpcExecutor);
+        return this.invokeWithDone(endpoint, request, this.defaultInvokeCtx, done, timeoutMs, rpcExecutor);
     }
 
-    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint, final Message request,
+    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint,
+                                                              final Message request,
                                                               final InvokeContext ctx,
-                                                              final RpcResponseClosure<T> done, final int timeoutMs) {
-        return invokeWithDone(endpoint, request, ctx, done, timeoutMs, this.rpcExecutor);
+                                                              final RpcResponseClosure<T> done,
+                                                              final int timeoutMs) {
+        return this.invokeWithDone(endpoint, request, ctx, done, timeoutMs, this.rpcExecutor);
     }
 
-    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint, final Message request,
+    public <T extends Message> Future<Message> invokeWithDone(final Endpoint endpoint,
+                                                              final Message request,
                                                               final InvokeContext ctx,
-                                                              final RpcResponseClosure<T> done, final int timeoutMs,
+                                                              final RpcResponseClosure<T> done,
+                                                              final int timeoutMs,
                                                               final Executor rpcExecutor) {
         final FutureImpl<Message> future = new FutureImpl<>();
         try {
@@ -185,7 +192,7 @@ public abstract class AbstractBoltClientService implements ClientService {
                 @Override
                 public void onResponse(final Object result) {
                     if (future.isCancelled()) {
-                        onCanceled(request, done);
+                        AbstractBoltClientService.this.onCanceled(request, done);
                         return;
                     }
                     Status status = Status.OK();
@@ -216,13 +223,13 @@ public abstract class AbstractBoltClientService implements ClientService {
                 @Override
                 public void onException(final Throwable e) {
                     if (future.isCancelled()) {
-                        onCanceled(request, done);
+                        AbstractBoltClientService.this.onCanceled(request, done);
                         return;
                     }
                     if (done != null) {
                         try {
                             done.run(new Status(e instanceof InvokeTimeoutException ? RaftError.ETIMEDOUT
-                                : RaftError.EINTERNAL, "RPC exception:" + e.getMessage()));
+                                    : RaftError.EINTERNAL, "RPC exception:" + e.getMessage()));
                         } catch (final Throwable t) {
                             LOG.error("Fail to run RpcResponseClosure, the request is {}.", request, t);
                         }
@@ -245,8 +252,7 @@ public abstract class AbstractBoltClientService implements ClientService {
         } catch (final RemotingException e) {
             future.failure(e);
             // should be in another thread to avoid dead locking.
-            Utils.runClosureInThread(done,
-                new Status(RaftError.EINTERNAL, "Fail to send a RPC request:" + e.getMessage()));
+            Utils.runClosureInThread(done, new Status(RaftError.EINTERNAL, "Fail to send a RPC request:" + e.getMessage()));
 
         }
         return future;

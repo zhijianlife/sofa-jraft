@@ -14,14 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rpc.impl.core;
 
-import java.util.concurrent.Executor;
+package com.alipay.sofa.jraft.rpc.impl.core;
 
 import com.alipay.sofa.jraft.rpc.RaftServerService;
 import com.alipay.sofa.jraft.rpc.RpcRequestClosure;
 import com.alipay.sofa.jraft.rpc.RpcRequests.RequestVoteRequest;
 import com.google.protobuf.Message;
+
+import java.util.concurrent.Executor;
 
 /**
  * Handle PreVote and RequestVote requests.
@@ -49,8 +50,10 @@ public class RequestVoteRequestProcessor extends NodeRequestProcessor<RequestVot
     @Override
     public Message processRequest0(RaftServerService service, RequestVoteRequest request, RpcRequestClosure done) {
         if (request.getPreVote()) {
+            // 预投票
             return service.handlePreVoteRequest(request);
         } else {
+            // 投票
             return service.handleRequestVoteRequest(request);
         }
     }

@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
 
 import java.io.Serializable;
@@ -29,12 +30,12 @@ public final class NodeId implements Serializable {
 
     private static final long serialVersionUID = 4428173460056804264L;
 
-    /** Raft group id*/
-    private final String      groupId;
-    /** Node peer id*/
-    private final PeerId      peerId;
-    /** cached toString result*/
-    private String            str;
+    /** Raft group id */
+    private final String groupId;
+    /** Node peer id */
+    private final PeerId peerId;
+    /** cached toString result */
+    private String str;
 
     public NodeId(String groupId, PeerId peerId) {
         super();
@@ -75,7 +76,7 @@ public final class NodeId implements Serializable {
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (this.getClass() != obj.getClass()) {
             return false;
         }
         final NodeId other = (NodeId) obj;

@@ -14,15 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.core;
+
+import com.alipay.sofa.jraft.Lifecycle;
+import com.alipay.sofa.jraft.util.NamedThreadFactory;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-
-import com.alipay.sofa.jraft.Lifecycle;
-import com.alipay.sofa.jraft.util.NamedThreadFactory;
 
 /**
  * The global timer manager.
@@ -37,8 +38,7 @@ public class TimerManager implements Lifecycle<Integer> {
 
     @Override
     public boolean init(Integer coreSize) {
-        executor = Executors.newScheduledThreadPool(coreSize, new NamedThreadFactory("JRaft-Node-ScheduleThreadPool-",
-            true));
+        executor = Executors.newScheduledThreadPool(coreSize, new NamedThreadFactory("JRaft-Node-ScheduleThreadPool-", true));
         return true;
     }
 
@@ -57,17 +57,17 @@ public class TimerManager implements Lifecycle<Integer> {
     }
 
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        checkStarted();
+        this.checkStarted();
         return executor.schedule(command, delay, unit);
     }
 
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-        checkStarted();
+        this.checkStarted();
         return executor.scheduleAtFixedRate(command, initialDelay, period, unit);
     }
 
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-        checkStarted();
+        this.checkStarted();
         return executor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
 }

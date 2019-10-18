@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.storage.io;
 
-import java.io.IOException;
+package com.alipay.sofa.jraft.storage.io;
 
 import com.alipay.sofa.jraft.error.RetryAgainException;
 import com.alipay.sofa.jraft.util.ByteBufferCollector;
+
+import java.io.IOException;
 
 /**
  * Read data from a file, all the method should be thread-safe.
@@ -42,16 +43,15 @@ public interface FileReader {
     /**
      * Read file into buf starts from offset at most maxCount.
      *
-     * @param buf      read bytes into this buf
+     * @param buf read bytes into this buf
      * @param fileName file name
-     * @param offset   the offset of file
+     * @param offset the offset of file
      * @param maxCount max read bytes
      * @return -1 if reaches end, else return read count.
-     * @throws IOException if some I/O error occurs
+     * @throws IOException         if some I/O error occurs
      * @throws RetryAgainException if it's not allowed to read partly
-     * or it's allowed but throughput is throttled to 0, try again.
+     *                             or it's allowed but throughput is throttled to 0, try again.
      */
     int readFile(final ByteBufferCollector buf, final String fileName, final long offset, final long maxCount)
-                                                                                                              throws IOException,
-                                                                                                              RetryAgainException;
+            throws IOException, RetryAgainException;
 }

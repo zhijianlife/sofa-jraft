@@ -14,17 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.core;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.util.ConcurrentHashSet;
 import com.alipay.sofa.jraft.ReplicatorGroup;
@@ -41,26 +32,36 @@ import com.alipay.sofa.jraft.rpc.RpcRequests.AppendEntriesResponse;
 import com.alipay.sofa.jraft.rpc.RpcResponseClosure;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.ThreadId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Replicator group for a raft group.
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-04 1:54:51 PM
  */
 public class ReplicatorGroupImpl implements ReplicatorGroup {
 
-    private static final Logger                   LOG                = LoggerFactory
-                                                                         .getLogger(ReplicatorGroupImpl.class);
+    private static final Logger LOG = LoggerFactory
+            .getLogger(ReplicatorGroupImpl.class);
 
     // <peerId, replicatorId>
-    private final ConcurrentMap<PeerId, ThreadId> replicatorMap      = new ConcurrentHashMap<>();
+    private final ConcurrentMap<PeerId, ThreadId> replicatorMap = new ConcurrentHashMap<>();
     /** common replicator options */
-    private ReplicatorOptions                     commonOptions;
-    private int                                   dynamicTimeoutMs   = -1;
-    private int                                   electionTimeoutMs  = -1;
-    private RaftOptions                           raftOptions;
-    private final Set<PeerId>                     failureReplicators = new ConcurrentHashSet<>();
+    private ReplicatorOptions commonOptions;
+    private int dynamicTimeoutMs = -1;
+    private int electionTimeoutMs = -1;
+    private RaftOptions raftOptions;
+    private final Set<PeerId> failureReplicators = new ConcurrentHashSet<>();
 
     @Override
     public boolean init(final NodeId nodeId, final ReplicatorGroupOptions opts) {
@@ -86,6 +87,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     @Override
     public void sendHeartbeat(final PeerId peer, final RpcResponseClosure<AppendEntriesResponse> closure) {
         final ThreadId rid = this.replicatorMap.get(peer);
+        // 可能目标节点已经失效
         if (rid == null) {
             if (closure != null) {
                 closure.run(new Status(RaftError.EHOSTDOWN, "Peer %s is not connected", peer));
@@ -165,7 +167,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
                 node.writeLock.lock();
             }
             try {
-                if (node.isLeader() && this.failureReplicators.contains(peer) && addReplicator(peer)) {
+                if (node.isLeader() && this.failureReplicators.contains(peer) && this.addReplicator(peer)) {
                     this.failureReplicators.remove(peer);
                 }
             } finally {
@@ -279,8 +281,8 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     @Override
     public void describe(final Printer out) {
         out.print("  replicators: ") //
-            .println(this.replicatorMap.values());
+                .println(this.replicatorMap.values());
         out.print("  failureReplicators: ") //
-            .println(this.failureReplicators);
+                .println(this.failureReplicators);
     }
 }

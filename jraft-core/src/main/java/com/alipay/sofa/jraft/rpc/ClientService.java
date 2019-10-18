@@ -14,14 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rpc;
 
-import java.util.concurrent.Future;
+package com.alipay.sofa.jraft.rpc;
 
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.option.RpcOptions;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.google.protobuf.Message;
+
+import java.util.concurrent.Future;
 
 /**
  * RPC client service
@@ -59,12 +60,11 @@ public interface ClientService extends Lifecycle<RpcOptions> {
     /**
      * Send a requests and waits for response with callback, returns the request future.
      *
-     * @param endpoint  server address
-     * @param request   request data
-     * @param done      callback
+     * @param endpoint server address
+     * @param request request data
+     * @param done callback
      * @param timeoutMs timeout millis
      * @return a future with operation result
      */
-    <T extends Message> Future<Message> invokeWithDone(Endpoint endpoint, Message request, RpcResponseClosure<T> done,
-                                                       int timeoutMs);
+    <T extends Message> Future<Message> invokeWithDone(Endpoint endpoint, Message request, RpcResponseClosure<T> done, int timeoutMs);
 }

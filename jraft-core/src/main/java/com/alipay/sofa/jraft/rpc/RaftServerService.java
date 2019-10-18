@@ -86,6 +86,8 @@ public interface RaftServerService {
     /**
      * Handle read-index request, call the RPC closure with response.
      *
+     * 处理基于 ReadIndex 实现的线下一致读
+     *
      * @param request data of the readIndex read
      * @param done callback
      */

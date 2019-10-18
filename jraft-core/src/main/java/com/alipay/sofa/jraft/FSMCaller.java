@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.closure.LoadSnapshotClosure;
@@ -117,7 +118,7 @@ public interface FSMCaller extends Lifecycle<FSMCallerOptions>, Describer {
      * Called after shutdown to wait it terminates.
      *
      * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     *                              while waiting
      */
     void join() throws InterruptedException;
 }

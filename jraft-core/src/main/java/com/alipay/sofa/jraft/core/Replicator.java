@@ -609,8 +609,7 @@ public class Replicator implements ThreadId.OnError {
             // id is unlock in installSnapshot
             this.installSnapshot();
             if (isHeartbeat && heartBeatClosure != null) {
-                Utils.runClosureInThread(heartBeatClosure, new Status(RaftError.EAGAIN,
-                        "Fail to send heartbeat to peer %s", this.options.getPeerId()));
+                Utils.runClosureInThread(heartBeatClosure, new Status(RaftError.EAGAIN, "Fail to send heartbeat to peer %s", this.options.getPeerId()));
             }
             return;
         }
@@ -634,10 +633,13 @@ public class Replicator implements ThreadId.OnError {
                         }
                     };
                 }
-                this.heartbeatInFly = this.rpcService.appendEntries(this.options.getPeerId().getEndpoint(), request,
-                        this.options.getElectionTimeoutMs() / 2, heartbeatDone);
+                this.heartbeatInFly = this.rpcService.appendEntries(
+                        this.options.getPeerId().getEndpoint(),
+                        request,
+                        this.options.getElectionTimeoutMs() / 2,
+                        heartbeatDone);
             } else {
-                // Sending a probe request.
+                // Sending a probe（探测） request.
                 this.statInfo.runningState = RunningState.APPENDING_ENTRIES;
                 this.statInfo.firstLogIndex = this.nextIndex;
                 this.statInfo.lastLogIndex = this.nextIndex - 1;
@@ -1464,7 +1466,7 @@ public class Replicator implements ThreadId.OnError {
             Utils.runClosureInThread(closure, new Status(RaftError.EHOSTDOWN, "Peer %s is not connected", id));
             return;
         }
-        //id unlock in send empty entries.
+        // id unlock in send empty entries.
         r.sendEmptyEntries(true, closure);
     }
 

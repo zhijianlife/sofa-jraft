@@ -93,8 +93,7 @@ public interface SnapshotExecutor extends Lifecycle<SnapshotExecutorOptions>, De
     void interruptDownloadingSnapshots(final long newTerm);
 
     /**
-     * Returns true if this is currently installing a snapshot, either
-     * downloading or loading.
+     * Returns true if this is currently installing a snapshot, either downloading or loading.
      */
     boolean isInstallingSnapshot();
 

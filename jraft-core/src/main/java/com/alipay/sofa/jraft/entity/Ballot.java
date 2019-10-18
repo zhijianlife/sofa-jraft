@@ -14,15 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
+
+import com.alipay.sofa.jraft.conf.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import com.alipay.sofa.jraft.conf.Configuration;
-
 /**
  * A ballot to vote.
+ *
+ * 选票
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -36,9 +39,9 @@ public class Ballot {
     }
 
     public static class UnfoundPeerId {
-        PeerId  peerId;
+        PeerId peerId;
         boolean found;
-        int     index;
+        int index;
 
         public UnfoundPeerId(PeerId peerId, int index, boolean found) {
             super();
@@ -48,16 +51,18 @@ public class Ballot {
         }
     }
 
-    private final List<UnfoundPeerId> peers    = new ArrayList<>();
-    private int                       quorum;
+    private final List<UnfoundPeerId> peers = new ArrayList<>();
+    private int quorum;
     private final List<UnfoundPeerId> oldPeers = new ArrayList<>();
-    private int                       oldQuorum;
+    private int oldQuorum;
 
     /**
      * Init the ballot with current conf and old conf.
      *
-     * @param conf      current configuration
-     * @param oldConf   old configuration
+     * 初始化选票
+     *
+     * @param conf current configuration
+     * @param oldConf old configuration
      * @return true if init success
      */
     public boolean init(Configuration conf, Configuration oldConf) {
@@ -98,7 +103,7 @@ public class Ballot {
     }
 
     public PosHint grant(PeerId peerId, PosHint hint) {
-        UnfoundPeerId peer = findPeer(peerId, peers, hint.pos0);
+        UnfoundPeerId peer = this.findPeer(peerId, peers, hint.pos0);
         if (peer != null) {
             if (!peer.found) {
                 peer.found = true;
@@ -112,7 +117,7 @@ public class Ballot {
             hint.pos1 = -1;
             return hint;
         }
-        peer = findPeer(peerId, oldPeers, hint.pos1);
+        peer = this.findPeer(peerId, oldPeers, hint.pos1);
         if (peer != null) {
             if (!peer.found) {
                 peer.found = true;

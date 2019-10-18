@@ -55,8 +55,7 @@ public class Utils {
      * This can be overridden by setting the system property "jraft.available_processors".
      */
     private static final int CPUS = SystemPropertyUtil.getInt(
-            "jraft.available_processors", Runtime
-                    .getRuntime().availableProcessors());
+            "jraft.available_processors", Runtime.getRuntime().availableProcessors());
 
     /**
      * Default jraft closure executor pool minimum size, CPUs by default.

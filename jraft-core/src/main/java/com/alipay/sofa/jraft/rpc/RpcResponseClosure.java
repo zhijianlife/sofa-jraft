@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc;
 
 import com.alipay.sofa.jraft.Closure;
@@ -22,10 +23,10 @@ import com.google.protobuf.Message;
 /**
  * RPC response closure.
  *
+ * @param <T>
  * @author boyan (boyan@alibaba-inc.com)
  *
- * 2018-Apr-08 5:55:01 PM 
- * @param <T>
+ * 2018-Apr-08 5:55:01 PM
  */
 public interface RpcResponseClosure<T extends Message> extends Closure {
 

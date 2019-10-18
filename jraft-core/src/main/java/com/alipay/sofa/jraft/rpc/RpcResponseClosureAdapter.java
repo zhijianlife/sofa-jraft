@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc;
 
 import com.google.protobuf.Message;
@@ -21,10 +22,10 @@ import com.google.protobuf.Message;
 /**
  * RpcResponseClosure adapter holds the response.
  *
+ * @param <T>
  * @author boyan (boyan@alibaba-inc.com)
  *
- * 2018-Mar-29 2:30:35 PM 
- * @param <T>
+ * 2018-Mar-29 2:30:35 PM
  */
 public abstract class RpcResponseClosureAdapter<T extends Message> implements RpcResponseClosure<T> {
 

@@ -14,18 +14,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.core;
 
 /**
- * Node state
+ * Node state，节点状态
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-08 5:41:54 PM
  */
 public enum State {
+
+    /** 当前节点为 leader */
     STATE_LEADER, // It's a leader
     STATE_TRANSFERRING, // It's transferring leadership
+    /** 当前节点为 candidate */
     STATE_CANDIDATE, //  It's a candidate
+    /** 当前节点为 follower */
     STATE_FOLLOWER, // It's a follower
     STATE_ERROR, // It's in error
     STATE_UNINITIALIZED, // It's uninitialized

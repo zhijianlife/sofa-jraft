@@ -14,19 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.io;
+
+import com.alipay.sofa.jraft.error.RetryAgainException;
+import com.alipay.sofa.jraft.util.ByteBufferCollector;
+import com.google.protobuf.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.alipay.sofa.jraft.error.RetryAgainException;
-import com.alipay.sofa.jraft.util.ByteBufferCollector;
-import com.google.protobuf.Message;
 
 /**
  * Read a file data form local dir by fileName.
@@ -39,7 +39,7 @@ public class LocalDirReader implements FileReader {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalDirReader.class);
 
-    private final String        path;
+    private final String path;
 
     public LocalDirReader(String path) {
         super();
@@ -53,9 +53,8 @@ public class LocalDirReader implements FileReader {
 
     @Override
     public int readFile(final ByteBufferCollector buf, final String fileName, final long offset, final long maxCount)
-                                                                                                                     throws IOException,
-                                                                                                                     RetryAgainException {
-        return readFileWithMeta(buf, fileName, null, offset, maxCount);
+            throws IOException, RetryAgainException {
+        return this.readFileWithMeta(buf, fileName, null, offset, maxCount);
     }
 
     @SuppressWarnings("unused")

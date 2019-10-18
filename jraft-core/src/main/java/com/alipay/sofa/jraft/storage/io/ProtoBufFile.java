@@ -14,7 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.io;
+
+import com.alipay.sofa.jraft.rpc.ProtobufMsgFactory;
+import com.alipay.sofa.jraft.util.Bits;
+import com.google.protobuf.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -28,13 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.alipay.sofa.jraft.rpc.ProtobufMsgFactory;
-import com.alipay.sofa.jraft.util.Bits;
-import com.google.protobuf.Message;
-
 /**
  * A file to store protobuf message. Format:
  * <ul>
@@ -43,6 +43,7 @@ import com.google.protobuf.Message;
  * <li> msg length(4 bytes)</li>
  * <li>msg data</li>
  * </ul>
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-12 8:56:23 PM
@@ -56,7 +57,7 @@ public class ProtoBufFile {
     }
 
     /** file path */
-    private final String        path;
+    private final String path;
 
     public ProtoBufFile(final String path) {
         this.path = path;
@@ -74,18 +75,18 @@ public class ProtoBufFile {
 
         byte[] lenBytes = new byte[4];
         try (FileInputStream fin = new FileInputStream(file); BufferedInputStream input = new BufferedInputStream(fin)) {
-            readBytes(lenBytes, input);
+            this.readBytes(lenBytes, input);
             int len = Bits.getInt(lenBytes, 0);
             if (len <= 0) {
                 throw new IOException("Invalid message fullName.");
             }
             byte[] nameBytes = new byte[len];
-            readBytes(nameBytes, input);
+            this.readBytes(nameBytes, input);
             String name = new String(nameBytes);
-            readBytes(lenBytes, input);
+            this.readBytes(lenBytes, input);
             int msgLen = Bits.getInt(lenBytes, 0);
             byte[] msgBytes = new byte[msgLen];
-            readBytes(msgBytes, input);
+            this.readBytes(msgBytes, input);
             return ProtobufMsgFactory.newMessageByProtoClassName(name, msgBytes);
         }
     }
@@ -100,16 +101,16 @@ public class ProtoBufFile {
     /**
      * Save a protobuf message to file.
      *
-     * @param msg  protobuf message
+     * @param msg protobuf message
      * @param sync if sync flush data to disk
-     * @return     true if save success
+     * @return true if save success
      */
     @SuppressWarnings("ConstantConditions")
     public boolean save(final Message msg, final boolean sync) throws IOException {
         // Write message into temp file
         File file = new File(this.path + ".tmp");
         try (FileOutputStream fOut = new FileOutputStream(file);
-                BufferedOutputStream output = new BufferedOutputStream(fOut)) {
+             BufferedOutputStream output = new BufferedOutputStream(fOut)) {
             byte[] lenBytes = new byte[4];
 
             // name len + name

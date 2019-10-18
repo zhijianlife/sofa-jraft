@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft;
 
-import java.util.List;
+package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.closure.ReadIndexClosure;
 import com.alipay.sofa.jraft.conf.Configuration;
@@ -30,6 +29,8 @@ import com.alipay.sofa.jraft.error.LogNotFoundException;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.util.Describer;
+
+import java.util.List;
 
 /**
  * A raft replica node.
@@ -85,8 +86,7 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
     /**
      * Block the thread until the node is successfully stopped.
      *
-     * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     * @throws InterruptedException if the current thread is interrupted while waiting
      */
     void join() throws InterruptedException;
 
@@ -97,11 +97,10 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      *
      * About the ownership:
      * |task.data|: for the performance consideration, we will take away the
-     *               content. If you want keep the content, copy it before call
-     *               this function
+     * content. If you want keep the content, copy it before call this function
      * |task.done|: If the data is successfully committed to the raft group. We
-     *              will pass the ownership to #{@link StateMachine#onApply(Iterator)}.
-     *              Otherwise we will specify the error and call it.
+     * will pass the ownership to #{@link StateMachine#onApply(Iterator)}.
+     * Otherwise we will specify the error and call it.
      *
      * @param task task to apply
      */
@@ -110,14 +109,13 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
     /**
      * [Thread-safe and wait-free]
      *
-     * Starts a linearizable read-only query request with request context(optional,
-     * such as request id etc.) and closure.  The closure will be called when the
-     * request is completed, and user can read data from state machine if the result
-     * status is OK.
+     * 发起线性一致读请求，当安全读取时传入的 Closure 将被调用，正常情况下从状态机中读取数据返回给客户端， SOFAJRaft 将保证读取的线性一致性。
+     *
+     * Starts a linearizable read-only query request with request context(optional, such as request id etc.) and closure.
+     * The closure will be called when the request is completed, and user can read data from state machine if the result status is OK.
      *
      * @param requestContext the context of request
-     * @param done           callback
-     *
+     * @param done callback
      * @since 0.0.3
      */
     void readIndex(final byte[] requestContext, final ReadIndexClosure done);
@@ -141,7 +139,6 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      * temporarily not exist in this list.</strong>
      *
      * @return the alive peer list
-     *
      * @since 1.2.6
      */
     List<PeerId> listAlivePeers();
@@ -169,7 +166,7 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      * would be invoked after this operation finishes, describing the detailed result.
      *
      * @param newPeers new peers to change
-     * @param done     callback
+     * @param done callback
      */
     void changePeers(final Configuration newPeers, final Closure done);
 
@@ -211,19 +208,19 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
 
     /**
      * Read the first committed user log from the given index.
-     *   Return OK on success and user_log is assigned with the very data. Be awared
-     *   that the user_log may be not the exact log at the given index, but the
-     *   first available user log from the given index to lastCommittedIndex.
-     *   Otherwise, appropriate errors are returned:
-     *        - return ELOGDELETED when the log has been deleted;
-     *        - return ENOMOREUSERLOG when we can't get a user log even reaching lastCommittedIndex.
+     * Return OK on success and user_log is assigned with the very data. Be awared
+     * that the user_log may be not the exact log at the given index, but the
+     * first available user log from the given index to lastCommittedIndex.
+     * Otherwise, appropriate errors are returned:
+     * - return ELOGDELETED when the log has been deleted;
+     * - return ENOMOREUSERLOG when we can't get a user log even reaching lastCommittedIndex.
      * [NOTE] in consideration of safety, we use lastAppliedIndex instead of lastCommittedIndex
      * in code implementation.
      *
      * @param index log index
      * @return user log entry
-     * @throws LogNotFoundException  the user log is deleted at index.
-     * @throws LogIndexOutOfBoundsException  the special index is out of bounds.
+     * @throws LogNotFoundException         the user log is deleted at index.
+     * @throws LogIndexOutOfBoundsException the special index is out of bounds.
      */
     UserLog readCommittedUserLog(final long index);
 }

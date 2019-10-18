@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.closure.ReadIndexClosure;
@@ -23,23 +24,21 @@ import com.alipay.sofa.jraft.option.ReadOnlyServiceOptions;
  * The read-only query service.
  *
  * @author dennis
- *
  */
 public interface ReadOnlyService extends Lifecycle<ReadOnlyServiceOptions> {
 
     /**
      * Adds a ReadIndex request.
      *
-     * @param reqCtx    request context of readIndex
-     * @param closure   callback
+     * @param reqCtx request context of readIndex
+     * @param closure callback
      */
     void addRequest(final byte[] reqCtx, final ReadIndexClosure closure);
 
     /**
      * Waits for service shutdown.
      *
-     * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     * @throws InterruptedException if the current thread is interrupted while waiting
      */
     void join() throws InterruptedException;
 

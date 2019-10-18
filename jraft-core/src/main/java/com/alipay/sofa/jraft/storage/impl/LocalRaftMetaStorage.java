@@ -118,10 +118,10 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
 
     private boolean save() {
         final long start = Utils.monotonicMs();
-        final StablePBMeta meta = StablePBMeta.newBuilder(). //
-                setTerm(this.term). //
-                setVotedfor(this.votedFor.toString()). //
-                build();
+        final StablePBMeta meta = StablePBMeta.newBuilder()
+                .setTerm(this.term)
+                .setVotedfor(this.votedFor.toString())
+                .build();
         final ProtoBufFile pbFile = this.newPbFile();
         try {
             if (!pbFile.save(meta, this.raftOptions.isSyncMeta())) {
@@ -138,14 +138,12 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
             if (this.nodeMetrics != null) {
                 this.nodeMetrics.recordLatency("save-raft-meta", cost);
             }
-            LOG.info("Save raft meta, path={}, term={}, votedFor={}, cost time={} ms", this.path, this.term,
-                    this.votedFor, cost);
+            LOG.info("Save raft meta, path={}, term={}, votedFor={}, cost time={} ms", this.path, this.term, this.votedFor, cost);
         }
     }
 
     private void reportIOError() {
-        this.node.onError(new RaftException(ErrorType.ERROR_TYPE_META, RaftError.EIO,
-                "Fail to save raft meta, path=%s", this.path));
+        this.node.onError(new RaftException(ErrorType.ERROR_TYPE_META, RaftError.EIO, "Fail to save raft meta, path=%s", this.path));
     }
 
     @Override
@@ -159,6 +157,7 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
 
     private void checkState() {
         if (!this.isInited) {
+            // 未完成初始化
             throw new IllegalStateException("LocalRaftMetaStorage not initialized");
         }
     }
