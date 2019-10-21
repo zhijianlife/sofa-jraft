@@ -96,10 +96,10 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      * Apply task to the replicated-state-machine
      *
      * About the ownership:
-     * |task.data|: for the performance consideration, we will take away the
-     * content. If you want keep the content, copy it before call this function
-     * |task.done|: If the data is successfully committed to the raft group. We
-     * will pass the ownership to #{@link StateMachine#onApply(Iterator)}.
+     * |task.data|: for the performance consideration, we will take away the content.
+     * If you want keep the content, copy it before call this function
+     * |task.done|: If the data is successfully committed to the raft group.
+     * We will pass the ownership to #{@link StateMachine#onApply(Iterator)}.
      * Otherwise we will specify the error and call it.
      *
      * @param task task to apply
@@ -197,8 +197,8 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
     void resetElectionTimeoutMs(final int electionTimeoutMs);
 
     /**
-     * Try transferring leadership to |peer|. If peer is ANY_PEER, a proper follower
-     * will be chosen as the leader for the next term.
+     * Try transferring leadership to |peer|.
+     * If peer is ANY_PEER, a proper follower will be chosen as the leader for the next term.
      * Returns 0 on success, -1 otherwise.
      *
      * @param peer the target peer of new leader

@@ -86,8 +86,8 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
             LOG.error("waiter or closure queue is null.");
             return false;
         }
-        this.waiter = opts.getWaiter();
-        this.closureQueue = opts.getClosureQueue();
+        waiter = opts.getWaiter();
+        closureQueue = opts.getClosureQueue();
         return true;
     }
 
@@ -199,21 +199,22 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
      */
     public boolean appendPendingTask(final Configuration conf, final Configuration oldConf, final Closure done) {
         final Ballot bl = new Ballot();
+        // 初始化选票
         if (!bl.init(conf, oldConf)) {
             LOG.error("Fail to init ballot.");
             return false;
         }
-        final long stamp = this.stampedLock.writeLock();
+        final long stamp = stampedLock.writeLock();
         try {
-            if (this.pendingIndex <= 0) {
+            if (pendingIndex <= 0) {
                 LOG.error("Fail to appendingTask, pendingIndex={}.", this.pendingIndex);
                 return false;
             }
-            this.pendingMetaQueue.add(bl);
-            this.closureQueue.appendPendingClosure(done);
+            pendingMetaQueue.add(bl);
+            closureQueue.appendPendingClosure(done);
             return true;
         } finally {
-            this.stampedLock.unlockWrite(stamp);
+            stampedLock.unlockWrite(stamp);
         }
     }
 

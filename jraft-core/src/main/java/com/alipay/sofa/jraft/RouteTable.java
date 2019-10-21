@@ -14,19 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.StampedLock;
-
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.conf.Configuration;
 import com.alipay.sofa.jraft.entity.PeerId;
@@ -36,6 +25,17 @@ import com.alipay.sofa.jraft.rpc.CliRequests;
 import com.alipay.sofa.jraft.rpc.RpcRequests;
 import com.alipay.sofa.jraft.util.Requires;
 import com.google.protobuf.Message;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.StampedLock;
 
 /**
  * Maintain routes to raft groups.
@@ -46,9 +46,9 @@ import com.google.protobuf.Message;
  */
 public class RouteTable {
 
-    private static final Logger                    LOG            = LoggerFactory.getLogger(RouteTable.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RouteTable.class);
 
-    private static final RouteTable                INSTANCE       = new RouteTable();
+    private static final RouteTable INSTANCE = new RouteTable();
 
     // Map<groupId, groupConf>
     private final ConcurrentMap<String, GroupConf> groupConfTable = new ConcurrentHashMap<>();
@@ -60,15 +60,17 @@ public class RouteTable {
     /**
      * Update configuration of group in route table.
      *
+     * 建立 group 与对应集群之间的映射关系
+     *
      * @param groupId raft group id
-     * @param conf    configuration to update
+     * @param conf configuration to update
      * @return true on success
      */
     public boolean updateConfiguration(final String groupId, final Configuration conf) {
         Requires.requireTrue(!StringUtils.isBlank(groupId), "Blank group id");
         Requires.requireNonNull(conf, "Null configuration");
 
-        final GroupConf gc = getOrCreateGroupConf(groupId);
+        final GroupConf gc = this.getOrCreateGroupConf(groupId);
         final StampedLock stampedLock = gc.stampedLock;
         final long stamp = stampedLock.writeLock();
         try {
@@ -83,10 +85,10 @@ public class RouteTable {
     }
 
     private GroupConf getOrCreateGroupConf(final String groupId) {
-        GroupConf gc = this.groupConfTable.get(groupId);
+        GroupConf gc = groupConfTable.get(groupId);
         if (gc == null) {
             gc = new GroupConf();
-            final GroupConf old = this.groupConfTable.putIfAbsent(groupId, gc);
+            final GroupConf old = groupConfTable.putIfAbsent(groupId, gc);
             if (old != null) {
                 gc = old;
             }
@@ -147,7 +149,7 @@ public class RouteTable {
      * Update leader info.
      *
      * @param groupId raft group id
-     * @param leader  peer of leader
+     * @param leader peer of leader
      * @return true on success
      */
     public boolean updateLeader(final String groupId, final PeerId leader) {
@@ -172,7 +174,7 @@ public class RouteTable {
     /**
      * Update leader info.
      *
-     * @param groupId   raft group id
+     * @param groupId raft group id
      * @param leaderStr peer string of leader
      * @return true on success
      */
@@ -180,9 +182,10 @@ public class RouteTable {
         Requires.requireTrue(!StringUtils.isBlank(groupId), "Blank group id");
         Requires.requireTrue(!StringUtils.isBlank(leaderStr), "Blank leader");
 
+        // 解析 leader 节点信息
         final PeerId leader = new PeerId();
         if (leader.parse(leaderStr)) {
-            return updateLeader(groupId, leader);
+            return this.updateLeader(groupId, leader);
         } else {
             LOG.error("Fail to parse leaderStr: {}", leaderStr);
             return false;
@@ -219,27 +222,28 @@ public class RouteTable {
     /**
      * Blocking the thread until query_leader finishes.
      *
-     * @param groupId   raft group id
+     * @param groupId raft group id
      * @param timeoutMs timeout millis
      * @return operation status
      */
     public Status refreshLeader(final CliClientService cliClientService, final String groupId, final int timeoutMs)
-                                                                                                                   throws InterruptedException,
-                                                                                                                   TimeoutException {
+            throws InterruptedException, TimeoutException {
         Requires.requireTrue(!StringUtils.isBlank(groupId), "Blank group id");
         Requires.requireTrue(timeoutMs > 0, "Invalid timeout: " + timeoutMs);
 
-        final Configuration conf = getConfiguration(groupId);
+        // 获取 group 对应的集群节点列表
+        final Configuration conf = this.getConfiguration(groupId);
         if (conf == null) {
-            return new Status(RaftError.ENOENT,
-                "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
+            return new Status(RaftError.ENOENT, "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
         }
         final Status st = Status.OK();
+        // 构造获取 leader 请求对象
         final CliRequests.GetLeaderRequest.Builder rb = CliRequests.GetLeaderRequest.newBuilder();
         rb.setGroupId(groupId);
         final CliRequests.GetLeaderRequest request = rb.build();
         TimeoutException timeoutException = null;
         for (final PeerId peer : conf) {
+            // 到相应节点无法建立连接
             if (!cliClientService.connect(peer.getEndpoint())) {
                 if (st.isOk()) {
                     st.setError(-1, "Fail to init channel to %s", peer);
@@ -249,9 +253,12 @@ public class RouteTable {
                 }
                 continue;
             }
+
+            // 请求获取 leader 节点
             final Future<Message> result = cliClientService.getLeader(peer.getEndpoint(), request, null);
             try {
                 final Message msg = result.get(timeoutMs, TimeUnit.MILLISECONDS);
+                // 错误
                 if (msg instanceof RpcRequests.ErrorResponse) {
                     if (st.isOk()) {
                         st.setError(-1, ((RpcRequests.ErrorResponse) msg).getErrorMsg());
@@ -260,8 +267,9 @@ public class RouteTable {
                         st.setError(-1, "%s, %s", savedMsg, ((RpcRequests.ErrorResponse) msg).getErrorMsg());
                     }
                 } else {
+                    // 成功
                     final CliRequests.GetLeaderResponse response = (CliRequests.GetLeaderResponse) msg;
-                    updateLeader(groupId, response.getLeaderId());
+                    this.updateLeader(groupId, response.getLeaderId());
                     return Status.OK();
                 }
             } catch (final TimeoutException e) {
@@ -290,7 +298,7 @@ public class RouteTable {
         final Configuration conf = getConfiguration(groupId);
         if (conf == null) {
             return new Status(RaftError.ENOENT,
-                "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
+                    "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
         }
         final Status st = Status.OK();
         PeerId leaderId = selectLeader(groupId);
@@ -311,7 +319,7 @@ public class RouteTable {
         rb.setLeaderId(leaderId.toString());
         try {
             final Message result = cliClientService.getPeers(leaderId.getEndpoint(), rb.build(), null).get(timeoutMs,
-                TimeUnit.MILLISECONDS);
+                    TimeUnit.MILLISECONDS);
             if (result instanceof CliRequests.GetPeersResponse) {
                 final CliRequests.GetPeersResponse resp = (CliRequests.GetPeersResponse) result;
                 final Configuration newConf = new Configuration();
@@ -360,7 +368,7 @@ public class RouteTable {
 
         private final StampedLock stampedLock = new StampedLock();
 
-        private Configuration     conf;
-        private PeerId            leader;
+        private Configuration conf;
+        private PeerId leader;
     }
 }

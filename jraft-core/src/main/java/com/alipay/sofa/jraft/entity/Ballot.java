@@ -52,6 +52,7 @@ public class Ballot {
     }
 
     private final List<UnfoundPeerId> peers = new ArrayList<>();
+    /** 法定人数，也就是一半以上的的人 */
     private int quorum;
     private final List<UnfoundPeerId> oldPeers = new ArrayList<>();
     private int oldQuorum;
@@ -66,26 +67,27 @@ public class Ballot {
      * @return true if init success
      */
     public boolean init(Configuration conf, Configuration oldConf) {
-        this.peers.clear();
-        this.oldPeers.clear();
+        peers.clear();
+        oldPeers.clear();
         quorum = oldQuorum = 0;
         int index = 0;
         if (conf != null) {
             for (PeerId peer : conf) {
-                this.peers.add(new UnfoundPeerId(peer, index++, false));
+                peers.add(new UnfoundPeerId(peer, index++, false));
             }
         }
 
-        this.quorum = this.peers.size() / 2 + 1;
+        // 超过半数以上
+        quorum = peers.size() / 2 + 1;
         if (oldConf == null) {
             return true;
         }
         index = 0;
         for (PeerId peer : oldConf) {
-            this.oldPeers.add(new UnfoundPeerId(peer, index++, false));
+            oldPeers.add(new UnfoundPeerId(peer, index++, false));
         }
 
-        this.oldQuorum = this.oldPeers.size() / 2 + 1;
+        oldQuorum = oldPeers.size() / 2 + 1;
         return true;
     }
 

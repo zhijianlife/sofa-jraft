@@ -30,9 +30,6 @@
 
 package com.alipay.sofa.jraft.util.internal;
 
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-
 import static java.lang.Character.MAX_SURROGATE;
 import static java.lang.Character.MIN_HIGH_SURROGATE;
 import static java.lang.Character.MIN_LOW_SURROGATE;
@@ -41,8 +38,10 @@ import static java.lang.Character.MIN_SURROGATE;
 import static java.lang.Character.isSurrogatePair;
 import static java.lang.Character.toCodePoint;
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+
 /**
- *
  * Refer to the implementation of protobuf: <A>https://github.com/protocolbuffers/protobuf/blob/master/java/core/src/main/java/com/google/protobuf/Utf8.java<A/>.
  */
 public final class UnsafeUtf8Util {
@@ -56,8 +55,7 @@ public final class UnsafeUtf8Util {
 
     public static String decodeUtf8(byte[] bytes, int index, int size) {
         if ((index | size | bytes.length - index - size) < 0) {
-            throw new ArrayIndexOutOfBoundsException("buffer length=" + bytes.length + ", index=" + index + ", size="
-                                                     + size);
+            throw new ArrayIndexOutOfBoundsException("buffer length=" + bytes.length + ", index=" + index + ", size=" + size);
         }
 
         int offset = index;
@@ -98,22 +96,22 @@ public final class UnsafeUtf8Util {
                     throw invalidUtf8();
                 }
                 DecodeUtil.handleTwoBytes(byte1, /* byte2 */UnsafeUtil.getByte(bytes, offset++), resultArr,
-                    resultPos++);
+                        resultPos++);
             } else if (DecodeUtil.isThreeBytes(byte1)) {
                 if (offset >= limit - 1) {
                     throw invalidUtf8();
                 }
                 DecodeUtil.handleThreeBytes(byte1,
-                /* byte2 */UnsafeUtil.getByte(bytes, offset++),
-                /* byte3 */UnsafeUtil.getByte(bytes, offset++), resultArr, resultPos++);
+                        /* byte2 */UnsafeUtil.getByte(bytes, offset++),
+                        /* byte3 */UnsafeUtil.getByte(bytes, offset++), resultArr, resultPos++);
             } else {
                 if (offset >= limit - 2) {
                     throw invalidUtf8();
                 }
                 DecodeUtil.handleFourBytes(byte1,
-                /* byte2 */UnsafeUtil.getByte(bytes, offset++),
-                /* byte3 */UnsafeUtil.getByte(bytes, offset++),
-                /* byte4 */UnsafeUtil.getByte(bytes, offset++), resultArr, resultPos++);
+                        /* byte2 */UnsafeUtil.getByte(bytes, offset++),
+                        /* byte3 */UnsafeUtil.getByte(bytes, offset++),
+                        /* byte4 */UnsafeUtil.getByte(bytes, offset++), resultArr, resultPos++);
                 // 4-byte case requires two chars.
                 resultPos++;
             }
@@ -129,7 +127,7 @@ public final class UnsafeUtf8Util {
         // Bitwise OR combines the sign bits so any negative value fails the check.
         if ((index | size | buffer.limit() - index - size) < 0) {
             throw new ArrayIndexOutOfBoundsException("buffer limit=" + buffer.limit() + ", index=" + index + ", limit="
-                                                     + size);
+                    + size);
         }
         long address = UnsafeUtil.addressOffset(buffer) + index;
         final long addressLimit = address + size;
@@ -174,16 +172,16 @@ public final class UnsafeUtf8Util {
                     throw invalidUtf8();
                 }
                 DecodeUtil.handleThreeBytes(byte1,
-                /* byte2 */UnsafeUtil.getByte(address++),
-                /* byte3 */UnsafeUtil.getByte(address++), resultArr, resultPos++);
+                        /* byte2 */UnsafeUtil.getByte(address++),
+                        /* byte3 */UnsafeUtil.getByte(address++), resultArr, resultPos++);
             } else {
                 if (address >= addressLimit - 2) {
                     throw invalidUtf8();
                 }
                 DecodeUtil.handleFourBytes(byte1,
-                /* byte2 */UnsafeUtil.getByte(address++),
-                /* byte3 */UnsafeUtil.getByte(address++),
-                /* byte4 */UnsafeUtil.getByte(address++), resultArr, resultPos++);
+                        /* byte2 */UnsafeUtil.getByte(address++),
+                        /* byte3 */UnsafeUtil.getByte(address++),
+                        /* byte4 */UnsafeUtil.getByte(address++), resultArr, resultPos++);
                 // 4-byte case requires two chars.
                 resultPos++;
             }
@@ -202,7 +200,7 @@ public final class UnsafeUtf8Util {
         if (inLimit > length || out.length - length < offset) {
             // Not even enough room for an ASCII-encoded string.
             throw new ArrayIndexOutOfBoundsException("Failed writing " + in.charAt(inLimit - 1) + " at index "
-                                                     + (offset + length));
+                    + (offset + length));
         }
 
         // Designed to take advantage of
@@ -242,7 +240,7 @@ public final class UnsafeUtf8Util {
                 UnsafeUtil.putByte(out, outIx++, (byte) (0x80 | (0x3F & codePoint)));
             } else {
                 if ((MIN_SURROGATE <= c && c <= MAX_SURROGATE)
-                    && (inIx + 1 == inLimit || !isSurrogatePair(c, in.charAt(inIx + 1)))) {
+                        && (inIx + 1 == inLimit || !isSurrogatePair(c, in.charAt(inIx + 1)))) {
                     // We are surrogates and we're not a surrogate pair.
                     throw new IllegalArgumentException("Unpaired surrogate at index " + inIx + " of " + inLimit);
                 }
@@ -263,7 +261,7 @@ public final class UnsafeUtf8Util {
         if (inLimit > outLimit - outIx) {
             // Not even enough room for an ASCII-encoded string.
             throw new ArrayIndexOutOfBoundsException("Failed writing " + in.charAt(inLimit - 1) + " at index "
-                                                     + out.limit());
+                    + out.limit());
         }
 
         // Designed to take advantage of
@@ -304,7 +302,7 @@ public final class UnsafeUtf8Util {
                 UnsafeUtil.putByte(outIx++, (byte) (0x80 | (0x3F & codePoint)));
             } else {
                 if ((MIN_SURROGATE <= c && c <= MAX_SURROGATE)
-                    && (inIx + 1 == inLimit || !isSurrogatePair(c, in.charAt(inIx + 1)))) {
+                        && (inIx + 1 == inLimit || !isSurrogatePair(c, in.charAt(inIx + 1)))) {
                     // We are surrogates and we're not a surrogate pair.
                     throw new IllegalArgumentException("Unpaired surrogate at index " + inIx + " of " + inLimit);
                 }
@@ -420,10 +418,10 @@ public final class UnsafeUtf8Util {
 
         private static void handleThreeBytes(byte byte1, byte byte2, byte byte3, char[] resultArr, int resultPos) {
             if (isNotTrailingByte(byte2)
-            // overlong? 5 most significant bits must not all be zero
-                || (byte1 == (byte) 0xE0 && byte2 < (byte) 0xA0)
-                // check for illegal surrogate codepoints
-                || (byte1 == (byte) 0xED && byte2 >= (byte) 0xA0) || isNotTrailingByte(byte3)) {
+                    // overlong? 5 most significant bits must not all be zero
+                    || (byte1 == (byte) 0xE0 && byte2 < (byte) 0xA0)
+                    // check for illegal surrogate codepoints
+                    || (byte1 == (byte) 0xED && byte2 >= (byte) 0xA0) || isNotTrailingByte(byte3)) {
                 throw invalidUtf8();
             }
             resultArr[resultPos] = (char) (((byte1 & 0x0F) << 12) | (trailingByteValue(byte2) << 6) | trailingByteValue(byte3));
@@ -432,19 +430,19 @@ public final class UnsafeUtf8Util {
         private static void handleFourBytes(byte byte1, byte byte2, byte byte3, byte byte4, char[] resultArr,
                                             int resultPos) {
             if (isNotTrailingByte(byte2)
-                // Check that 1 <= plane <= 16.  Tricky optimized form of:
-                //   valid 4-byte leading byte?
-                // if (byte1 > (byte) 0xF4 ||
-                //   overlong? 4 most significant bits must not all be zero
-                //     byte1 == (byte) 0xF0 && byte2 < (byte) 0x90 ||
-                //   codepoint larger than the highest code point (U+10FFFF)?
-                //     byte1 == (byte) 0xF4 && byte2 > (byte) 0x8F)
-                || (((byte1 << 28) + (byte2 - (byte) 0x90)) >> 30) != 0 || isNotTrailingByte(byte3)
-                || isNotTrailingByte(byte4)) {
+                    // Check that 1 <= plane <= 16.  Tricky optimized form of:
+                    //   valid 4-byte leading byte?
+                    // if (byte1 > (byte) 0xF4 ||
+                    //   overlong? 4 most significant bits must not all be zero
+                    //     byte1 == (byte) 0xF0 && byte2 < (byte) 0x90 ||
+                    //   codepoint larger than the highest code point (U+10FFFF)?
+                    //     byte1 == (byte) 0xF4 && byte2 > (byte) 0x8F)
+                    || (((byte1 << 28) + (byte2 - (byte) 0x90)) >> 30) != 0 || isNotTrailingByte(byte3)
+                    || isNotTrailingByte(byte4)) {
                 throw invalidUtf8();
             }
             int codePoint = ((byte1 & 0x07) << 18) | (trailingByteValue(byte2) << 12) | (trailingByteValue(byte3) << 6)
-                            | trailingByteValue(byte4);
+                    | trailingByteValue(byte4);
             resultArr[resultPos] = DecodeUtil.highSurrogate(codePoint);
             resultArr[resultPos + 1] = DecodeUtil.lowSurrogate(codePoint);
         }

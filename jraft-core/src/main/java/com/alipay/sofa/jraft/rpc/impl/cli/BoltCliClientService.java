@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rpc.impl.cli;
 
-import java.util.concurrent.Future;
+package com.alipay.sofa.jraft.rpc.impl.cli;
 
 import com.alipay.sofa.jraft.option.CliOptions;
 import com.alipay.sofa.jraft.option.RpcOptions;
@@ -39,8 +38,9 @@ import com.alipay.sofa.jraft.rpc.impl.AbstractBoltClientService;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.google.protobuf.Message;
 
+import java.util.concurrent.Future;
+
 /**
- * 
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-09 3:14:55 PM
@@ -60,12 +60,12 @@ public class BoltCliClientService extends AbstractBoltClientService implements C
 
     @Override
     public Future<Message> addPeer(Endpoint endpoint, AddPeerRequest request, RpcResponseClosure<AddPeerResponse> done) {
-
         return this.invokeWithDone(endpoint, request, done, this.cliOptions.getTimeoutMs());
     }
 
     @Override
-    public Future<Message> removePeer(Endpoint endpoint, RemovePeerRequest request,
+    public Future<Message> removePeer(Endpoint endpoint,
+                                      RemovePeerRequest request,
                                       RpcResponseClosure<RemovePeerResponse> done) {
         return this.invokeWithDone(endpoint, request, done, this.cliOptions.getTimeoutMs());
     }
@@ -81,25 +81,29 @@ public class BoltCliClientService extends AbstractBoltClientService implements C
     }
 
     @Override
-    public Future<Message> changePeers(Endpoint endpoint, ChangePeersRequest request,
+    public Future<Message> changePeers(Endpoint endpoint,
+                                       ChangePeersRequest request,
                                        RpcResponseClosure<ChangePeersResponse> done) {
         return this.invokeWithDone(endpoint, request, done, this.cliOptions.getTimeoutMs());
     }
 
     @Override
-    public Future<Message> getLeader(Endpoint endpoint, GetLeaderRequest request,
+    public Future<Message> getLeader(Endpoint endpoint,
+                                     GetLeaderRequest request,
                                      RpcResponseClosure<GetLeaderResponse> done) {
         return this.invokeWithDone(endpoint, request, done, this.cliOptions.getTimeoutMs());
     }
 
     @Override
-    public Future<Message> transferLeader(Endpoint endpoint, TransferLeaderRequest request,
+    public Future<Message> transferLeader(Endpoint endpoint,
+                                          TransferLeaderRequest request,
                                           RpcResponseClosure<ErrorResponse> done) {
         return this.invokeWithDone(endpoint, request, done, this.cliOptions.getTimeoutMs());
     }
 
     @Override
-    public Future<Message> getPeers(Endpoint endpoint, CliRequests.GetPeersRequest request,
+    public Future<Message> getPeers(Endpoint endpoint,
+                                    CliRequests.GetPeersRequest request,
                                     RpcResponseClosure<CliRequests.GetPeersResponse> done) {
         return this.invokeWithDone(endpoint, request, done, this.cliOptions.getTimeoutMs());
     }

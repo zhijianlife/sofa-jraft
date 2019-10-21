@@ -14,12 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
+import com.lmax.disruptor.ExceptionHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.lmax.disruptor.ExceptionHandler;
 
 /**
  * Disruptor exception handler.
@@ -37,7 +37,7 @@ public final class LogExceptionHandler<T> implements ExceptionHandler<T> {
         void onException(T event, Throwable ex);
     }
 
-    private final String              name;
+    private final String name;
     private final OnEventException<T> onEventException;
 
     public LogExceptionHandler(String name) {

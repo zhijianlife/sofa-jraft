@@ -14,31 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc;
-
-import java.util.concurrent.Executor;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.AsyncContext;
 import com.alipay.remoting.BizContext;
 import com.alipay.remoting.rpc.protocol.AsyncUserProcessor;
 import com.google.protobuf.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.Executor;
 
 /**
  * Abstract AsyncUserProcessor for RPC processors.
  *
+ * @param <T>
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-08 5:55:39 PM
- * @param <T>
  */
 public abstract class RpcRequestProcessor<T extends Message> extends AsyncUserProcessor<T> {
 
     protected static final Logger LOG = LoggerFactory.getLogger(RpcRequestProcessor.class);
 
-    private final Executor        executor;
+    private final Executor executor;
 
     public abstract Message processRequest(T request, RpcRequestClosure done);
 

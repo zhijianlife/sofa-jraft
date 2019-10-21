@@ -14,20 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
+
+import com.alipay.sofa.jraft.Closure;
 
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
-import com.alipay.sofa.jraft.Closure;
-
 /**
  * Basic message structure of jraft, contains:
  * <ul>
- * <li>data: associated  task data</li>
+ * <li>data: associated task data</li>
  * <li>done: task closure, called when the data is successfully committed to the raft group.</li>
  * <li>expectedTerm: Reject this task if expectedTerm doesn't match the current term of this Node if the value is not -1, default is -1.</li>
  * </ul>
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-13 3:08:12 PM
@@ -36,12 +38,12 @@ public class Task implements Serializable {
 
     private static final long serialVersionUID = 2971309899898274575L;
 
-    /** Associated  task data*/
-    private ByteBuffer        data;
-    /** task closure, called when the data is successfully committed to the raft group or failures happen.*/
-    private Closure           done;
-    /** Reject this task if expectedTerm doesn't match the current term of this Node if the value is not -1, default is -1.*/
-    private long              expectedTerm     = -1;
+    /** Associated task data */
+    private ByteBuffer data;
+    /** task closure, called when the data is successfully committed to the raft group or failures happen. */
+    private Closure done;
+    /** Reject this task if expectedTerm doesn't match the current term of this Node if the value is not -1, default is -1. */
+    private long expectedTerm = -1;
 
     public Task() {
         super();

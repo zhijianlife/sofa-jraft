@@ -26,9 +26,8 @@ import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 /**
  * |StateMachine| is the sink of all the events of a very raft node.
  * Implement a specific StateMachine for your own business logic.
- * NOTE: All the interfaces are not guaranteed to be thread safe and they are
- * called sequentially, saying that every single operation will block all the
- * following ones.
+ * NOTE: All the interfaces are not guaranteed to be thread safe and they are called sequentially,
+ * saying that every single operation will block all the following ones.
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -37,8 +36,7 @@ import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 public interface StateMachine {
 
     /**
-     * Update the StateMachine with a batch a tasks that can be accessed
-     * through |iterator|.
+     * Update the StateMachine with a batch a tasks that can be accessed through |iterator|.
      *
      * Invoked when one or more tasks that were passed to Node#apply(Task) have been
      * committed to the raft group (quorum of the group peers have received
@@ -54,8 +52,7 @@ public interface StateMachine {
     void onApply(final Iterator iter);
 
     /**
-     * Invoked once when the raft node was shut down.
-     * Default do nothing
+     * Invoked once when the raft node was shut down. Default do nothing
      */
     void onShutdown();
 

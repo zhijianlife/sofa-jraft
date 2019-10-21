@@ -123,8 +123,7 @@ public class Utils {
         }
         if (!GROUP_ID_PATTER.matcher(groupId).matches()) {
             throw new IllegalArgumentException(
-                    "Invalid group id, it should be started with character 'a'-'z' or 'A'-'Z',"
-                            + "and followed with numbers, english alphabet, '-' or '_'. ");
+                    "Invalid group id, it should be started with character 'a'-'z' or 'A'-'Z', and followed with numbers, english alphabet, '-' or '_'. ");
         }
     }
 

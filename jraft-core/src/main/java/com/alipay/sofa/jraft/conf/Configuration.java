@@ -37,6 +37,7 @@ import java.util.Set;
  */
 public class Configuration implements Iterable<PeerId>, Copiable<Configuration> {
 
+    /** 当前集群范围内（group 范围内）的节点列表 */
     private List<PeerId> peers = new ArrayList<>();
 
     public Configuration() {
@@ -153,8 +154,10 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         if (conf == null) {
             return false;
         }
+        // 清空记录的节点列表
         this.reset();
         final String[] peerStrs = StringUtils.split(conf, ",");
+        // 将字符串形式的 "IP:port" 解析封装成 PeerId 对象，记录到
         for (final String peerStr : peerStrs) {
             final PeerId peer = new PeerId();
             if (peer.parse(peerStr)) {

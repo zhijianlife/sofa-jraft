@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.election;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Paths;
-
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.Lifecycle;
@@ -33,20 +26,26 @@ import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.rhea.util.ThrowUtil;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
 
 /**
- *
  * @author jiachun.fjc
  */
 public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
 
-    private static final Logger      LOG = LoggerFactory.getLogger(ElectionNode.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ElectionNode.class);
 
-    private RaftGroupService         raftGroupService;
-    private Node                     node;
+    private RaftGroupService raftGroupService;
+    private Node node;
     private ElectionOnlyStateMachine fsm;
 
-    private boolean                  started;
+    private boolean started;
 
     @Override
     public boolean init(final ElectionNodeOptions opts) {

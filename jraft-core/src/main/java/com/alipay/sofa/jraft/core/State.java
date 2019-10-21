@@ -28,12 +28,14 @@ public enum State {
 
     /** 当前节点为 leader */
     STATE_LEADER, // It's a leader
+    /** 当前 leader 节点正在移交权利 */
     STATE_TRANSFERRING, // It's transferring leadership
     /** 当前节点为 candidate */
     STATE_CANDIDATE, //  It's a candidate
     /** 当前节点为 follower */
     STATE_FOLLOWER, // It's a follower
     STATE_ERROR, // It's in error
+    /** 未初始化 */
     STATE_UNINITIALIZED, // It's uninitialized
     STATE_SHUTTING, // It's shutting down
     STATE_SHUTDOWN, // It's shutdown already

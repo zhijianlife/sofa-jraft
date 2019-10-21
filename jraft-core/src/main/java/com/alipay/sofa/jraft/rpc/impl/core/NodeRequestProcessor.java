@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rpc.impl.core;
 
-import java.util.concurrent.Executor;
+package com.alipay.sofa.jraft.rpc.impl.core;
 
 import com.alipay.sofa.jraft.Node;
 import com.alipay.sofa.jraft.NodeManager;
@@ -28,13 +27,15 @@ import com.alipay.sofa.jraft.rpc.RpcRequestProcessor;
 import com.alipay.sofa.jraft.rpc.RpcResponseFactory;
 import com.google.protobuf.Message;
 
+import java.util.concurrent.Executor;
+
 /**
  * Node handle requests processor template.
  *
+ * @param <T>
  * @author boyan (boyan@alibaba-inc.com)
  *
- * 2018-Apr-08 6:03:25 PM 
- * @param <T>
+ * 2018-Apr-08 6:03:25 PM
  */
 public abstract class NodeRequestProcessor<T extends Message> extends RpcRequestProcessor<T> {
 

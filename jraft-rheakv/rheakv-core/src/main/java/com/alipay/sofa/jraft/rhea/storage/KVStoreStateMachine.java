@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
-
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.Iterator;
@@ -36,6 +29,8 @@ import com.alipay.sofa.jraft.rhea.errors.Errors;
 import com.alipay.sofa.jraft.rhea.errors.IllegalKVOperationException;
 import com.alipay.sofa.jraft.rhea.errors.StoreCodecException;
 import com.alipay.sofa.jraft.rhea.metadata.Region;
+import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.STATE_MACHINE_APPLY_QPS;
+import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.STATE_MACHINE_BATCH_WRITE;
 import com.alipay.sofa.jraft.rhea.metrics.KVMetrics;
 import com.alipay.sofa.jraft.rhea.serialization.Serializer;
 import com.alipay.sofa.jraft.rhea.serialization.Serializers;
@@ -47,9 +42,13 @@ import com.alipay.sofa.jraft.util.BytesUtil;
 import com.alipay.sofa.jraft.util.RecycleUtil;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.STATE_MACHINE_APPLY_QPS;
-import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.STATE_MACHINE_BATCH_WRITE;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Rhea KV store state machine
@@ -58,17 +57,17 @@ import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.STATE_MACHINE_BAT
  */
 public class KVStoreStateMachine extends StateMachineAdapter {
 
-    private static final Logger       LOG        = LoggerFactory.getLogger(KVStoreStateMachine.class);
+    private static final Logger LOG = LoggerFactory.getLogger(KVStoreStateMachine.class);
 
-    private final List<StateListener> listeners  = new CopyOnWriteArrayList<>();
-    private final AtomicLong          leaderTerm = new AtomicLong(-1L);
-    private final Serializer          serializer = Serializers.getDefault();
-    private final Region              region;
-    private final StoreEngine         storeEngine;
-    private final BatchRawKVStore<?>  rawKVStore;
+    private final List<StateListener> listeners = new CopyOnWriteArrayList<>();
+    private final AtomicLong leaderTerm = new AtomicLong(-1L);
+    private final Serializer serializer = Serializers.getDefault();
+    private final Region region;
+    private final StoreEngine storeEngine;
+    private final BatchRawKVStore<?> rawKVStore;
     private final KVStoreSnapshotFile storeSnapshotFile;
-    private final Meter               applyMeter;
-    private final Histogram           batchWriteHistogram;
+    private final Meter applyMeter;
+    private final Histogram batchWriteHistogram;
 
     public KVStoreStateMachine(Region region, StoreEngine storeEngine) {
         this.region = region;
@@ -121,7 +120,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
         } catch (final Throwable t) {
             LOG.error("StateMachine meet critical error: {}.", StackTraceUtil.stackTrace(t));
             it.setErrorAndRollback(index - applied, new Status(RaftError.ESTATEMACHINE,
-                "StateMachine meet critical error: %s.", t.getMessage()));
+                    "StateMachine meet critical error: %s.", t.getMessage()));
         } finally {
             // metrics: qps
             this.applyMeter.mark(applied);
@@ -142,7 +141,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
 
             // metrics: op qps
             final Meter opApplyMeter = KVMetrics.meter(STATE_MACHINE_APPLY_QPS, String.valueOf(this.region.getId()),
-                KVOperation.opName(opByte));
+                    KVOperation.opName(opByte));
             opApplyMeter.mark(size);
             this.batchWriteHistogram.update(size);
 
@@ -234,7 +233,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
                 }
             } catch (final Throwable t) {
                 LOG.error("Fail to split, regionId={}, newRegionId={}, splitKey={}.", currentRegionId, newRegionId,
-                    BytesUtil.toHex(splitKey));
+                        BytesUtil.toHex(splitKey));
                 setCriticalError(closure, t);
             }
         }
@@ -328,7 +327,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
      * failure response.
      *
      * @param closure callback
-     * @param ex      critical error
+     * @param ex critical error
      */
     private static void setCriticalError(final KVStoreClosure closure, final Throwable ex) {
         // Will call closure#run in FSMCaller

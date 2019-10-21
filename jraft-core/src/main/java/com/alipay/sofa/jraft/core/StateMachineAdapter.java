@@ -29,8 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * State machine adapter that implements all methods with default behavior
- * except {@link #onApply(com.alipay.sofa.jraft.Iterator)}.
+ * State machine adapter that implements all methods with default behavior except {@link #onApply(com.alipay.sofa.jraft.Iterator)}.
  *
  * @author boyan (boyan@alibaba-inc.com)
  *

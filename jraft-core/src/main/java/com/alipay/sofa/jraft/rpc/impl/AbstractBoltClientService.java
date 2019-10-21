@@ -124,6 +124,9 @@ public abstract class AbstractBoltClientService implements ClientService {
 
     @Override
     public boolean connect(final Endpoint endpoint) {
+
+        /* 检查到目标节点之间的连通性 */
+
         if (this.rpcClient == null) {
             throw new IllegalStateException("Client service is not inited.");
         }

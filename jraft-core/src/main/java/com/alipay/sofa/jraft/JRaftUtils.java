@@ -14,14 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
-
-import java.util.concurrent.Executor;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-
-import org.apache.commons.lang.StringUtils;
 
 import com.alipay.sofa.jraft.conf.Configuration;
 import com.alipay.sofa.jraft.core.NodeImpl;
@@ -30,6 +24,12 @@ import com.alipay.sofa.jraft.option.BootstrapOptions;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.NamedThreadFactory;
 import com.alipay.sofa.jraft.util.ThreadPoolUtil;
+import org.apache.commons.lang.StringUtils;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Some helper methods for jraft usage.
@@ -68,15 +68,15 @@ public final class JRaftUtils {
         if (number <= 0) {
             return null;
         }
-        return ThreadPoolUtil.newBuilder() //
-            .poolName(prefix) //
-            .enableMetric(true) //
-            .coreThreads(number) //
-            .maximumThreads(number) //
-            .keepAliveSeconds(60L) //
-            .workQueue(new SynchronousQueue<>()) //
-            .threadFactory(createThreadFactory(prefix)) //
-            .build();
+        return ThreadPoolUtil.newBuilder()
+                .poolName(prefix)
+                .enableMetric(true)
+                .coreThreads(number)
+                .maximumThreads(number)
+                .keepAliveSeconds(60L)
+                .workQueue(new SynchronousQueue<>())
+                .threadFactory(createThreadFactory(prefix))
+                .build();
     }
 
     /**
@@ -84,7 +84,6 @@ public final class JRaftUtils {
      *
      * @param prefixName the prefix name of thread
      * @return a new {@link ThreadFactory} instance
-     *
      * @since 0.0.3
      */
     public static ThreadFactory createThreadFactory(final String prefixName) {

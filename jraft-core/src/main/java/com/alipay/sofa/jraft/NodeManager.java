@@ -14,7 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
+
+import com.alipay.remoting.util.ConcurrentHashSet;
+import com.alipay.sofa.jraft.entity.NodeId;
+import com.alipay.sofa.jraft.entity.PeerId;
+import com.alipay.sofa.jraft.util.Endpoint;
+import com.alipay.sofa.jraft.util.OnlyForTest;
+import com.alipay.sofa.jraft.util.Utils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,13 +31,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
-
-import com.alipay.remoting.util.ConcurrentHashSet;
-import com.alipay.sofa.jraft.entity.NodeId;
-import com.alipay.sofa.jraft.entity.PeerId;
-import com.alipay.sofa.jraft.util.Endpoint;
-import com.alipay.sofa.jraft.util.OnlyForTest;
-import com.alipay.sofa.jraft.util.Utils;
 
 /**
  * Raft nodes manager.
@@ -40,11 +41,11 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class NodeManager {
 
-    private static final NodeManager                INSTANCE = new NodeManager();
+    private static final NodeManager INSTANCE = new NodeManager();
 
-    private final ConcurrentMap<NodeId, Node>       nodeMap  = new ConcurrentHashMap<>();
+    private final ConcurrentMap<NodeId, Node> nodeMap = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, List<Node>> groupMap = new ConcurrentHashMap<>();
-    private final ConcurrentHashSet<Endpoint>       addrSet  = new ConcurrentHashSet<>();
+    private final ConcurrentHashSet<Endpoint> addrSet = new ConcurrentHashSet<>();
 
     public static NodeManager getInstance() {
         return INSTANCE;

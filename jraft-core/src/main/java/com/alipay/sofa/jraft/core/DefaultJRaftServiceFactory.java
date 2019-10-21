@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.core;
 
-import org.apache.commons.lang.StringUtils;
+package com.alipay.sofa.jraft.core;
 
 import com.alipay.sofa.jraft.JRaftServiceFactory;
 import com.alipay.sofa.jraft.entity.codec.LogEntryCodecFactory;
@@ -30,12 +29,13 @@ import com.alipay.sofa.jraft.storage.impl.RocksDBLogStorage;
 import com.alipay.sofa.jraft.storage.snapshot.local.LocalSnapshotStorage;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.SPI;
+import org.apache.commons.lang.StringUtils;
 
 /**
  * The default factory for JRaft services.
- * @author boyan(boyan@antfin.com)
- * @since 1.2.6
  *
+ * @author boyan(boyan @ antfin.com)
+ * @since 1.2.6
  */
 @SPI
 public class DefaultJRaftServiceFactory implements JRaftServiceFactory {
