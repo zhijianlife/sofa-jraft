@@ -584,8 +584,8 @@ public class NodeImpl implements Node, RaftServerService {
 
     public boolean bootstrap(final BootstrapOptions opts) throws InterruptedException {
         if (opts.getLastLogIndex() > 0 && (opts.getGroupConf().isEmpty() || opts.getFsm() == null)) {
-            LOG.error("Invalid arguments for bootstrap, groupConf={}, fsm={}, lastLogIndex={}.", opts.getGroupConf(),
-                    opts.getFsm(), opts.getLastLogIndex());
+            LOG.error("Invalid arguments for bootstrap, groupConf={}, fsm={}, lastLogIndex={}.",
+                    opts.getGroupConf(), opts.getFsm(), opts.getLastLogIndex());
             return false;
         }
         if (opts.getGroupConf().isEmpty()) {

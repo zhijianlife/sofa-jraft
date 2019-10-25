@@ -51,8 +51,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ReplicatorGroupImpl implements ReplicatorGroup {
 
-    private static final Logger LOG = LoggerFactory
-            .getLogger(ReplicatorGroupImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ReplicatorGroupImpl.class);
 
     // <peerId, replicatorId>
     private final ConcurrentMap<PeerId, ThreadId> replicatorMap = new ConcurrentHashMap<>();
