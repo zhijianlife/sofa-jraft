@@ -14,21 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.junit.After;
+import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class RepeatedTimerTest {
+
     private static class TestTimer extends RepeatedTimer {
-        AtomicInteger counter     = new AtomicInteger(0);
-        AtomicInteger destroyed   = new AtomicInteger(0);
-        volatile int  nextTimeout = -1;
+        AtomicInteger counter = new AtomicInteger(0);
+        AtomicInteger destroyed = new AtomicInteger(0);
+        volatile int nextTimeout = -1;
 
         public TestTimer(String name, int timeoutMs) {
             super(name, timeoutMs);

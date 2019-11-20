@@ -58,6 +58,8 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
 
     /**
      * Get the raft group id.
+     *
+     * 获取组 ID
      */
     String getGroupId();
 

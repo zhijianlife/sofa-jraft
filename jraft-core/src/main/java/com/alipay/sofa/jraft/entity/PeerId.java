@@ -44,7 +44,7 @@ public class PeerId implements Copiable<PeerId>, Serializable, Checksum {
 
     private static final Logger LOG = LoggerFactory.getLogger(PeerId.class);
 
-    /** peer address */
+    /** peer address, IP + 端口 */
     private Endpoint endpoint = new Endpoint(Utils.IP_ANY, 0);
     /** index in same addr, default is 0. */
     private int idx;

@@ -33,6 +33,7 @@ public class Endpoint implements Copiable<Endpoint>, Serializable {
 
     private String ip = Utils.IP_ANY;
     private int port;
+    /** 减少 toString 开销 */
     private String str;
 
     public Endpoint() {
