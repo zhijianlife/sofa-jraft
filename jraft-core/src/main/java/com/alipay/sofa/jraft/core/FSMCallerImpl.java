@@ -229,7 +229,7 @@ public class FSMCallerImpl implements FSMCaller {
     private boolean enqueueTask(final EventTranslator<ApplyTask> tpl) {
         if (this.shutdownLatch != null) {
             // Shutting down
-            LOG.warn("FSMCaller is stopped, can not apply new task.");
+            LOG.warn("FSMCaller is stopped, cannot apply a new task.");
             return false;
         }
         this.taskQueue.publishEvent(tpl);
@@ -276,6 +276,7 @@ public class FSMCallerImpl implements FSMCaller {
     @Override
     public boolean onLeaderStop(final Status status) {
         return enqueueTask((task, sequence) -> {
+            // 设置当前 task 的状态为 LEADER_STOP
             task.type = TaskType.LEADER_STOP;
             task.status = new Status(status);
         });
@@ -391,6 +392,7 @@ public class FSMCallerImpl implements FSMCaller {
                             doSnapshotLoad((LoadSnapshotClosure) task.done);
                         }
                         break;
+                    // 处理 LEADER_STOP 事件
                     case LEADER_STOP:
                         this.currTask = TaskType.LEADER_STOP;
                         doLeaderStop(task.status);

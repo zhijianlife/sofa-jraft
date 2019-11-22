@@ -103,6 +103,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
 
     @Override
     public boolean addReplicator(final PeerId peer) {
+        // 校验当前 term
         Requires.requireTrue(this.commonOptions.getTerm() != 0);
         if (this.replicatorMap.containsKey(peer)) {
             this.failureReplicators.remove(peer);
@@ -110,6 +111,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
         }
         final ReplicatorOptions opts = this.commonOptions.copy();
         opts.setPeerId(peer);
+        // 启动一个复制线程
         final ThreadId rid = Replicator.start(opts, this.raftOptions);
         if (rid == null) {
             LOG.error("Fail to start replicator to peer={}.", peer);
@@ -159,6 +161,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     public void checkReplicator(final PeerId peer, final boolean lockNode) {
         final ThreadId rid = this.replicatorMap.get(peer);
         // noinspection StatementWithEmptyBody
+        // 节点 peer 并未 follow 自己
         if (rid == null) {
             // Create replicator if it's not found for leader.
             final NodeImpl node = this.commonOptions.getNode();
@@ -166,7 +169,9 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
                 node.writeLock.lock();
             }
             try {
-                if (node.isLeader() && this.failureReplicators.contains(peer) && this.addReplicator(peer)) {
+                if (node.isLeader() // 当前节点是 leader
+                        && this.failureReplicators.contains(peer)  // 节点 peer 在 failureReplicators 集合中
+                        && this.addReplicator(peer)) { // 将节点 peer 加入到复制组
                     this.failureReplicators.remove(peer);
                 }
             } finally {

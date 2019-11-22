@@ -26,6 +26,8 @@ import java.util.Set;
 /**
  * A configuration entry with current peers and old peers.
  *
+ * 记录整个集群的节点信息
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-04 2:25:06 PM

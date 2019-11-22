@@ -39,8 +39,11 @@ public abstract class RepeatedTimer implements Describer {
     private final Lock lock = new ReentrantLock();
     private final Timer timer;
     private TimerTask timerTask;
+    /** 是否停止 */
     private boolean stopped;
+    /** 标识正在运行中 */
     private volatile boolean running;
+    /** 是否销毁 */
     private boolean destroyed;
     private boolean invoking;
     private volatile int timeoutMs;
@@ -81,6 +84,7 @@ public abstract class RepeatedTimer implements Describer {
             this.lock.unlock();
         }
         try {
+            // 自定义定时逻辑
             this.onTrigger();
         } catch (Throwable t) {
             LOG.error("run timer failed", t);
@@ -89,6 +93,7 @@ public abstract class RepeatedTimer implements Describer {
         this.lock.lock();
         try {
             this.invoking = false;
+            // 定时任务已经被停止
             if (this.stopped) {
                 running = false;
                 invokeDestroyed = this.destroyed;
@@ -138,10 +143,12 @@ public abstract class RepeatedTimer implements Describer {
             if (!this.stopped) {
                 return;
             }
+            // 启动完一次之后就不允许再启动了
             this.stopped = false;
             if (this.running) {
                 return;
             }
+            // 设置为已经启动
             this.running = true;
             this.schedule();
         } finally {
@@ -150,9 +157,11 @@ public abstract class RepeatedTimer implements Describer {
     }
 
     private void schedule() {
+        // 如果 timerTask 不为 null，则取消之前的任务
         if (this.timerTask != null) {
             this.timerTask.cancel();
         }
+        // 新建一个定时任务，定时执行自定义 run 逻辑
         this.timerTask = new TimerTask() {
 
             @Override
@@ -262,8 +271,7 @@ public abstract class RepeatedTimer implements Describer {
         } finally {
             this.lock.unlock();
         }
-        out.print("  ") //
-                .println(_describeString);
+        out.print("  ").println(_describeString);
     }
 
     @Override

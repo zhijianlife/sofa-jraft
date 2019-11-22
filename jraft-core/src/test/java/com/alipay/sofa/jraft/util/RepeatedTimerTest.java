@@ -22,6 +22,7 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class RepeatedTimerTest {
@@ -66,6 +67,19 @@ public class RepeatedTimerTest {
     @After
     public void teardown() {
         this.timer.destroy();
+    }
+
+    @Test
+    public void test() throws Exception {
+        RepeatedTimer timer = new RepeatedTimer("test", 1000) {
+            @Override
+            protected void onTrigger() {
+                System.out.println("test");
+            }
+        };
+        timer.start();
+
+        TimeUnit.SECONDS.sleep(10);
     }
 
     @Test

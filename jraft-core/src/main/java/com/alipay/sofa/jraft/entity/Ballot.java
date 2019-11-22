@@ -143,6 +143,8 @@ public class Ballot {
      * @return true if the ballot is granted
      */
     public boolean isGranted() {
+        // 每收到一个节点的选票，就会将 quorum 值减 1，
+        // 当 quorum 值小于等于 0 的时候说明已经超过指定数目的节点投票给自己
         return this.quorum <= 0 && oldQuorum <= 0;
     }
 }

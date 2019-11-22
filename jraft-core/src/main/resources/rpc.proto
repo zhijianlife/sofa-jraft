@@ -1,9 +1,9 @@
-syntax="proto2";
+syntax = "proto2";
 
 package jraft;
 import "raft.proto";
 
-option java_package="com.alipay.sofa.jraft.rpc";
+option java_package = "com.alipay.sofa.jraft.rpc";
 option java_outer_classname = "RpcRequests";
 
 message PingRequest {
@@ -43,12 +43,12 @@ message TimeoutNowResponse {
 
 message RequestVoteRequest {
   required string group_id = 1;
-  required string server_id = 2;
-  required string peer_id = 3;
+  required string server_id = 2; // 发起请求的节点 ID
+  required string peer_id = 3; // 目标节点 ID
   required int64 term = 4;
-  required int64 last_log_term = 5;
-  required int64 last_log_index = 6;
-  required bool pre_vote = 7;
+  required int64 last_log_term = 5; // 请求发起方最新一条日志的 term 值
+  required int64 last_log_index = 6; // 请求发起方最新一条日志的 index 值
+  required bool pre_vote = 7; // 是否是 pre-vote
 };
 
 message RequestVoteResponse {

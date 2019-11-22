@@ -28,7 +28,7 @@ public enum State {
 
     /** 当前节点为 leader */
     STATE_LEADER, // It's a leader
-    /** 当前 leader 节点正在移交权利 */
+    /** 当前 leader 节点正在交权 */
     STATE_TRANSFERRING, // It's transferring leadership
     /** 当前节点为 candidate */
     STATE_CANDIDATE, //  It's a candidate
@@ -41,6 +41,11 @@ public enum State {
     STATE_SHUTDOWN, // It's shutdown already
     STATE_END; // State end
 
+    /**
+     * 当前节点是否处于活跃状态：LEADER/CANDIDATE/FOLLOWER/TRANSFERRING
+     *
+     * @return
+     */
     public boolean isActive() {
         return this.ordinal() < STATE_ERROR.ordinal();
     }
