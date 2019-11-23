@@ -27,6 +27,8 @@ import com.alipay.sofa.jraft.util.Describer;
 /**
  * Finite state machine caller.
  *
+ * 有限状态机调用器
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-03 11:07:52 AM

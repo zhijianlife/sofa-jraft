@@ -35,7 +35,7 @@ public enum State {
     /** 当前节点为 follower */
     STATE_FOLLOWER, // It's a follower
     STATE_ERROR, // It's in error
-    /** 未初始化 */
+    /** 未初始化，节点启动前的状态 */
     STATE_UNINITIALIZED, // It's uninitialized
     STATE_SHUTTING, // It's shutting down
     STATE_SHUTDOWN, // It's shutdown already

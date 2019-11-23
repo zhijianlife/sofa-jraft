@@ -14,12 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.client.pd;
-
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.rhea.metadata.Region;
 import com.alipay.sofa.jraft.rhea.metadata.Store;
@@ -28,6 +24,10 @@ import com.alipay.sofa.jraft.rhea.options.RegionEngineOptions;
 import com.alipay.sofa.jraft.rhea.options.StoreEngineOptions;
 import com.alipay.sofa.jraft.rhea.util.Lists;
 import com.alipay.sofa.jraft.util.Endpoint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 /**
  * Single raft group, no need for a real PD role.
@@ -38,7 +38,7 @@ public class FakePlacementDriverClient extends AbstractPlacementDriverClient {
 
     private static final Logger LOG = LoggerFactory.getLogger(FakePlacementDriverClient.class);
 
-    private boolean             started;
+    private boolean started;
 
     public FakePlacementDriverClient(long clusterId, String clusterName) {
         super(clusterId, clusterName);

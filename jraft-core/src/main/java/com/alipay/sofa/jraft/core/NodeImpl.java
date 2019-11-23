@@ -147,6 +147,7 @@ public class NodeImpl implements Node, RaftServerService {
     /** Max retry times when applying tasks */
     private static final int MAX_APPLY_RETRY_TIMES = 3;
 
+    /** 节点计数器 */
     public static final AtomicInteger GLOBAL_NUM_NODES = new AtomicInteger(0);
 
     /** Internal states */
@@ -169,10 +170,12 @@ public class NodeImpl implements Node, RaftServerService {
     /** 记录整个集群的节点信息 */
     private ConfigurationEntry conf;
     private StopTransferArg stopTransferArg;
+
     /** Raft group and node options and identifier */
-    private final String groupId;
+    private final String groupId; // 组 ID
     private NodeOptions options;
     private RaftOptions raftOptions;
+
     /** 当前节点 */
     private final PeerId serverId;
     /** Other services */
@@ -182,6 +185,7 @@ public class NodeImpl implements Node, RaftServerService {
     private ClosureQueue closureQueue;
     private ConfigurationManager configManager;
     private LogManager logManager;
+    /** 有限状态机调用程序 */
     private FSMCaller fsmCaller;
     private BallotBox ballotBox;
     private SnapshotExecutor snapshotExecutor;
@@ -190,7 +194,9 @@ public class NodeImpl implements Node, RaftServerService {
     private RaftClientService rpcService;
     private ReadOnlyService readOnlyService;
 
-    /** Timers */
+    /* Timers */
+
+    /** 定时任务管理器 */
     private TimerManager timerManager;
     /** 预投票定时器 */
     private RepeatedTimer electionTimer;
@@ -208,6 +214,8 @@ public class NodeImpl implements Node, RaftServerService {
     private NodeMetrics metrics;
 
     private NodeId nodeId;
+
+    /** 创建 Raft 服务的抽象工厂 */
     private JRaftServiceFactory serviceFactory;
 
     /**
@@ -455,6 +463,7 @@ public class NodeImpl implements Node, RaftServerService {
 
     public NodeImpl(final String groupId, final PeerId serverId) {
         super();
+        // 校验组 ID 的合法性
         if (groupId != null) {
             Utils.verifyGroupId(groupId);
         }
@@ -701,16 +710,19 @@ public class NodeImpl implements Node, RaftServerService {
         Requires.requireNonNull(opts, "Null node options");
         Requires.requireNonNull(opts.getRaftOptions(), "Null raft options");
         Requires.requireNonNull(opts.getServiceFactory(), "Null jraft service factory");
+        // 默认为 DefaultJRaftServiceFactory 实现
         this.serviceFactory = opts.getServiceFactory();
         this.options = opts;
         this.raftOptions = opts.getRaftOptions();
         this.metrics = new NodeMetrics(opts.isEnableMetrics());
 
+        // 校验节点 IP，不允许为 0.0.0.0
         if (this.serverId.getIp().equals(Utils.IP_ANY)) {
             LOG.error("Node can't started from IP_ANY.");
             return false;
         }
 
+        // 节点已经存在
         if (!NodeManager.getInstance().serverExists(this.serverId.getEndpoint())) {
             LOG.error("No RPC server attached to, did you forget to call addService?");
             return false;
@@ -769,7 +781,7 @@ public class NodeImpl implements Node, RaftServerService {
 
             @Override
             protected void onTrigger() {
-                NodeImpl.this.handleSnapshotTimeout();
+                handleSnapshotTimeout();
             }
         };
 
@@ -791,6 +803,9 @@ public class NodeImpl implements Node, RaftServerService {
 
         // FSMCaller 用于对业务 StateMachine 的状态转换调用和日志的写入等
         this.fsmCaller = new FSMCallerImpl();
+
+        // TODO source reading, by zhenchao 2019-11-23 16:17:24
+
         // 初始化日志存储
         if (!this.initLogStorage()) {
             LOG.error("Node {} initLogStorage failed.", this.getNodeId());
@@ -1443,9 +1458,11 @@ public class NodeImpl implements Node, RaftServerService {
             case ReadOnlySafe:
                 final List<PeerId> peers = this.conf.getConf().getPeers();
                 Requires.requireTrue(peers != null && !peers.isEmpty(), "Empty peers");
+                // 设置心跳的响应回调函数
                 final ReadIndexHeartbeatResponseClosure heartbeatDone =
                         new ReadIndexHeartbeatResponseClosure(closure, respBuilder, quorum, peers.size());
                 // Send heartbeat requests to followers
+                // 向 Followers 节点发起一轮心跳请求，如果半数以上节点回应，则 leader 节点能够确定自己仍然是 leader
                 for (final PeerId peer : peers) {
                     if (peer.equals(this.serverId)) {
                         continue;
@@ -1455,6 +1472,7 @@ public class NodeImpl implements Node, RaftServerService {
                 }
                 break;
             // Lease 线程一致策略
+            // 租约期内不会发生选举，所以 leader 不会发生变化
             case ReadOnlyLeaseBased:
                 // Responses to followers and local node.
                 respBuilder.setSuccess(true);

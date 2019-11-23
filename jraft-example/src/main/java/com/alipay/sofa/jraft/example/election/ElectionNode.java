@@ -50,7 +50,7 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
     @Override
     public boolean init(final ElectionNodeOptions opts) {
         if (this.started) {
-            LOG.info("[ElectionNode: {}] already started.");
+            LOG.info("[ElectionNode] already started.");
             return true;
         }
         // node options
@@ -58,6 +58,7 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
         if (nodeOpts == null) {
             nodeOpts = new NodeOptions();
         }
+        // 设置有限状态机
         this.fsm = new ElectionOnlyStateMachine();
         nodeOpts.setFsm(this.fsm);
         final Configuration initialConf = new Configuration();
@@ -66,6 +67,7 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
         }
         // 设置初始集群配置
         nodeOpts.setInitialConf(initialConf);
+        // 初始化数据存储目录（名下有日志数据、元数据、snapshot）
         final String dataPath = opts.getDataPath();
         try {
             FileUtils.forceMkdir(new File(dataPath));
@@ -81,7 +83,10 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
         // 纯选举场景不需要设置 snapshot, 不设置可避免启动 snapshot timer
         // nodeOpts.setSnapshotUri(Paths.get(dataPath, "snapshot").toString());
 
+        // 组 ID
         final String groupId = opts.getGroupId();
+
+        // 当前节点对象
         final PeerId serverId = new PeerId();
         if (!serverId.parse(opts.getServerAddress())) {
             throw new IllegalArgumentException("Fail to parse serverId: " + opts.getServerAddress());

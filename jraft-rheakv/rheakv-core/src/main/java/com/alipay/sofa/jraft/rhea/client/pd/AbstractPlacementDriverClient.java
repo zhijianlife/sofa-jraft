@@ -14,14 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.client.pd;
-
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeoutException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.rpc.RpcClient;
 import com.alipay.sofa.jraft.CliService;
@@ -52,22 +46,27 @@ import com.alipay.sofa.jraft.rpc.CliClientService;
 import com.alipay.sofa.jraft.rpc.impl.AbstractBoltClientService;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Requires;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 /**
- *
  * @author jiachun.fjc
  */
 public abstract class AbstractPlacementDriverClient implements PlacementDriverClient {
 
-    private static final Logger         LOG              = LoggerFactory.getLogger(AbstractPlacementDriverClient.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AbstractPlacementDriverClient.class);
 
-    protected final RegionRouteTable    regionRouteTable = new RegionRouteTable();
-    protected final long                clusterId;
-    protected final String              clusterName;
+    protected final RegionRouteTable regionRouteTable = new RegionRouteTable();
+    protected final long clusterId;
+    protected final String clusterName;
 
-    protected CliService                cliService;
-    protected CliClientService          cliClientService;
-    protected RpcClient                 rpcClient;
+    protected CliService cliService;
+    protected CliClientService cliClientService;
+    protected RpcClient rpcClient;
     protected PlacementDriverRpcService pdRpcService;
 
     protected AbstractPlacementDriverClient(long clusterId, String clusterName) {
@@ -242,7 +241,7 @@ public abstract class AbstractPlacementDriverClient implements PlacementDriverCl
             // A newly launched raft group may not have been successful in the election,
             // or in the 'leader-transfer' state, it needs to be re-tried
             Throwable lastCause = null;
-            for (;;) {
+            for (; ; ) {
                 try {
                     final Status st = routeTable.refreshLeader(this.cliClientService, raftGroupId, 2000);
                     if (st.isOk()) {
@@ -265,7 +264,7 @@ public abstract class AbstractPlacementDriverClient implements PlacementDriverCl
                     }
                 } else {
                     throw lastCause != null ? new RouteTableException(error.toString(), lastCause)
-                        : new RouteTableException(error.toString());
+                            : new RouteTableException(error.toString());
                 }
             }
         }
@@ -282,7 +281,7 @@ public abstract class AbstractPlacementDriverClient implements PlacementDriverCl
             final StringBuilder error = new StringBuilder();
             // A newly launched raft group may not have been successful in the election,
             // or in the 'leader-transfer' state, it needs to be re-tried
-            for (;;) {
+            for (; ; ) {
                 try {
                     final Status st = routeTable.refreshConfiguration(this.cliClientService, raftGroupId, 5000);
                     if (st.isOk()) {
@@ -378,13 +377,12 @@ public abstract class AbstractPlacementDriverClient implements PlacementDriverCl
 
     protected Region getLocalRegionMetadata(final RegionEngineOptions opts) {
         final long regionId = Requires.requireNonNull(opts.getRegionId(), "opts.regionId");
-        Requires.requireTrue(regionId >= Region.MIN_ID_WITH_MANUAL_CONF, "opts.regionId must >= "
-                                                                         + Region.MIN_ID_WITH_MANUAL_CONF);
-        Requires.requireTrue(regionId < Region.MAX_ID_WITH_MANUAL_CONF, "opts.regionId must < "
-                                                                        + Region.MAX_ID_WITH_MANUAL_CONF);
+        Requires.requireTrue(regionId >= Region.MIN_ID_WITH_MANUAL_CONF, "opts.regionId must >= " + Region.MIN_ID_WITH_MANUAL_CONF);
+        Requires.requireTrue(regionId < Region.MAX_ID_WITH_MANUAL_CONF, "opts.regionId must < " + Region.MAX_ID_WITH_MANUAL_CONF);
         final byte[] startKey = opts.getStartKeyBytes();
         final byte[] endKey = opts.getEndKeyBytes();
         final String initialServerList = opts.getInitialServerList();
+        // 实例化 region
         final Region region = new Region();
         final Configuration conf = new Configuration();
         // region
@@ -394,7 +392,9 @@ public abstract class AbstractPlacementDriverClient implements PlacementDriverCl
         region.setRegionEpoch(new RegionEpoch(-1, -1));
         // peers
         Requires.requireTrue(Strings.isNotBlank(initialServerList), "opts.initialServerList is blank");
+        // 将集群 IP 和端口解析到 peer 中
         conf.parse(initialServerList);
+        // 每个 region 都会存有集群信息
         region.setPeers(JRaftHelper.toPeerList(conf.listPeers()));
         this.regionRouteTable.addOrUpdateRegion(region);
         return region;

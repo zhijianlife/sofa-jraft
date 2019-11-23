@@ -34,6 +34,8 @@ public final class RaftServiceFactory {
 
     /**
      * Create a raft node with group id and it's serverId.
+     *
+     * 创建一个 Raft Node 对象
      */
     public static Node createRaftNode(String groupId, PeerId serverId) {
         return new NodeImpl(groupId, serverId);
@@ -42,9 +44,13 @@ public final class RaftServiceFactory {
     /**
      * Create and initialize a raft node with node options.
      * Throw {@link IllegalStateException} when fail to initialize.
+     *
+     * 创建并初始化一个 Raft 节点
      */
     public static Node createAndInitRaftNode(String groupId, PeerId serverId, NodeOptions opts) {
+        // 创建一个 Raft Node 对象
         final Node ret = createRaftNode(groupId, serverId);
+        // 对 Raft Node 执行初始化
         if (!ret.init(opts)) {
             throw new IllegalStateException("Fail to init node, please see the logs to find the reason.");
         }

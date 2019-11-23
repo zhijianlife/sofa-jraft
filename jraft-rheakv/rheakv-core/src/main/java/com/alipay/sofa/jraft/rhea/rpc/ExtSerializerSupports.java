@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.rpc;
 
 import com.alipay.remoting.InvokeContext;
@@ -26,7 +27,7 @@ public final class ExtSerializerSupports {
 
     private static final InvokeContext INVOKE_CONTEXT = new InvokeContext();
 
-    public static byte                 PROTO_STUFF    = 2;
+    public static byte PROTO_STUFF = 2;
 
     static {
         SerializerManager.addSerializer(PROTO_STUFF, ProtostuffSerializer.INSTANCE);

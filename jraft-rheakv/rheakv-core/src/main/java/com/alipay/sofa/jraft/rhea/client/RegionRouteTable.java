@@ -14,17 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.client;
-
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.concurrent.locks.StampedLock;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.rhea.errors.RouteTableException;
 import com.alipay.sofa.jraft.rhea.metadata.Region;
@@ -34,6 +25,15 @@ import com.alipay.sofa.jraft.rhea.util.Lists;
 import com.alipay.sofa.jraft.rhea.util.Maps;
 import com.alipay.sofa.jraft.util.BytesUtil;
 import com.alipay.sofa.jraft.util.Requires;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.concurrent.locks.StampedLock;
 
 /**
  * Region routing table.
@@ -76,23 +76,25 @@ import com.alipay.sofa.jraft.util.Requires;
  *
  * For example, why not use endKey?
  * This depends mainly on the way the region splits:
- *  a) Suppose that region2[startKey2, endKey2) with id 2 is split
- *  b) The two regions after splitting are region2[startKey2, splitKey) with
- *      id continuing to 2 and region3[splitKey, endKey2) with id 3.
- *  c) At this point, you only need to add an element <region3, splitKey> to
- *      the RegionRouteTable. The data of region2 does not need to be modified.
+ * a) Suppose that region2[startKey2, endKey2) with id 2 is split
+ * b) The two regions after splitting are region2[startKey2, splitKey) with
+ * id continuing to 2 and region3[splitKey, endKey2) with id 3.
+ * c) At this point, you only need to add an element <region3, splitKey> to
+ * the RegionRouteTable. The data of region2 does not need to be modified.
+ *
+ * region 路由表
  *
  * @author jiachun.fjc
  */
 public class RegionRouteTable {
 
-    private static final Logger              LOG                = LoggerFactory.getLogger(RegionRouteTable.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RegionRouteTable.class);
 
-    private static final Comparator<byte[]>  keyBytesComparator = BytesUtil.getDefaultByteArrayComparator();
+    private static final Comparator<byte[]> keyBytesComparator = BytesUtil.getDefaultByteArrayComparator();
 
-    private final StampedLock                stampedLock        = new StampedLock();
-    private final NavigableMap<byte[], Long> rangeTable         = new TreeMap<>(keyBytesComparator);
-    private final Map<Long, Region>          regionTable        = Maps.newHashMap();
+    private final StampedLock stampedLock = new StampedLock();
+    private final NavigableMap<byte[], Long> rangeTable = new TreeMap<>(keyBytesComparator);
+    private final Map<Long, Region> regionTable = Maps.newHashMap();
 
     public Region getRegionById(final long regionId) {
         final StampedLock stampedLock = this.stampedLock;
@@ -143,13 +145,13 @@ public class RegionRouteTable {
             final byte[] rightEndKey = right.getEndKey();
             Requires.requireNonNull(rightStartKey, "rightStartKey");
             Requires.requireTrue(BytesUtil.compare(leftStartKey, rightStartKey) < 0,
-                "leftStartKey must < rightStartKey");
+                    "leftStartKey must < rightStartKey");
             if (leftEndKey == null || rightEndKey == null) {
                 Requires.requireTrue(leftEndKey == rightEndKey, "leftEndKey must == rightEndKey");
             } else {
                 Requires.requireTrue(BytesUtil.compare(leftEndKey, rightEndKey) == 0, "leftEndKey must == rightEndKey");
                 Requires.requireTrue(BytesUtil.compare(rightStartKey, rightEndKey) < 0,
-                    "rightStartKey must < rightEndKey");
+                        "rightStartKey must < rightEndKey");
             }
             final RegionEpoch leftEpoch = left.getRegionEpoch();
             leftEpoch.setVersion(leftEpoch.getVersion() + 1);

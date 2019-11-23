@@ -48,11 +48,15 @@ public class RaftGroupService {
 
     /**
      * This node serverId
+     *
+     * 当前节点对象
      */
     private PeerId serverId;
 
     /**
      * Node options
+     *
+     * 节点配置信息
      */
     private NodeOptions nodeOptions;
 
@@ -68,6 +72,8 @@ public class RaftGroupService {
 
     /**
      * The raft group id
+     *
+     * 所属组 ID
      */
     private String groupId;
     /**
@@ -118,14 +124,17 @@ public class RaftGroupService {
      * @param startRpcServer whether to start RPC server.
      */
     public synchronized Node start(final boolean startRpcServer) {
+        // 检查是否已经启动，避免重复启动
         if (this.started) {
             return this.node;
         }
+        // 节点 ID 配置错误
         if (this.serverId == null
                 || this.serverId.getEndpoint() == null
                 || this.serverId.getEndpoint().equals(new Endpoint(Utils.IP_ANY, 0))) {
             throw new IllegalArgumentException("Blank serverId:" + this.serverId);
         }
+        // 组 ID 缺失
         if (StringUtils.isBlank(this.groupId)) {
             throw new IllegalArgumentException("Blank group id" + this.groupId);
         }

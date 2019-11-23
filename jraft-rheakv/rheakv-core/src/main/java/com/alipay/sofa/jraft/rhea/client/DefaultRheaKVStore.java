@@ -217,20 +217,24 @@ public class DefaultRheaKVStore implements RheaKVStore {
         final String clusterName = opts.getClusterName();
         Requires.requireNonNull(pdOpts, "opts.placementDriverOptions");
         Requires.requireNonNull(clusterName, "opts.clusterName");
+        // 设置集群
         if (Strings.isBlank(pdOpts.getInitialServerList())) {
             // if blank, extends parent's value
             pdOpts.setInitialServerList(opts.getInitialServerList());
         }
         if (pdOpts.isFake()) {
+            // 无 PD 的场景
             this.pdClient = new FakePlacementDriverClient(opts.getClusterId(), clusterName);
         } else {
             this.pdClient = new RemotePlacementDriverClient(opts.getClusterId(), clusterName);
         }
+        // 初始化 PD
         if (!this.pdClient.init(pdOpts)) {
             LOG.error("Fail to init [PlacementDriverClient].");
             return false;
         }
         // init store engine
+        // 初始化存储引擎
         final StoreEngineOptions stOpts = opts.getStoreEngineOptions();
         if (stOpts != null) {
             stOpts.setInitialServerList(opts.getInitialServerList());
@@ -240,9 +244,11 @@ public class DefaultRheaKVStore implements RheaKVStore {
                 return false;
             }
         }
+        // 获取当前节点的 IP 和端口号
         final Endpoint selfEndpoint = this.storeEngine == null ? null : this.storeEngine.getSelfEndpoint();
         final RpcOptions rpcOpts = opts.getRpcOptions();
         Requires.requireNonNull(rpcOpts, "opts.rpcOptions");
+        // 创建一个 RPC 服务
         this.rheaKVRpcService = new DefaultRheaKVRpcService(this.pdClient, selfEndpoint) {
 
             @Override
@@ -258,15 +264,20 @@ public class DefaultRheaKVStore implements RheaKVStore {
             LOG.error("Fail to init [RheaKVRpcService].");
             return false;
         }
+        // 获取重试次数，默认为 2 次
         this.failoverRetries = opts.getFailoverRetries();
+        // 默认为 5000 毫秒
         this.futureTimeoutMillis = opts.getFutureTimeoutMillis();
+        // 是否只从 leader 读取数据，默认为 true
         this.onlyLeaderRead = opts.isOnlyLeaderRead();
         if (opts.isUseParallelKVExecutor()) {
             final int numWorkers = Utils.cpus();
-            final int bufSize = numWorkers << 4;
+            final int bufSize = numWorkers << 4; // 乘 16
             final String name = "parallel-kv-executor";
-            final ThreadFactory threadFactory = Constants.THREAD_AFFINITY_ENABLED
-                    ? new AffinityNamedThreadFactory(name, true) : new NamedThreadFactory(name, true);
+            // 是否启用线程亲和性 ThreadFactory
+            final ThreadFactory threadFactory = Constants.THREAD_AFFINITY_ENABLED ?
+                    new AffinityNamedThreadFactory(name, true) : new NamedThreadFactory(name, true);
+            // 初始化 Dispatcher
             this.kvDispatcher = new TaskDispatcher(bufSize, numWorkers, WaitStrategyType.LITE_BLOCKING_WAIT, threadFactory);
         }
         this.batchingOpts = opts.getBatchingOptions();
@@ -380,8 +391,12 @@ public class DefaultRheaKVStore implements RheaKVStore {
         return FutureHelper.get(this.get(key, readOnlySafe), this.futureTimeoutMillis);
     }
 
-    private CompletableFuture<byte[]> get(final byte[] key, final boolean readOnlySafe,
-                                          final CompletableFuture<byte[]> future, final boolean tryBatching) {
+    private CompletableFuture<byte[]> get(final byte[] key,
+                                          // 是否开启线性一致性读
+                                          final boolean readOnlySafe,
+                                          final CompletableFuture<byte[]> future,
+                                          // 是否批量读取数据
+                                          final boolean tryBatching) {
         this.checkState();
         Requires.requireNonNull(key, "key");
         if (tryBatching) {
@@ -425,8 +440,8 @@ public class DefaultRheaKVStore implements RheaKVStore {
     public CompletableFuture<Map<ByteArray, byte[]>> multiGet(final List<byte[]> keys, final boolean readOnlySafe) {
         this.checkState();
         Requires.requireNonNull(keys, "keys");
-        final FutureGroup<Map<ByteArray, byte[]>> futureGroup = this.internalMultiGet(keys, readOnlySafe,
-                this.failoverRetries, null);
+        final FutureGroup<Map<ByteArray, byte[]>> futureGroup =
+                this.internalMultiGet(keys, readOnlySafe, this.failoverRetries, null);
         return FutureHelper.joinMap(futureGroup, keys.size());
     }
 
@@ -440,18 +455,23 @@ public class DefaultRheaKVStore implements RheaKVStore {
         return FutureHelper.get(this.multiGet(keys, readOnlySafe), this.futureTimeoutMillis);
     }
 
-    private FutureGroup<Map<ByteArray, byte[]>> internalMultiGet(final List<byte[]> keys, final boolean readOnlySafe,
-                                                                 final int retriesLeft, final Throwable lastCause) {
+    private FutureGroup<Map<ByteArray, byte[]>> internalMultiGet(final List<byte[]> keys,
+                                                                 final boolean readOnlySafe,
+                                                                 final int retriesLeft,
+                                                                 final Throwable lastCause) {
+        // 不同的 key 存放在不同的 region 中，一个 region 对应多个 key，封装到 map 中
         final Map<Region, List<byte[]>> regionMap = this.pdClient
                 .findRegionsByKeys(keys, ApiExceptionHelper.isInvalidEpoch(lastCause));
+        // 返回值
         final List<CompletableFuture<Map<ByteArray, byte[]>>> futures = Lists.newArrayListWithCapacity(regionMap.size());
         final Errors lastError = lastCause == null ? null : Errors.forException(lastCause);
         for (final Map.Entry<Region, List<byte[]>> entry : regionMap.entrySet()) {
             final Region region = entry.getKey();
             final List<byte[]> subKeys = entry.getValue();
-            final RetryCallable<Map<ByteArray, byte[]>> retryCallable = retryCause -> this.internalMultiGet(subKeys,
-                    readOnlySafe, retriesLeft - 1, retryCause);
+            final RetryCallable<Map<ByteArray, byte[]>> retryCallable =
+                    retryCause -> this.internalMultiGet(subKeys, readOnlySafe, retriesLeft - 1, retryCause);
             final MapFailoverFuture<ByteArray, byte[]> future = new MapFailoverFuture<>(retriesLeft, retryCallable);
+            // 发送 MultiGetRequest 请求，获取数据
             this.internalRegionMultiGet(region, subKeys, readOnlySafe, future, retriesLeft, lastError, this.onlyLeaderRead);
             futures.add(future);
         }
@@ -463,10 +483,11 @@ public class DefaultRheaKVStore implements RheaKVStore {
                                         final Errors lastCause, final boolean requireLeader) {
         final RegionEngine regionEngine = this.getRegionEngine(region.getId(), requireLeader);
         // require leader on retry
-        final RetryRunner retryRunner = retryCause -> this.internalRegionMultiGet(region, subKeys, readOnlySafe, future,
-                retriesLeft - 1, retryCause, true);
-        final FailoverClosure<Map<ByteArray, byte[]>> closure = new FailoverClosureImpl<>(future,
-                false, retriesLeft, retryRunner);
+        // 设置重试函数
+        final RetryRunner retryRunner = retryCause ->
+                this.internalRegionMultiGet(region, subKeys, readOnlySafe, future, retriesLeft - 1, retryCause, true);
+        final FailoverClosure<Map<ByteArray, byte[]>> closure =
+                new FailoverClosureImpl<>(future, false, retriesLeft, retryRunner);
         if (regionEngine != null) {
             if (ensureOnValidEpoch(region, regionEngine, closure)) {
                 final RawKVStore rawKVStore = this.getRawKVStore(regionEngine);
@@ -832,8 +853,12 @@ public class DefaultRheaKVStore implements RheaKVStore {
         return FutureHelper.get(this.put(key, value), this.futureTimeoutMillis);
     }
 
-    private CompletableFuture<Boolean> put(final byte[] key, final byte[] value,
-                                           final CompletableFuture<Boolean> future, final boolean tryBatching) {
+    private CompletableFuture<Boolean> put(final byte[] key,
+                                           final byte[] value,
+                                           final CompletableFuture<Boolean> future,
+                                           // 是否尝试进行批量 put
+                                           final boolean tryBatching) {
+        // 校验一下是否已经启动
         this.checkState();
         if (tryBatching) {
             final PutBatching putBatching = this.putBatching;
@@ -841,6 +866,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
                 return future;
             }
         }
+        // 直接存入数据
         this.internalPut(key, value, future, this.failoverRetries, null);
         return future;
     }
@@ -1542,6 +1568,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
             this.events.add(event);
             this.cachedBytes += event.key.length;
             final int size = this.events.size();
+            // 检查一下数据量，没有达到 MaxReadBytes，并且不是最后一个 event 则直接返回
             if (!endOfBatch && size < batchingOpts.getBatchSize() && this.cachedBytes < batchingOpts.getMaxReadBytes()) {
                 return;
             }
@@ -1549,7 +1576,8 @@ public class DefaultRheaKVStore implements RheaKVStore {
             if (size == 1) {
                 this.reset();
                 try {
-                    DefaultRheaKVStore.this.get(event.key, this.readOnlySafe, event.future, false);
+                    // 如果只是一个 get 请求，则不需要进行批量处理
+                    get(event.key, this.readOnlySafe, event.future, false);
                 } catch (final Throwable t) {
                     this.exceptionally(t, event.future);
                 }
@@ -1563,7 +1591,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
                 }
                 this.reset();
                 try {
-                    DefaultRheaKVStore.this.multiGet(keys, this.readOnlySafe).whenComplete((result, throwable) -> {
+                    multiGet(keys, this.readOnlySafe).whenComplete((result, throwable) -> {
                         if (throwable == null) {
                             for (int i = 0; i < futures.length; i++) {
                                 final ByteArray realKey = ByteArray.wrap(keys.get(i));
@@ -1589,9 +1617,12 @@ public class DefaultRheaKVStore implements RheaKVStore {
         @SuppressWarnings("unchecked")
         @Override
         public void onEvent(final KVEvent event, final long sequence, final boolean endOfBatch) throws Exception {
+            // 将传入的事件加入到集合
             this.events.add(event);
+            // 加上 key 和 value 的长度
             this.cachedBytes += event.kvEntry.length();
             final int size = this.events.size();
+            // 如果不是最后一个 event，且数量不够，则不发送
             if (!endOfBatch && size < batchingOpts.getBatchSize() && this.cachedBytes < batchingOpts.getMaxWriteBytes()) {
                 return;
             }

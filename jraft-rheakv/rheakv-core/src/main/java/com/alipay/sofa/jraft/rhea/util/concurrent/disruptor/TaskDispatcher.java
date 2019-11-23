@@ -14,10 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.util.concurrent.disruptor;
 
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+package com.alipay.sofa.jraft.rhea.util.concurrent.disruptor;
 
 import com.alipay.sofa.jraft.util.Ints;
 import com.alipay.sofa.jraft.util.Requires;
@@ -35,6 +33,9 @@ import com.lmax.disruptor.WaitStrategy;
 import com.lmax.disruptor.YieldingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
+
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The default wait strategy used by the Disruptor is the BlockingWaitStrategy.
@@ -67,7 +68,6 @@ import com.lmax.disruptor.dsl.ProducerType;
  * The BusySpinWaitStrategy is the highest performing Wait Strategy, but puts the highest constraints on the deployment
  * environment. This wait strategy should only be used if the number of Event Handler threads is smaller than the number
  * of physical cores on the box. E.g. hyper-threading should be disabled
- *
  *
  * @author jiachun.fjc
  */

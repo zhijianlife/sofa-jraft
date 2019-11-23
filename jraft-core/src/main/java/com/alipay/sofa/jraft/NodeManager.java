@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 /**
  * Raft nodes manager.
  *
+ * 节点管理器，单例
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-22 5:58:23 PM

@@ -87,6 +87,8 @@ public class RaftRpcServerFactory {
     /**
      * Adds RAFT and CLI service request processors
      *
+     * 添加 RPC 请求处理器
+     *
      * @param rpcServer rpc server instance
      * @param raftExecutor executor to handle RAFT requests.
      * @param cliExecutor executor to handle CLI service requests.

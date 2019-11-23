@@ -27,7 +27,9 @@ import com.alipay.sofa.jraft.storage.SnapshotStorage;
 /**
  * Abstract factory to create services for SOFAJRaft.
  *
- * @author boyan(boyan @ antfin.com)
+ * 创建 service 的抽象工厂
+ *
+ * @author boyan@antfin.com
  * @since 1.2.6
  */
 public interface JRaftServiceFactory {

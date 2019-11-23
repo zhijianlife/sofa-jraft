@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * The global timer manager.
  *
+ * 全局定时任务管理器
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-30 3:24:34 PM
@@ -38,7 +40,8 @@ public class TimerManager implements Lifecycle<Integer> {
 
     @Override
     public boolean init(Integer coreSize) {
-        executor = Executors.newScheduledThreadPool(coreSize, new NamedThreadFactory("JRaft-Node-ScheduleThreadPool-", true));
+        executor = Executors.newScheduledThreadPool(
+                coreSize, new NamedThreadFactory("JRaft-Node-ScheduleThreadPool-", true));
         return true;
     }
 

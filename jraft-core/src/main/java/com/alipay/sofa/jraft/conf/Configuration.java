@@ -150,6 +150,12 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         return sb.toString();
     }
 
+    /**
+     * 解析字符串形式的“IP:port”列表
+     *
+     * @param conf
+     * @return
+     */
     public boolean parse(final String conf) {
         if (conf == null) {
             return false;

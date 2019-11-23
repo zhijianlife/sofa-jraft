@@ -14,14 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
-
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.Executor;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Node;
 import com.alipay.sofa.jraft.Status;
@@ -34,6 +28,12 @@ import com.alipay.sofa.jraft.rhea.util.Clock;
 import com.alipay.sofa.jraft.rhea.util.Pair;
 import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
 import com.alipay.sofa.jraft.util.BytesUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * KVStore based on RAFT replica state machine.
@@ -44,9 +44,9 @@ public class RaftRawKVStore implements RawKVStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(RaftRawKVStore.class);
 
-    private final Node          node;
-    private final RawKVStore    kvStore;
-    private final Executor      readIndexExecutor;
+    private final Node node;
+    private final RawKVStore kvStore;
+    private final Executor readIndexExecutor;
 
     public RaftRawKVStore(Node node, RawKVStore kvStore, Executor readIndexExecutor) {
         this.node = node;
@@ -100,18 +100,24 @@ public class RaftRawKVStore implements RawKVStore {
 
     @Override
     public void multiGet(final List<byte[]> keys, final boolean readOnlySafe, final KVStoreClosure closure) {
+        // 不需要线程一致读
         if (!readOnlySafe) {
             this.kvStore.multiGet(keys, false, closure);
             return;
         }
+
+        /* 线性一致读 */
+
         this.node.readIndex(BytesUtil.EMPTY_BYTES, new ReadIndexClosure() {
 
             @Override
             public void run(final Status status, final long index, final byte[] reqCtx) {
+                // 成功
                 if (status.isOk()) {
                     RaftRawKVStore.this.kvStore.multiGet(keys, true, closure);
                     return;
                 }
+                // 失败
                 RaftRawKVStore.this.readIndexExecutor.execute(() -> {
                     if (isLeader()) {
                         LOG.warn("Fail to [multiGet] with 'ReadIndex': {}, try to applying to the state machine.", status);
