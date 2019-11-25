@@ -20,7 +20,7 @@ package com.alipay.sofa.jraft.entity.codec;
 /**
  * Log entry codec factory to create encoder/decoder for LogEntry.
  *
- * @author boyan(boyan @ antfin.com)
+ * @author boyan (boyan@antfin.com)
  * @since 1.2.6
  */
 public interface LogEntryCodecFactory {

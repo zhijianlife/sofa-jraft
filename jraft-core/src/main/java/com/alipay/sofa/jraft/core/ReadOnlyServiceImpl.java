@@ -232,11 +232,12 @@ public class ReadOnlyServiceImpl implements ReadOnlyService, LastAppliedLogIndex
                 .setProducerType(ProducerType.MULTI) //
                 .build();
         this.readIndexDisruptor.handleEventsWith(new ReadIndexEventHandler());
-        this.readIndexDisruptor
-                .setDefaultExceptionHandler(new LogExceptionHandler<Object>(this.getClass().getSimpleName()));
+        this.readIndexDisruptor.setDefaultExceptionHandler(
+                new LogExceptionHandler<Object>(this.getClass().getSimpleName()));
         this.readIndexQueue = this.readIndexDisruptor.start();
         if (this.nodeMetrics.getMetricRegistry() != null) {
-            this.nodeMetrics.getMetricRegistry().register("jraft-read-only-service-disruptor", new DisruptorMetricSet(this.readIndexQueue));
+            this.nodeMetrics.getMetricRegistry()
+                    .register("jraft-read-only-service-disruptor", new DisruptorMetricSet(this.readIndexQueue));
         }
         // listen on lastAppliedLogIndex change events.
         this.fsmCaller.addLastAppliedLogIndexListener(this);

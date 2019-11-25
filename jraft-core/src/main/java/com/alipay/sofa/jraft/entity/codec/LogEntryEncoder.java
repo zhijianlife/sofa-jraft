@@ -22,7 +22,9 @@ import com.alipay.sofa.jraft.entity.LogEntry;
 /**
  * Log entry encoder
  *
- * @author boyan(boyan @ antfin.com)
+ * 日志条目编码器
+ *
+ * @author boyan (boyan@antfin.com)
  * @since 1.2.6
  */
 public interface LogEntryEncoder {

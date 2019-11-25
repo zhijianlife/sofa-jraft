@@ -73,6 +73,11 @@ public class ConfigurationEntry {
         this.oldConf = oldConf;
     }
 
+    /**
+     * 当前未进行配置更替
+     *
+     * @return
+     */
     public boolean isStable() {
         return this.oldConf.isEmpty();
     }

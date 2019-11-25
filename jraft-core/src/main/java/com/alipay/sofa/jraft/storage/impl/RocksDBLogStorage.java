@@ -106,7 +106,9 @@ public class RocksDBLogStorage implements LogStorage {
 
     private volatile boolean hasLoadFirstLogIndex;
 
+    /** 日志条目编码器 */
     private LogEntryEncoder logEntryEncoder;
+    /** 日志条目解码器 */
     private LogEntryDecoder logEntryDecoder;
 
     public RocksDBLogStorage(final String path, final RaftOptions raftOptions) {
@@ -154,10 +156,13 @@ public class RocksDBLogStorage implements LogStorage {
                 LOG.warn("RocksDBLogStorage init() already.");
                 return true;
             }
+            // 日志条目解码器
             this.logEntryDecoder = opts.getLogEntryCodecFactory().decoder();
+            // 日志条目编码器
             this.logEntryEncoder = opts.getLogEntryCodecFactory().encoder();
             Requires.requireNonNull(this.logEntryDecoder, "Null log entry decoder");
             Requires.requireNonNull(this.logEntryEncoder, "Null log entry encoder");
+
             this.dbOptions = createDBOptions();
 
             this.writeOptions = new WriteOptions();

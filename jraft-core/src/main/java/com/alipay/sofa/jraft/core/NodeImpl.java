@@ -180,10 +180,12 @@ public class NodeImpl implements Node, RaftServerService {
     private final PeerId serverId;
     /** Other services */
     private final ConfigurationCtx confCtx;
+    /** 日志存储，基于 RocksDB 做日志存储 */
     private LogStorage logStorage;
     private RaftMetaStorage metaStorage;
     private ClosureQueue closureQueue;
     private ConfigurationManager configManager;
+    /** 日志存储管理器 */
     private LogManager logManager;
     /** 有限状态机调用程序 */
     private FSMCaller fsmCaller;
@@ -479,11 +481,18 @@ public class NodeImpl implements Node, RaftServerService {
         LOG.info("The number of active nodes increment to {}.", num);
     }
 
+    /**
+     * 初始化快照存储
+     *
+     * @return
+     */
     private boolean initSnapshotStorage() {
+        // 如果未设置则不启用快照
         if (StringUtils.isEmpty(this.options.getSnapshotUri())) {
             LOG.warn("Do not set snapshot uri, ignore initSnapshotStorage.");
             return true;
         }
+        // 创建快照执行器
         this.snapshotExecutor = new SnapshotExecutorImpl();
         final SnapshotExecutorOptions opts = new SnapshotExecutorOptions();
         opts.setUri(this.options.getSnapshotUri());
@@ -498,9 +507,16 @@ public class NodeImpl implements Node, RaftServerService {
         return this.snapshotExecutor.init(opts);
     }
 
+    /**
+     * 初始化日志存储和日志管理器，基于 RocksDB 做日志存储
+     *
+     * @return
+     */
     private boolean initLogStorage() {
         Requires.requireNonNull(this.fsmCaller, "Null fsm caller");
+        // 基于 RocksDB 做日志数据存储
         this.logStorage = this.serviceFactory.createLogStorage(this.options.getLogUri(), this.raftOptions);
+        // 创建一个 LogManager 对象，负责管理日志存储
         this.logManager = new LogManagerImpl();
         final LogManagerOptions opts = new LogManagerOptions();
         opts.setLogEntryCodecFactory(this.serviceFactory.createLogEntryCodecFactory());
@@ -510,10 +526,17 @@ public class NodeImpl implements Node, RaftServerService {
         opts.setNodeMetrics(this.metrics);
         opts.setDisruptorBufferSize(this.raftOptions.getDisruptorBufferSize());
         opts.setRaftOptions(this.raftOptions);
+        // 初始化 LogManager
         return this.logManager.init(opts);
     }
 
+    /**
+     * 初始化元数据信息（Raft 协议内部状态）
+     *
+     * @return
+     */
     private boolean initMetaStorage() {
+        // 采用本地存储，基于 PB 做序列化
         this.metaStorage = this.serviceFactory.createRaftMetaStorage(this.options.getRaftMetaUri(), this.raftOptions);
         RaftMetaStorageOptions opts = new RaftMetaStorageOptions();
         opts.setNode(this);
@@ -565,6 +588,12 @@ public class NodeImpl implements Node, RaftServerService {
         }
     }
 
+    /**
+     * 初始化 FSMCaller
+     *
+     * @param bootstrapId
+     * @return
+     */
     private boolean initFSMCaller(final LogId bootstrapId) {
         if (this.fsmCaller == null) {
             LOG.error("Fail to init fsm caller, null instance, bootstrapId={}.", bootstrapId);
@@ -776,7 +805,7 @@ public class NodeImpl implements Node, RaftServerService {
             }
         };
 
-        // 快照定时生成器
+        // 快照定时生成器，默认 1 小时生成一次
         this.snapshotTimer = new RepeatedTimer("JRaft-SnapshotTimer", this.options.getSnapshotIntervalSecs() * 1000) {
 
             @Override
@@ -785,6 +814,7 @@ public class NodeImpl implements Node, RaftServerService {
             }
         };
 
+        // 创建配置管理器
         this.configManager = new ConfigurationManager();
 
         this.applyDisruptor = DisruptorBuilder.<LogEntryAndClosure>newInstance()
@@ -801,27 +831,28 @@ public class NodeImpl implements Node, RaftServerService {
             this.metrics.getMetricRegistry().register("jraft-node-impl-disruptor", new DisruptorMetricSet(this.applyQueue));
         }
 
-        // FSMCaller 用于对业务 StateMachine 的状态转换调用和日志的写入等
+        // 创建 FSMCaller，用于对业务 StateMachine 的状态转换调用和日志的写入等
         this.fsmCaller = new FSMCallerImpl();
 
-        // TODO source reading, by zhenchao 2019-11-23 16:17:24
-
-        // 初始化日志存储
+        // 初始化日志存储和日志管理器
         if (!this.initLogStorage()) {
             LOG.error("Node {} initLogStorage failed.", this.getNodeId());
             return false;
         }
-        // 初始化元数据存储
+
+        // 初始化元数据信息（Raft 协议内部状态）
         if (!this.initMetaStorage()) {
             LOG.error("Node {} initMetaStorage failed.", this.getNodeId());
             return false;
         }
+
         // 初始化 FSMCaller
         if (!this.initFSMCaller(new LogId(0, 0))) {
             LOG.error("Node {} initFSMCaller failed.", this.getNodeId());
             return false;
         }
-        // 初始化投票箱
+
+        // 创建并初始化投票箱
         this.ballotBox = new BallotBox();
         final BallotBoxOptions ballotBoxOpts = new BallotBoxOptions();
         ballotBoxOpts.setWaiter(this.fsmCaller);
@@ -843,7 +874,8 @@ public class NodeImpl implements Node, RaftServerService {
             LOG.error("Node {} is initialized with inconsistent log, status={}.", this.getNodeId(), st);
             return false;
         }
-        // 初始化配置信息
+
+        // 初始化配置信息，包括整个集群节点信息（新旧）、LogId
         this.conf = new ConfigurationEntry();
         this.conf.setId(new LogId());
         // if have log using conf in log, else using conf in options
@@ -854,6 +886,7 @@ public class NodeImpl implements Node, RaftServerService {
         }
 
         // TODO RPC service and ReplicatorGroup is in cycle dependent, refactor it
+        // 创建复制组
         this.replicatorGroup = new ReplicatorGroupImpl();
         this.rpcService = new BoltRaftClientService(this.replicatorGroup);
         final ReplicatorGroupOptions rgOpts = new ReplicatorGroupOptions();
@@ -877,6 +910,7 @@ public class NodeImpl implements Node, RaftServerService {
         }
         this.replicatorGroup.init(new NodeId(this.groupId, this.serverId), rgOpts);
 
+        // 只读服务，用于实现线性一致性？
         this.readOnlyService = new ReadOnlyServiceImpl();
         final ReadOnlyServiceOptions rosOpts = new ReadOnlyServiceOptions();
         rosOpts.setFsmCaller(this.fsmCaller);
@@ -889,20 +923,23 @@ public class NodeImpl implements Node, RaftServerService {
             return false;
         }
 
-        // 初始化节点的初始状态
+        // 设置节点状态为 FOLLOWER
         this.state = State.STATE_FOLLOWER;
 
         if (LOG.isInfoEnabled()) {
-            LOG.info("Node {} init, term={}, lastLogId={}, conf={}, oldConf={}.", this.getNodeId(), this.currTerm,
-                    this.logManager.getLastLogId(false), this.conf.getConf(), this.conf.getOldConf());
+            LOG.info("Node {} init, term={}, lastLogId={}, conf={}, oldConf={}.",
+                    this.getNodeId(), this.currTerm, this.logManager.getLastLogId(false), this.conf.getConf(), this.conf.getOldConf());
         }
 
+        // 启动快照定时生成器
         if (this.snapshotExecutor != null && this.options.getSnapshotIntervalSecs() > 0) {
             LOG.debug("Node {} start snapshot timer, term={}.", this.getNodeId(), this.currTerm);
             this.snapshotTimer.start();
         }
 
+        // 如果节点初始化时配置不为空，即集群中已经有节点
         if (!this.conf.isEmpty()) {
+            // 尝试执行 stepDown
             this.stepDown(this.currTerm, false, new Status());
         }
 
@@ -914,9 +951,11 @@ public class NodeImpl implements Node, RaftServerService {
 
         // Now the raft node is started, have to acquire the writeLock to avoid race conditions
         this.writeLock.lock();
-        if (this.conf.isStable() && this.conf.getConf().size() == 1 && this.conf.getConf().contains(this.serverId)) {
+        if (this.conf.isStable() // 只有新配置
+                && this.conf.getConf().size() == 1 // 只有一个节点
+                && this.conf.getConf().contains(this.serverId)) { // 且为当前节点
             // The group contains only this server which must be the LEADER, trigger the timer immediately.
-            // 当前集群只有一个节点，直接竞选成为 leader
+            // 当前集群只有当前节点自己一个，直接竞选成为 leader
             this.electSelf();
         } else {
             this.writeLock.unlock();

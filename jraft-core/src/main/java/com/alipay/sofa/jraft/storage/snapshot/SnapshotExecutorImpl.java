@@ -236,6 +236,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         this.fsmCaller = opts.getFsmCaller();
         this.node = opts.getNode();
         this.term = opts.getInitTerm();
+        // 基于本地文件存储快照
         this.snapshotStorage = this.node.getServiceFactory().createSnapshotStorage(opts.getUri(), this.node.getRaftOptions());
         if (opts.isFilterBeforeCopyRemote()) {
             this.snapshotStorage.setFilterBeforeCopyRemote();

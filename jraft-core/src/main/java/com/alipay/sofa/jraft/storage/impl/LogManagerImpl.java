@@ -101,6 +101,7 @@ public class LogManagerImpl implements LogManager {
     private final Map<Long, WaitMeta> waitMap = new HashMap<>();
     /** 日志数据异步处理 */
     private Disruptor<StableClosureEvent> disruptor;
+    /** 基于 Disruptor 实现 */
     private RingBuffer<StableClosureEvent> diskQueue;
     private RaftOptions raftOptions;
     private volatile CountDownLatch shutDownLatch;
@@ -171,6 +172,15 @@ public class LogManagerImpl implements LogManager {
 
     @Override
     public boolean init(final LogManagerOptions opts) {
+
+        /*
+         * 初始化 LogManager:
+         * 1. 初始化 RocksDB 实例，并加载配置信息
+         * 2. 加载日志 firstLogIndex 和 lastLogIndex
+         * 3. 初始化有限状态机调用者
+         * 4. 初始化 Disruptor
+         * */
+
         this.writeLock.lock();
         try {
             if (opts.getLogStorage() == null) {
@@ -186,12 +196,15 @@ public class LogManagerImpl implements LogManager {
             lsOpts.setConfigurationManager(this.configManager);
             lsOpts.setLogEntryCodecFactory(opts.getLogEntryCodecFactory());
 
+            // 创建 RocksDB 实例，并加载配置信息
             if (!this.logStorage.init(lsOpts)) {
                 LOG.error("Fail to init logStorage");
                 return false;
             }
+
             this.firstLogIndex = this.logStorage.getFirstLogIndex();
             this.lastLogIndex = this.logStorage.getLastLogIndex();
+            // 封装 lastLogIndex 为 LogId
             this.diskId = new LogId(this.lastLogIndex, this.getTermFromLogStorage(this.lastLogIndex));
             this.fsmCaller = opts.getFsmCaller();
             this.disruptor = DisruptorBuilder.<StableClosureEvent>newInstance()
@@ -752,7 +765,7 @@ public class LogManagerImpl implements LogManager {
     }
 
     /**
-     * 获取 term 值
+     * 获取指定 index 对应的 term 值
      *
      * @param index
      * @return
