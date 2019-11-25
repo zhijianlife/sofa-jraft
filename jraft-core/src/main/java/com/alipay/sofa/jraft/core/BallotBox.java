@@ -158,11 +158,9 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
     }
 
     /**
-     * Called when a candidate becomes the new leader, otherwise the behavior is
-     * undefined.
-     * According the the raft algorithm, the logs from previous terms can't be
-     * committed until a log at the new term becomes committed, so
-     * |newPendingIndex| should be |last_log_index| + 1.
+     * Called when a candidate becomes the new leader, otherwise the behavior is undefined.
+     * According to the raft algorithm, the logs from previous terms can't be
+     * committed until a log at the new term becomes committed, so |newPendingIndex| should be |last_log_index| + 1.
      *
      * @param newPendingIndex pending index of new leader
      * @return returns true if reset success
@@ -171,13 +169,11 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
         final long stamp = this.stampedLock.writeLock();
         try {
             if (!(this.pendingIndex == 0 && this.pendingMetaQueue.isEmpty())) {
-                LOG.error("resetPendingIndex fail, pendingIndex={}, pendingMetaQueueSize={}.", this.pendingIndex,
-                        this.pendingMetaQueue.size());
+                LOG.error("resetPendingIndex fail, pendingIndex={}, pendingMetaQueueSize={}.", this.pendingIndex, this.pendingMetaQueue.size());
                 return false;
             }
             if (newPendingIndex <= this.lastCommittedIndex) {
-                LOG.error("resetPendingIndex fail, newPendingIndex={}, lastCommittedIndex={}.", newPendingIndex,
-                        this.lastCommittedIndex);
+                LOG.error("resetPendingIndex fail, newPendingIndex={}, lastCommittedIndex={}.", newPendingIndex, this.lastCommittedIndex);
                 return false;
             }
             this.pendingIndex = newPendingIndex;

@@ -165,7 +165,9 @@ public class NodeImpl implements Node, RaftServerService {
     private PeerId leaderId = new PeerId();
     /** 赢得预投票的节点 */
     private PeerId votedId;
+    /** 选票 */
     private final Ballot voteCtx = new Ballot();
+    /** 预选票 */
     private final Ballot prevVoteCtx = new Ballot();
     /** 记录整个集群的节点信息 */
     private ConfigurationEntry conf;
@@ -198,12 +200,16 @@ public class NodeImpl implements Node, RaftServerService {
 
     /* Timers */
 
-    /** 定时任务管理器 */
+    /** 延时任务管理器 */
     private TimerManager timerManager;
-    /** 预投票定时器 */
+    /**
+     * 预投票定时器，用于触发 follower 节点发起预投票，当执行 stepDown 成功时启动该定时器
+     * 如果预投票阶段成功，则需要临时关闭该定时器，避免同一时间发起多次预投票
+     */
     private RepeatedTimer electionTimer;
-    /** 选举定时器 */
+    /** 投票定时器，当一个 follower 成功完成 pre-vote 时，转变角色为 candidate，并启动该定时器 */
     private RepeatedTimer voteTimer;
+    /** 降级定时器，当一个节点成为 leader 之后会启动该定时器，当一个 leader 降级之后会停止该定时器 */
     private RepeatedTimer stepDownTimer;
     private RepeatedTimer snapshotTimer;
     private ScheduledFuture<?> transferTimer;
@@ -400,8 +406,7 @@ public class NodeImpl implements Node, RaftServerService {
             this.stage = Stage.STAGE_NONE;
             this.nchanges = 0;
             if (this.done != null) {
-                Utils.runClosureInThread(this.done, st != null ? st : new Status(RaftError.EPERM,
-                        "Leader stepped down."));
+                Utils.runClosureInThread(this.done, st != null ? st : new Status(RaftError.EPERM, "Leader stepped down."));
                 this.done = null;
             }
         }
@@ -562,6 +567,9 @@ public class NodeImpl implements Node, RaftServerService {
         Utils.runInThread(() -> this.doSnapshot(null));
     }
 
+    /**
+     * 尝试发起 pre-vote
+     */
     private void handleElectionTimeout() {
         boolean doUnlock = true;
         this.writeLock.lock();
@@ -757,14 +765,15 @@ public class NodeImpl implements Node, RaftServerService {
             return false;
         }
 
-        // 定时任务管理器
+        // 创建定时任务管理器
         this.timerManager = new TimerManager();
+        // 创建一个 ScheduledExecutorService 对象
         if (!this.timerManager.init(this.options.getTimerPoolSize())) {
             LOG.error("Fail to init timer manager.");
             return false;
         }
 
-        // 选举定时任务，如果选举超时，且当前的节点又是 CANDIDATE 角色，则发起选举
+        // 创建投票定时任务
         this.voteTimer = new RepeatedTimer("JRaft-VoteTimer", this.options.getElectionTimeoutMs()) {
 
             @Override
@@ -779,7 +788,7 @@ public class NodeImpl implements Node, RaftServerService {
             }
         };
 
-        // 预投票定时任务，候选者在发起投票之前先发起预投票，如果得票数未过半则放弃参选
+        // 创建预投票定时任务
         this.electionTimer = new RepeatedTimer("JRaft-ElectionTimer", this.options.getElectionTimeoutMs()) {
 
             @Override
@@ -793,10 +802,7 @@ public class NodeImpl implements Node, RaftServerService {
             }
         };
 
-        /*
-         * 定时检查是否需要降级（stepdown），当前 leader 可能出现没有半数以上 follower 响应的情况，一般出现在网络分区的情况下
-         * 所以需要定期检查 leader 的 follower 是否有那么多，没有的话就需要强制让 leader 下台
-         */
+        // 创建降级定时任务（默认为 500 毫秒）
         this.stepDownTimer = new RepeatedTimer("JRaft-StepDownTimer", this.options.getElectionTimeoutMs() >> 1) {
 
             @Override
@@ -805,7 +811,7 @@ public class NodeImpl implements Node, RaftServerService {
             }
         };
 
-        // 快照定时生成器，默认 1 小时生成一次
+        // 创建快照定时任务（默认 1 小时）
         this.snapshotTimer = new RepeatedTimer("JRaft-SnapshotTimer", this.options.getSnapshotIntervalSecs() * 1000) {
 
             @Override
@@ -978,20 +984,22 @@ public class NodeImpl implements Node, RaftServerService {
                 LOG.warn("Node {} can't do electSelf as it is not in {}.", this.getNodeId(), this.conf);
                 return;
             }
-            // 当前节点为 follower，马上要开始选举了，先把预选举关掉
+
+            // 当前节点为 follower，马上要开始真正投票了，先临时关闭预投票定时器
             if (this.state == State.STATE_FOLLOWER) {
                 LOG.debug("Node {} stop election timer, term={}.", this.getNodeId(), this.currTerm);
                 this.electionTimer.stop();
             }
+
             // 清空本地记录的 leaderId
-            this.resetLeaderId(PeerId.emptyPeer(), new Status(RaftError.ERAFTTIMEDOUT,
-                    "A follower's leader_id is reset to NULL as it begins to request_vote."));
+            this.resetLeaderId(PeerId.emptyPeer(),
+                    new Status(RaftError.ERAFTTIMEDOUT, "A follower's leader_id is reset to NULL as it begins to request_vote."));
             // 设置节点状态为 CANDIDATE，参与竞选
             this.state = State.STATE_CANDIDATE;
             this.currTerm++; // term 值加 1
             this.votedId = this.serverId.copy();
             LOG.debug("Node {} start vote timer, term={} .", this.getNodeId(), this.currTerm);
-            // 启动选举定时器
+            // 启动投票定时器
             this.voteTimer.start();
             // 初始化投票箱
             this.voteCtx.init(this.conf.getConf(), this.conf.isStable() ? null : this.conf.getOldConf());
@@ -1134,12 +1142,15 @@ public class NodeImpl implements Node, RaftServerService {
     /**
      * LEADER 下台
      *
-     * 1. 如果当前的节点是 CANDIDATE，则暂时不要投票
-     * 2. 如果当前的节点是 LEADER 或正在交权，需要关闭当前节点的 stepDownTimer
-     * 3. 如果当前是 LEADER，需要告诉状态机 leader 下台了，可以在状态机中对下台的动作做处理
-     * 4. 重置当前节点记录的 leaderId，把当前节点的 state 状态设置为 Follower，重置 confCtx 上下文
-     * 5. 停止当前的快照生成，设置新的任期，让所有的复制节点停止工作
-     * 6. 启动 electionTimer
+     * 1. 如果当前节点处于不活跃状态，则没有必要再 stepdown
+     * 2. 如果当前节点是 Candidate 角色，则停止继续执行 vote 过程
+     * 3. 如果当前节点是 Leader 角色（包括交权），则停止 stepdown-timer、清空选票，并发送 leader 下线通知
+     * 4. 清空本地记录的 leader 节点信息
+     * 5. 转换节点状态为 Follower
+     * 6. 重置一些配置上下文信息；
+     * 7. 停止生成快照信息
+     * 8. 停止所有的 Replicator
+     * 9. 启动 election-timer
      *
      * @param term
      * @param wakeupCandidate
@@ -1152,7 +1163,7 @@ public class NodeImpl implements Node, RaftServerService {
             return;
         }
 
-        // 当前节点是 CANDIDATE，则停止选举
+        // 当前节点是 CANDIDATE，则停止继续执行 vote 过程
         if (this.state == State.STATE_CANDIDATE) {
             this.stopVoteTimer();
         }
@@ -2053,19 +2064,39 @@ public class NodeImpl implements Node, RaftServerService {
         }
     }
 
+    /**
+     * 检查集群中存活节点是否过半，如果未过半则执行 stepdown
+     *
+     * @param conf
+     * @param monotonicNowMs
+     */
     private void checkDeadNodes(final Configuration conf, final long monotonicNowMs) {
+        // 获取集群范围内所有的节点列表
         final List<PeerId> peers = conf.listPeers();
         final Configuration deadNodes = new Configuration();
+        // 检查集群中存活节点是否过半，是则返回
         if (this.checkDeadNodes0(peers, monotonicNowMs, true, deadNodes)) {
             return;
         }
-        LOG.warn("Node {} steps down when alive nodes don't satisfy quorum, term={}, deadNodes={}, conf={}.",
-                this.getNodeId(), this.currTerm, deadNodes, conf);
+
+        /* 集群中存活节点数目未过半，执行 stepdown */
+
+        LOG.warn("Node {} steps down when alive nodes don't satisfy quorum, " +
+                "term={}, deadNodes={}, conf={}.", this.getNodeId(), this.currTerm, deadNodes, conf);
         final Status status = new Status();
         status.setError(RaftError.ERAFTTIMEDOUT, "Majority of the group dies: %d/%d", deadNodes.size(), peers.size());
         this.stepDown(this.currTerm, false, status);
     }
 
+    /**
+     * 检查集群中存活节点是否过半，是则返回 true，否则返回 false
+     *
+     * @param peers
+     * @param monotonicNowMs
+     * @param checkReplicator
+     * @param deadNodes
+     * @return
+     */
     private boolean checkDeadNodes0(final List<PeerId> peers,
                                     final long monotonicNowMs,
                                     final boolean checkReplicator,
@@ -2073,15 +2104,20 @@ public class NodeImpl implements Node, RaftServerService {
         final int leaderLeaseTimeoutMs = this.options.getLeaderLeaseTimeoutMs();
         int aliveCount = 0;
         long startLease = Long.MAX_VALUE;
+        // 遍历处理集群中所有的节点
         for (final PeerId peer : peers) {
             if (peer.equals(this.serverId)) {
                 aliveCount++;
                 continue;
             }
+            // 如果当前节点是 leader 节点，检查对应节点的同步状态
             if (checkReplicator) {
                 this.checkReplicator(peer);
             }
+
+            // 获取最后一次 RPC 请求时间戳
             final long lastRpcSendTimestamp = this.replicatorGroup.getLastRpcSendTimestamp(peer);
+            // 最后一次 RPC 请求时间距离当前在租约之内
             if (monotonicNowMs - lastRpcSendTimestamp <= leaderLeaseTimeoutMs) {
                 aliveCount++;
                 if (startLease > lastRpcSendTimestamp) {
@@ -2089,10 +2125,14 @@ public class NodeImpl implements Node, RaftServerService {
                 }
                 continue;
             }
+
+            // 目标节点的租约已经到期，视为死亡
             if (deadNodes != null) {
                 deadNodes.addPeer(peer);
             }
         }
+
+        // 如果存活节点过半，则更新 lastLeaderTimestamp
         if (aliveCount >= peers.size() / 2 + 1) {
             this.updateLastLeaderTimestamp(startLease);
             return true;
@@ -2116,14 +2156,19 @@ public class NodeImpl implements Node, RaftServerService {
         return alivePeers;
     }
 
+    /**
+     * stepdown
+     */
     private void handleStepDownTimeout() {
         this.writeLock.lock();
         try {
+            // 当前节点不是 leader，且不处于交权状态
             if (this.state.compareTo(State.STATE_TRANSFERRING) > 0) {
                 LOG.debug("Node {} stop step-down timer, term={}, state={}.", this.getNodeId(), this.currTerm, this.state);
                 return;
             }
             final long monotonicNowMs = Utils.monotonicMs();
+            // 检查集群中存活节点是否过半，如果未过半则 stepdown
             this.checkDeadNodes(this.conf.getConf(), monotonicNowMs);
             if (!this.conf.getOldConf().isEmpty()) {
                 this.checkDeadNodes(this.conf.getOldConf(), monotonicNowMs);
@@ -2163,7 +2208,8 @@ public class NodeImpl implements Node, RaftServerService {
         }
     }
 
-    private void unsafeApplyConfiguration(final Configuration newConf, final Configuration oldConf,
+    private void unsafeApplyConfiguration(final Configuration newConf,
+                                          final Configuration oldConf,
                                           final boolean leaderStart) {
         Requires.requireTrue(this.confCtx.isBusy(), "ConfigurationContext is not busy");
         final LogEntry entry = new LogEntry(EnumOutter.EntryType.ENTRY_TYPE_CONFIGURATION);
@@ -2942,8 +2988,9 @@ public class NodeImpl implements Node, RaftServerService {
             LOG.info("Node {} starts to transfer leadership to peer {}.", this.getNodeId(), peer);
             final StopTransferArg stopArg = new StopTransferArg(this, this.currTerm, peerId);
             this.stopTransferArg = stopArg;
-            this.transferTimer = this.timerManager.schedule(() -> this.onTransferTimeout(stopArg),
-                    this.options.getElectionTimeoutMs(), TimeUnit.MILLISECONDS);
+            // 延迟任务
+            this.transferTimer = this.timerManager.schedule(
+                    () -> this.onTransferTimeout(stopArg), this.options.getElectionTimeoutMs(), TimeUnit.MILLISECONDS);
 
         } finally {
             this.writeLock.unlock();
