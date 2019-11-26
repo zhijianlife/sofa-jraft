@@ -37,7 +37,7 @@ public interface RaftServerService {
     /**
      * Handle pre-vote request.
      *
-     * 处理预投票请求
+     * 处理 pre-vote 请求
      *
      * @param request data of the pre vote
      * @return the response message
@@ -47,7 +47,7 @@ public interface RaftServerService {
     /**
      * Handle request-vote request.
      *
-     * 处理投票请求
+     * 处理 vote 请求
      *
      * @param request data of the vote
      * @return the response message

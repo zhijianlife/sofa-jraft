@@ -14,23 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
-
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.rhea.errors.Errors;
 import com.alipay.sofa.jraft.rhea.errors.StorageException;
+import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.DB_TIMER;
 import com.alipay.sofa.jraft.rhea.metrics.KVMetrics;
 import com.alipay.sofa.jraft.rhea.util.StackTraceUtil;
 import com.codahale.metrics.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.DB_TIMER;
+import java.util.List;
 
 /**
  * @author jiachun.fjc
@@ -113,7 +112,7 @@ public abstract class BaseRawKVStore<T> implements RawKVStore, Lifecycle<T> {
      * Init the fencing token of new region.
      *
      * @param parentKey the fencing key of parent region
-     * @param childKey  the fencing key of new region
+     * @param childKey the fencing key of new region
      */
     public abstract void initFencingToken(final byte[] parentKey, final byte[] childKey);
 
@@ -128,7 +127,7 @@ public abstract class BaseRawKVStore<T> implements RawKVStore, Lifecycle<T> {
      * client success with result data response.
      *
      * @param closure callback
-     * @param data    result data to reply to client
+     * @param data result data to reply to client
      */
     static void setSuccess(final KVStoreClosure closure, final Object data) {
         if (closure != null) {
@@ -161,7 +160,7 @@ public abstract class BaseRawKVStore<T> implements RawKVStore, Lifecycle<T> {
      *
      * @param closure callback
      * @param message error message
-     * @param error   critical error
+     * @param error critical error
      */
     static void setCriticalError(final KVStoreClosure closure, final String message, final Throwable error) {
         // Will call closure#run in FSMCaller
@@ -178,8 +177,8 @@ public abstract class BaseRawKVStore<T> implements RawKVStore, Lifecycle<T> {
      * failure response.
      *
      * @param closures callback list
-     * @param message  error message
-     * @param error    critical error
+     * @param message error message
+     * @param error critical error
      */
     static void setCriticalError(final List<KVStoreClosure> closures, final String message, final Throwable error) {
         for (final KVStoreClosure closure : closures) {
@@ -203,7 +202,7 @@ public abstract class BaseRawKVStore<T> implements RawKVStore, Lifecycle<T> {
      * when we ensure successful.
      *
      * @param closure callback
-     * @param data    data
+     * @param data data
      */
     static void setData(final KVStoreClosure closure, final Object data) {
         if (closure != null) {

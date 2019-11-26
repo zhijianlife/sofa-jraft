@@ -1597,8 +1597,7 @@ public class NodeImpl implements Node, RaftServerService {
             do {
                 // leader 已经存在且有效，忽略本次 pre-vote 请求
                 if (this.leaderId != null && !this.leaderId.isEmpty() && this.isCurrentLeaderValid()) {
-                    LOG.info(
-                            "Node {} ignore PreVoteRequest from {}, term={}, currTerm={}, because the leader {}'s lease is still valid.",
+                    LOG.info("Node {} ignore PreVoteRequest from {}, term={}, currTerm={}, because the leader {}'s lease is still valid.",
                             this.getNodeId(), request.getServerId(), request.getTerm(), this.currTerm, this.leaderId);
                     break;
                 }
@@ -1693,6 +1692,8 @@ public class NodeImpl implements Node, RaftServerService {
                 LOG.warn("Node {} is not in active state, currTerm={}.", this.getNodeId(), this.currTerm);
                 return RpcResponseFactory.newResponse(RaftError.EINVAL, "Node %s is not in active state, state %s.", this.getNodeId(), this.state.name());
             }
+
+            // 校验请求节点的地址
             final PeerId candidateId = new PeerId();
             if (!candidateId.parse(request.getServerId())) {
                 LOG.warn("Node {} received RequestVoteRequest from {} serverId bad format.", this.getNodeId(), request.getServerId());
@@ -1703,17 +1704,17 @@ public class NodeImpl implements Node, RaftServerService {
             do {
                 // check term
                 if (request.getTerm() >= this.currTerm) {
-                    LOG.info("Node {} received RequestVoteRequest from {}, term={}, currTerm={}.", this.getNodeId(),
-                            request.getServerId(), request.getTerm(), this.currTerm);
+                    LOG.info("Node {} received RequestVoteRequest from {}, term={}, currTerm={}.",
+                            this.getNodeId(), request.getServerId(), request.getTerm(), this.currTerm);
                     // increase current term, change state to follower
                     if (request.getTerm() > this.currTerm) {
-                        this.stepDown(request.getTerm(), false, new Status(RaftError.EHIGHERTERMRESPONSE,
-                                "Raft node receives higher term RequestVoteRequest."));
+                        this.stepDown(request.getTerm(), false,
+                                new Status(RaftError.EHIGHERTERMRESPONSE, "Raft node receives higher term RequestVoteRequest."));
                     }
                 } else {
                     // ignore older term
-                    LOG.info("Node {} ignore RequestVoteRequest from {}, term={}, currTerm={}.", this.getNodeId(),
-                            request.getServerId(), request.getTerm(), this.currTerm);
+                    LOG.info("Node {} ignore RequestVoteRequest from {}, term={}, currTerm={}.",
+                            this.getNodeId(), request.getServerId(), request.getTerm(), this.currTerm);
                     break;
                 }
                 doUnlock = false;
@@ -1729,8 +1730,8 @@ public class NodeImpl implements Node, RaftServerService {
                     break;
                 }
 
+                // 请求的节点最新的 log 的 term 值更大，或者 term 值相等，但是 index 值大于等于当前节点
                 final boolean logIsOk = new LogId(request.getLastLogIndex(), request.getLastLogTerm()).compareTo(lastLogId) >= 0;
-
                 if (logIsOk && (this.votedId == null || this.votedId.isEmpty())) {
                     this.stepDown(request.getTerm(), false, new Status(RaftError.EVOTEFORCANDIDATE,
                             "Raft node votes for some candidate, step down to restart election_timer."));

@@ -14,15 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.client.pd;
 
-import java.util.concurrent.CompletableFuture;
+package com.alipay.sofa.jraft.rhea.client.pd;
 
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.rhea.client.failover.FailoverClosure;
 import com.alipay.sofa.jraft.rhea.cmd.pd.BaseRequest;
 import com.alipay.sofa.jraft.rhea.errors.Errors;
 import com.alipay.sofa.jraft.rhea.options.RpcOptions;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Placement driver's rpc client for sending requests and receiving responses.
@@ -34,13 +35,12 @@ public interface PlacementDriverRpcService extends Lifecycle<RpcOptions> {
     /**
      * Send requests to the remote placement driver nodes.
      *
-     * @param request   request data
-     * @param closure   callback for failover strategy
+     * @param request request data
+     * @param closure callback for failover strategy
      * @param lastCause the exception information held by the last call
-     *                  failed, the initial value is null
-     * @param <V>       the type of response
+     * failed, the initial value is null
+     * @param <V> the type of response
      * @return a future with response
      */
-    <V> CompletableFuture<V> callPdServerWithRpc(final BaseRequest request, final FailoverClosure<V> closure,
-                                                 final Errors lastCause);
+    <V> CompletableFuture<V> callPdServerWithRpc(final BaseRequest request, final FailoverClosure<V> closure, final Errors lastCause);
 }

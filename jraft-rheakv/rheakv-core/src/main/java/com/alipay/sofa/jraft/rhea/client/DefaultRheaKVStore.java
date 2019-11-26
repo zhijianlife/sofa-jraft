@@ -212,6 +212,9 @@ public class DefaultRheaKVStore implements RheaKVStore {
             return true;
         }
         this.opts = opts;
+
+        // TODO by zhenchao 2019-11-26 17:50:58
+
         // init placement driver
         final PlacementDriverOptions pdOpts = opts.getPlacementDriverOptions();
         final String clusterName = opts.getClusterName();

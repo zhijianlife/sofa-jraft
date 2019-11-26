@@ -24,14 +24,15 @@ import java.util.List;
 /**
  * Raw KV store
  *
+ * 存储接口定义
+ *
  * @author dennis
  * @author jiachun.fjc
  */
 public interface RawKVStore {
 
     /**
-     * Returns a heap-allocated iterator over the contents of the
-     * database.
+     * Returns a heap-allocated iterator over the contents of the database.
      *
      * Caller should close the iterator when it is no longer needed.
      * The returned iterator should be closed before this db is closed.
@@ -89,8 +90,8 @@ public interface RawKVStore {
     /**
      * Equivalent to {@code scan(startKey, endKey, Integer.MAX_VALUE, readOnlySafe, returnValue, closure)}.
      */
-    void scan(final byte[] startKey, final byte[] endKey, final boolean readOnlySafe, final boolean returnValue,
-              final KVStoreClosure closure);
+    void scan(final byte[] startKey, final byte[] endKey,
+              final boolean readOnlySafe, final boolean returnValue, final KVStoreClosure closure);
 
     /**
      * Equivalent to {@code scan(startKey, endKey, limit, true, closure)}.
@@ -100,8 +101,8 @@ public interface RawKVStore {
     /**
      * Equivalent to {@code scan(startKey, endKey, limit, readOnlySafe, true, closure)}.
      */
-    void scan(final byte[] startKey, final byte[] endKey, final int limit, final boolean readOnlySafe,
-              final KVStoreClosure closure);
+    void scan(final byte[] startKey, final byte[] endKey, final int limit,
+              final boolean readOnlySafe, final KVStoreClosure closure);
 
     /**
      * Query all data in the key range of [startKey, endKey),
@@ -111,8 +112,8 @@ public interface RawKVStore {
      *
      * Only return keys(ignore values) if {@code returnValue} is false.
      */
-    void scan(final byte[] startKey, final byte[] endKey, final int limit, final boolean readOnlySafe,
-              final boolean returnValue, final KVStoreClosure closure);
+    void scan(final byte[] startKey, final byte[] endKey, final int limit,
+              final boolean readOnlySafe, final boolean returnValue, final KVStoreClosure closure);
 
     /**
      * Get a globally unique auto-increment sequence.

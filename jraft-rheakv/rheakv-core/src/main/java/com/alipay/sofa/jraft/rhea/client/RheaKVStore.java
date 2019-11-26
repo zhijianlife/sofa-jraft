@@ -76,6 +76,8 @@ import java.util.concurrent.TimeUnit;
  *     └────────────────────────────┘           └────────────────────────────┘          └────────────────────────────┘
  * </pre>
  *
+ * 基于 RegionRouteTable 路由表使用 RaftRawKVStore 存储 KeyValue
+ *
  * @author jiachun.fjc
  */
 public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
