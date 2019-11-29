@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea;
 
-import java.util.List;
+package com.alipay.sofa.jraft.rhea;
 
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.rhea.metadata.Peer;
@@ -24,8 +23,9 @@ import com.alipay.sofa.jraft.rhea.util.Lists;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Requires;
 
+import java.util.List;
+
 /**
- *
  * @author jiachun.fjc
  */
 public final class JRaftHelper {

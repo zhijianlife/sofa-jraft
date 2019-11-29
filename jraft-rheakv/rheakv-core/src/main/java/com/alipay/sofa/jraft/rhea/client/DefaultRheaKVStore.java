@@ -220,23 +220,27 @@ public class DefaultRheaKVStore implements RheaKVStore {
         final String clusterName = opts.getClusterName();
         Requires.requireNonNull(pdOpts, "opts.placementDriverOptions");
         Requires.requireNonNull(clusterName, "opts.clusterName");
-        // 设置集群
+
+        // 设置集群列表
         if (Strings.isBlank(pdOpts.getInitialServerList())) {
             // if blank, extends parent's value
             pdOpts.setInitialServerList(opts.getInitialServerList());
         }
+
+        // 创建 PlacementDriverClient 对象
         if (pdOpts.isFake()) {
-            // 无 PD 的场景
+            // 无 PD 的场景，使用 Fake PD
             this.pdClient = new FakePlacementDriverClient(opts.getClusterId(), clusterName);
         } else {
             this.pdClient = new RemotePlacementDriverClient(opts.getClusterId(), clusterName);
         }
+
         // 初始化 PD
         if (!this.pdClient.init(pdOpts)) {
             LOG.error("Fail to init [PlacementDriverClient].");
             return false;
         }
-        // init store engine
+
         // 初始化存储引擎
         final StoreEngineOptions stOpts = opts.getStoreEngineOptions();
         if (stOpts != null) {

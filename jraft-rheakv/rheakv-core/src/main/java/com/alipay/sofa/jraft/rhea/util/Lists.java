@@ -14,7 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.util;
+
+import com.alipay.sofa.jraft.util.Ints;
+import com.alipay.sofa.jraft.util.Requires;
 
 import java.io.Serializable;
 import java.util.AbstractList;
@@ -27,9 +31,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.RandomAccess;
 import java.util.function.Function;
-
-import com.alipay.sofa.jraft.util.Ints;
-import com.alipay.sofa.jraft.util.Requires;
 
 /**
  * Static utility methods pertaining to {@link List} instances.
@@ -65,7 +66,7 @@ public final class Lists {
     public static <E> ArrayList<E> newArrayList(final Iterable<? extends E> elements) {
         Requires.requireNonNull(elements, "elements");
         return elements instanceof Collection ? new ArrayList((Collection<E>) elements) : newArrayList(elements
-            .iterator());
+                .iterator());
     }
 
     /**
@@ -95,14 +96,14 @@ public final class Lists {
      */
     public static <F, T> List<T> transform(final List<F> fromList, final Function<? super F, ? extends T> function) {
         return (fromList instanceof RandomAccess) ? new TransformingRandomAccessList<>(fromList, function)
-            : new TransformingSequentialList<>(fromList, function);
+                : new TransformingSequentialList<>(fromList, function);
     }
 
     private static class TransformingRandomAccessList<F, T> extends AbstractList<T> implements RandomAccess,
-                                                                                   Serializable {
-        private static final long              serialVersionUID = 0;
+                                                                                               Serializable {
+        private static final long serialVersionUID = 0;
 
-        final List<F>                          fromList;
+        final List<F> fromList;
         final Function<? super F, ? extends T> function;
 
         TransformingRandomAccessList(List<F> fromList, Function<? super F, ? extends T> function) {
@@ -137,9 +138,9 @@ public final class Lists {
     }
 
     private static class TransformingSequentialList<F, T> extends AbstractSequentialList<T> implements Serializable {
-        private static final long              serialVersionUID = 0;
+        private static final long serialVersionUID = 0;
 
-        final List<F>                          fromList;
+        final List<F> fromList;
         final Function<? super F, ? extends T> function;
 
         TransformingSequentialList(List<F> fromList, Function<? super F, ? extends T> function) {

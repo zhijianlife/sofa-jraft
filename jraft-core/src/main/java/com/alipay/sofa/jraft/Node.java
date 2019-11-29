@@ -111,7 +111,7 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
     /**
      * [Thread-safe and wait-free]
      *
-     * 发起线性一致读请求，当安全读取时传入的 Closure 将被调用，正常情况下从状态机中读取数据返回给客户端， SOFAJRaft 将保证读取的线性一致性。
+     * 发起线性一致读请求，当安全读取时传入的 Closure 将被调用，正常情况下从状态机中读取数据返回给客户端，SOFAJRaft 将保证读取的线性一致性。
      *
      * Starts a linearizable read-only query request with request context(optional, such as request id etc.) and closure.
      * The closure will be called when the request is completed, and user can read data from state machine if the result status is OK.

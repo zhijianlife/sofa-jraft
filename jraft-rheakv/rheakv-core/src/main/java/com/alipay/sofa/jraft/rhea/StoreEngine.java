@@ -133,6 +133,7 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
         final int port = serverAddress.getPort();
         final String ip = serverAddress.getIp();
         if (ip == null || Utils.IP_ANY.equals(ip)) {
+            // 获取本机地址
             serverAddress = new Endpoint(NetUtil.getLocalCanonicalHostName(), port);
             opts.setServerAddress(serverAddress);
         }
@@ -156,8 +157,7 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             rOpts.setInitialServerList(opts.getInitialServerList());
             if (rOpts.getNodeOptions() == null) {
                 // copy common node options
-                rOpts.setNodeOptions(opts.getCommonNodeOptions() == null ?
-                        new NodeOptions() : opts.getCommonNodeOptions().copy());
+                rOpts.setNodeOptions(opts.getCommonNodeOptions() == null ? new NodeOptions() : opts.getCommonNodeOptions().copy());
             }
             if (rOpts.getMetricsReportPeriod() <= 0 && metricsReportPeriod > 0) {
                 // extends store opts

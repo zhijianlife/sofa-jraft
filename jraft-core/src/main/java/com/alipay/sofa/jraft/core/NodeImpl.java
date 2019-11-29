@@ -1341,6 +1341,7 @@ public class NodeImpl implements Node, RaftServerService {
             throw new IllegalStateException("Node is shutting down");
         }
         Requires.requireNonNull(done, "Null closure");
+        // 添加一个 ReadIndex 请求
         this.readOnlyService.addRequest(requestContext, done);
     }
 

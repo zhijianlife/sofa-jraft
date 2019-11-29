@@ -269,10 +269,12 @@ public class ReadOnlyServiceImpl implements ReadOnlyService, LastAppliedLogIndex
 
     @Override
     public void addRequest(final byte[] reqCtx, final ReadIndexClosure closure) {
+        // 当前节点已经 stop
         if (this.shutdownLatch != null) {
             Utils.runClosureInThread(closure, new Status(RaftError.EHOSTDOWN, "Was stopped"));
             throw new IllegalStateException("Service already shutdown.");
         }
+
         try {
             EventTranslator<ReadIndexEvent> translator = (event, sequence) -> {
                 event.done = closure;
