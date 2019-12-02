@@ -17,6 +17,20 @@
 
 package com.alipay.sofa.jraft.rhea;
 
+import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.Status;
@@ -52,6 +66,7 @@ import com.alipay.sofa.jraft.rhea.util.NetUtil;
 import com.alipay.sofa.jraft.rhea.util.Strings;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.util.BytesUtil;
+import com.alipay.sofa.jraft.util.Describer;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.ExecutorServiceHelper;
 import com.alipay.sofa.jraft.util.MetricThreadPoolExecutor;
@@ -59,19 +74,6 @@ import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.Utils;
 import com.codahale.metrics.ScheduledReporter;
 import com.codahale.metrics.Slf4jReporter;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.nio.ByteBuffer;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Storage engine, there is only one instance in a node,
@@ -81,45 +83,47 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class StoreEngine implements Lifecycle<StoreEngineOptions> {
 
-    private static final Logger LOG = LoggerFactory
-            .getLogger(StoreEngine.class);
+    private static final Logger                        LOG                  = LoggerFactory
+                                                                                .getLogger(StoreEngine.class);
 
     static {
         ExtSerializerSupports.init();
     }
 
     private final ConcurrentMap<Long, RegionKVService> regionKVServiceTable = Maps.newConcurrentMapLong();
-    private final ConcurrentMap<Long, RegionEngine> regionEngineTable = Maps.newConcurrentMapLong();
-    private final PlacementDriverClient pdClient;
-    private final long clusterId;
+    private final ConcurrentMap<Long, RegionEngine>    regionEngineTable    = Maps.newConcurrentMapLong();
+    private final StateListenerContainer<Long>         stateListenerContainer;
+    private final PlacementDriverClient                pdClient;
+    private final long                                 clusterId;
 
-    private Long storeId;
-    private final AtomicBoolean splitting = new AtomicBoolean(false);
+    private Long                                       storeId;
+    private final AtomicBoolean                        splitting            = new AtomicBoolean(false);
     // When the store is started (unix timestamp in milliseconds)
-    private long startTime = System.currentTimeMillis();
-    private File dbPath;
-    private RpcServer rpcServer;
-    private BatchRawKVStore<?> rawKVStore;
-    private HeartbeatSender heartbeatSender;
-    private StoreEngineOptions storeOpts;
+    private long                                       startTime            = System.currentTimeMillis();
+    private File                                       dbPath;
+    private RpcServer                                  rpcServer;
+    private BatchRawKVStore<?>                         rawKVStore;
+    private HeartbeatSender                            heartbeatSender;
+    private StoreEngineOptions                         storeOpts;
 
     // Shared executor services
-    private ExecutorService readIndexExecutor;
-    private ExecutorService raftStateTrigger;
-    private ExecutorService snapshotExecutor;
-    private ExecutorService cliRpcExecutor;
-    private ExecutorService raftRpcExecutor;
-    private ExecutorService kvRpcExecutor;
+    private ExecutorService                            readIndexExecutor;
+    private ExecutorService                            raftStateTrigger;
+    private ExecutorService                            snapshotExecutor;
+    private ExecutorService                            cliRpcExecutor;
+    private ExecutorService                            raftRpcExecutor;
+    private ExecutorService                            kvRpcExecutor;
 
-    private ScheduledExecutorService metricsScheduler;
-    private ScheduledReporter kvMetricsReporter;
-    private ScheduledReporter threadPoolMetricsReporter;
+    private ScheduledExecutorService                   metricsScheduler;
+    private ScheduledReporter                          kvMetricsReporter;
+    private ScheduledReporter                          threadPoolMetricsReporter;
 
-    private boolean started;
+    private boolean                                    started;
 
-    public StoreEngine(PlacementDriverClient pdClient) {
-        this.pdClient = pdClient;
+    public StoreEngine(PlacementDriverClient pdClient, StateListenerContainer<Long> stateListenerContainer) {
+        this.pdClient = Requires.requireNonNull(pdClient, "pdClient");
         this.clusterId = pdClient.getClusterId();
+        this.stateListenerContainer = Requires.requireNonNull(stateListenerContainer, "stateListenerContainer");
     }
 
     @Override
@@ -181,7 +185,8 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             this.raftStateTrigger = StoreEngineHelper.createRaftStateTrigger(opts.getLeaderStateTriggerCoreThreads());
         }
         if (this.snapshotExecutor == null) {
-            this.snapshotExecutor = StoreEngineHelper.createSnapshotExecutor(opts.getSnapshotCoreThreads());
+            this.snapshotExecutor = StoreEngineHelper.createSnapshotExecutor(opts.getSnapshotCoreThreads(),
+                opts.getSnapshotMaxThreads());
         }
         // init rpc executors
         final boolean useSharedRpcExecutor = opts.isUseSharedRpcExecutor();
@@ -212,6 +217,9 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
         // 依据类型选择 DB
         if (!initRawKVStore(opts)) {
             return false;
+        }
+        if (this.rawKVStore instanceof Describer) {
+            DescriberManager.getInstance().addDescriber((Describer) this.rawKVStore);
         }
         // init all region engine
         // 为每个 region 初始化 RegionEngine
@@ -421,6 +429,10 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
         return false;
     }
 
+    public StateListenerContainer<Long> getStateListenerContainer() {
+        return stateListenerContainer;
+    }
+
     public List<Long> getLeaderRegionIds() {
         final List<Long> regionIds = Lists.newArrayListWithCapacity(this.regionEngineTable.size());
         for (final RegionEngine regionEngine : this.regionEngineTable.values()) {
@@ -523,7 +535,7 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
                 baseRaftDataPath = "";
             }
             rOpts.setRaftDataPath(baseRaftDataPath + "raft_data_region_" + region.getId() + "_"
-                    + getSelfEndpoint().getPort());
+                                  + getSelfEndpoint().getPort());
             final RegionEngine engine = new RegionEngine(region, this);
             if (!engine.init(rOpts)) {
                 LOG.error("Fail to init [RegionEngine: {}].", region);
@@ -561,12 +573,12 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             }
             // start kv store metrics reporter
             this.kvMetricsReporter = Slf4jReporter.forRegistry(KVMetrics.metricRegistry()) //
-                    .prefixedWith("store_" + this.storeId) //
-                    .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
-                    .outputTo(LOG) //
-                    .scheduleOn(this.metricsScheduler) //
-                    .shutdownExecutorOnStop(false) //
-                    .build();
+                .prefixedWith("store_" + this.storeId) //
+                .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
+                .outputTo(LOG) //
+                .scheduleOn(this.metricsScheduler) //
+                .shutdownExecutorOnStop(false) //
+                .build();
             this.kvMetricsReporter.start(metricsReportPeriod, TimeUnit.SECONDS);
         }
         if (this.threadPoolMetricsReporter == null) {
@@ -576,11 +588,11 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             }
             // start threadPool metrics reporter
             this.threadPoolMetricsReporter = Slf4jReporter.forRegistry(MetricThreadPoolExecutor.metricRegistry()) //
-                    .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
-                    .outputTo(LOG) //
-                    .scheduleOn(this.metricsScheduler) //
-                    .shutdownExecutorOnStop(false) //
-                    .build();
+                .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
+                .outputTo(LOG) //
+                .scheduleOn(this.metricsScheduler) //
+                .shutdownExecutorOnStop(false) //
+                .build();
             this.threadPoolMetricsReporter.start(metricsReportPeriod, TimeUnit.SECONDS);
         }
     }
@@ -685,16 +697,16 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
 
     private void registerRegionKVService(final RegionKVService regionKVService) {
         final RegionKVService preService = this.regionKVServiceTable.putIfAbsent(regionKVService.getRegionId(),
-                regionKVService);
+            regionKVService);
         if (preService != null) {
             throw new RheaRuntimeException("RegionKVService[region=" + regionKVService.getRegionId()
-                    + "] has already been registered, can not register again!");
+                                           + "] has already been registered, can not register again!");
         }
     }
 
     @Override
     public String toString() {
         return "StoreEngine{storeId=" + storeId + ", startTime=" + startTime + ", dbPath=" + dbPath + ", storeOpts="
-                + storeOpts + ", started=" + started + '}';
+               + storeOpts + ", started=" + started + '}';
     }
 }

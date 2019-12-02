@@ -14,35 +14,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.conf;
-
-import com.alipay.sofa.jraft.entity.LogId;
-import com.alipay.sofa.jraft.entity.PeerId;
 
 import java.util.HashSet;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.alipay.sofa.jraft.entity.LogId;
+import com.alipay.sofa.jraft.entity.PeerId;
+
 /**
  * A configuration entry with current peers and old peers.
- *
- * 记录整个集群的节点信息
- *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-04 2:25:06 PM
  */
 public class ConfigurationEntry {
 
-    private LogId id = new LogId(0, 0);
-    private Configuration conf = new Configuration();
-    private Configuration oldConf = new Configuration();
+    private static final Logger LOG     = LoggerFactory.getLogger(ConfigurationEntry.class);
+
+    private LogId               id      = new LogId(0, 0);
+    private Configuration       conf    = new Configuration();
+    private Configuration       oldConf = new Configuration();
 
     public LogId getId() {
         return this.id;
     }
 
-    public void setId(LogId id) {
+    public void setId(final LogId id) {
         this.id = id;
     }
 
@@ -50,7 +51,7 @@ public class ConfigurationEntry {
         return this.conf;
     }
 
-    public void setConf(Configuration conf) {
+    public void setConf(final Configuration conf) {
         this.conf = conf;
     }
 
@@ -58,7 +59,7 @@ public class ConfigurationEntry {
         return this.oldConf;
     }
 
-    public void setOldConf(Configuration oldConf) {
+    public void setOldConf(final Configuration oldConf) {
         this.oldConf = oldConf;
     }
 
@@ -66,18 +67,13 @@ public class ConfigurationEntry {
         super();
     }
 
-    public ConfigurationEntry(LogId id, Configuration conf, Configuration oldConf) {
+    public ConfigurationEntry(final LogId id, final Configuration conf, final Configuration oldConf) {
         super();
         this.id = id;
         this.conf = conf;
         this.oldConf = oldConf;
     }
 
-    /**
-     * 当前未进行配置更替
-     *
-     * @return
-     */
     public boolean isStable() {
         return this.oldConf.isEmpty();
     }
@@ -92,7 +88,37 @@ public class ConfigurationEntry {
         return ret;
     }
 
-    public boolean contains(PeerId peer) {
+    /**
+     * Returns true when the conf entry is valid.
+     *
+     * @return if the the entry is valid
+     */
+    public boolean isValid() {
+        if (!this.conf.isValid()) {
+            return false;
+        }
+
+        // The peer set and learner set should not have intersection set.
+        final Set<PeerId> intersection = listPeers();
+        intersection.retainAll(listLearners());
+        if (intersection.isEmpty()) {
+            return true;
+        }
+        LOG.error("Invalid conf entry {}, peers and learners have intersection: {}.", this, intersection);
+        return false;
+    }
+
+    public Set<PeerId> listLearners() {
+        final Set<PeerId> ret = new HashSet<>(this.conf.getLearners());
+        ret.addAll(this.oldConf.getLearners());
+        return ret;
+    }
+
+    public boolean containsLearner(final PeerId learner) {
+        return this.conf.getLearners().contains(learner) || this.oldConf.getLearners().contains(learner);
+    }
+
+    public boolean contains(final PeerId peer) {
         return this.conf.contains(peer) || this.oldConf.contains(peer);
     }
 

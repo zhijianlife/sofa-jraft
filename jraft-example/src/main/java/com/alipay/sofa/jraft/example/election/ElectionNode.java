@@ -14,8 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.example.election;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.Lifecycle;
@@ -26,31 +35,26 @@ import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.rhea.util.ThrowUtil;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Paths;
 
 /**
+ *
  * @author jiachun.fjc
  */
 public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ElectionNode.class);
+    private static final Logger             LOG       = LoggerFactory.getLogger(ElectionNode.class);
 
-    private RaftGroupService raftGroupService;
-    private Node node;
-    private ElectionOnlyStateMachine fsm;
+    private final List<LeaderStateListener> listeners = new CopyOnWriteArrayList<>();
+    private RaftGroupService                raftGroupService;
+    private Node                            node;
+    private ElectionOnlyStateMachine        fsm;
 
-    private boolean started;
+    private boolean                         started;
 
     @Override
     public boolean init(final ElectionNodeOptions opts) {
         if (this.started) {
-            LOG.info("[ElectionNode] already started.");
+            LOG.info("[ElectionNode: {}] already started.");
             return true;
         }
         // node options
@@ -58,16 +62,14 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
         if (nodeOpts == null) {
             nodeOpts = new NodeOptions();
         }
-        // 设置有限状态机
-        this.fsm = new ElectionOnlyStateMachine();
+        this.fsm = new ElectionOnlyStateMachine(this.listeners);
         nodeOpts.setFsm(this.fsm);
         final Configuration initialConf = new Configuration();
         if (!initialConf.parse(opts.getInitialServerAddressList())) {
             throw new IllegalArgumentException("Fail to parse initConf: " + opts.getInitialServerAddressList());
         }
-        // 设置初始集群配置
+        // Set the initial cluster configuration
         nodeOpts.setInitialConf(initialConf);
-        // 初始化数据存储目录（名下有日志数据、元数据、snapshot）
         final String dataPath = opts.getDataPath();
         try {
             FileUtils.forceMkdir(new File(dataPath));
@@ -75,28 +77,21 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
             LOG.error("Fail to make dir for dataPath {}.", dataPath);
             return false;
         }
-        // 设置存储路径
-        // 日志, 必须
+        // Set the data path
+        // Log, required
         nodeOpts.setLogUri(Paths.get(dataPath, "log").toString());
-        // 元信息, 必须
+        // Metadata, required
         nodeOpts.setRaftMetaUri(Paths.get(dataPath, "meta").toString());
-        // 纯选举场景不需要设置 snapshot, 不设置可避免启动 snapshot timer
         // nodeOpts.setSnapshotUri(Paths.get(dataPath, "snapshot").toString());
 
-        // 组 ID
         final String groupId = opts.getGroupId();
-
-        // 当前节点对象
         final PeerId serverId = new PeerId();
         if (!serverId.parse(opts.getServerAddress())) {
             throw new IllegalArgumentException("Fail to parse serverId: " + opts.getServerAddress());
         }
         final RpcServer rpcServer = new RpcServer(serverId.getPort());
-        // 注册 raft 处理器
         RaftRpcServerFactory.addRaftRequestProcessors(rpcServer);
-        // 初始化 raft group 服务框架
         this.raftGroupService = new RaftGroupService(groupId, serverId, nodeOpts, rpcServer);
-        // 启动
         this.node = this.raftGroupService.start();
         if (this.node != null) {
             this.started = true;
@@ -138,6 +133,6 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
     }
 
     public void addLeaderStateListener(final LeaderStateListener listener) {
-        this.fsm.addLeaderStateListener(listener);
+        this.listeners.add(listener);
     }
 }

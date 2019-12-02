@@ -14,26 +14,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.util;
-
-import org.rocksdb.ColumnFamilyOptions;
-import org.rocksdb.CompactionStyle;
-import org.rocksdb.CompressionType;
-import org.rocksdb.DBOptions;
-import org.rocksdb.RocksObject;
-import org.rocksdb.util.SizeUnit;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.BloomFilter;
+import org.rocksdb.ColumnFamilyOptions;
+import org.rocksdb.CompactionStyle;
+import org.rocksdb.CompressionType;
+import org.rocksdb.DBOptions;
+import org.rocksdb.IndexType;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksObject;
+import org.rocksdb.util.SizeUnit;
+
 /**
+ *
  * @author jiachun.fjc
  */
 public final class StorageOptionsFactory {
 
-    private static final Map<String, DBOptions> rocksDBOptionsTable = new ConcurrentHashMap<>();
-    private static final Map<String, ColumnFamilyOptions> columnFamilyOptionsTable = new ConcurrentHashMap<>();
+    static {
+        RocksDB.loadLibrary();
+    }
+
+    private static final Map<String, DBOptions>             rocksDBOptionsTable      = new ConcurrentHashMap<>();
+    private static final Map<String, ColumnFamilyOptions>   columnFamilyOptionsTable = new ConcurrentHashMap<>();
+    private static final Map<String, BlockBasedTableConfig> tableFormatConfigTable   = new ConcurrentHashMap<>();
 
     /**
      * Releases all storage options from the responsibility of freeing the
@@ -61,7 +70,7 @@ public final class StorageOptionsFactory {
      * name.  If the user does not register an options, a default options
      * will be provided.
      *
-     * @param cls the key of DBOptions
+     * @param cls  the key of DBOptions
      * @param opts the DBOptions
      */
     public static void registerRocksDBOptions(final Class<?> cls, final DBOptions opts) {
@@ -69,7 +78,7 @@ public final class StorageOptionsFactory {
         Requires.requireNonNull(opts, "opts");
         if (rocksDBOptionsTable.putIfAbsent(cls.getName(), opts) != null) {
             throw new IllegalStateException("DBOptions with class key [" + cls.getName()
-                    + "] has already been registered");
+                                            + "] has already been registered");
         }
     }
 
@@ -126,12 +135,12 @@ public final class StorageOptionsFactory {
     }
 
     /**
-     * Users can register a custom rocksdb column family options, then the
+     * Users can register a custom rocksdb ColumnFamilyOptions, then the
      * related classes will get their options by the key of their own class
      * name.  If the user does not register an options, a default options
      * will be provided.
      *
-     * @param cls the key of ColumnFamilyOptions
+     * @param cls  the key of ColumnFamilyOptions
      * @param opts the ColumnFamilyOptions
      */
     public static void registerRocksDBColumnFamilyOptions(final Class<?> cls, final ColumnFamilyOptions opts) {
@@ -139,7 +148,7 @@ public final class StorageOptionsFactory {
         Requires.requireNonNull(opts, "opts");
         if (columnFamilyOptionsTable.putIfAbsent(cls.getName(), opts) != null) {
             throw new IllegalStateException("ColumnFamilyOptions with class key [" + cls.getName()
-                    + "] has already been registered");
+                                            + "] has already been registered");
         }
     }
 
@@ -240,18 +249,95 @@ public final class StorageOptionsFactory {
         // compression type
         if (!Platform.isWindows()) {
             opts.setCompressionType(CompressionType.LZ4_COMPRESSION) //
-                    .setCompactionStyle(CompactionStyle.LEVEL) //
-                    .optimizeLevelStyleCompaction();
+                .setCompactionStyle(CompactionStyle.LEVEL) //
+                .optimizeLevelStyleCompaction();
         }
 
         return opts;
     }
 
+    /**
+     * Users can register a custom rocksdb BlockBasedTableConfig, then the related
+     * classes will get their options by the key of their own class name.  If
+     * the user does not register a config, a default config will be provided.
+     *
+     * @param cls the key of BlockBasedTableConfig
+     * @param cfg the BlockBasedTableConfig
+     */
+    public static void registerRocksDBTableFormatConfig(final Class<?> cls, final BlockBasedTableConfig cfg) {
+        Requires.requireNonNull(cls, "cls");
+        Requires.requireNonNull(cfg, "cfg");
+        if (tableFormatConfigTable.putIfAbsent(cls.getName(), cfg) != null) {
+            throw new IllegalStateException("TableFormatConfig with class key [" + cls.getName()
+                                            + "] has already been registered");
+        }
+    }
+
+    /**
+     * Get a new default TableFormatConfig or a copy of the exist ableFormatConfig.
+     *
+     * @param cls the key of TableFormatConfig
+     * @return new default TableFormatConfig or a copy of the exist TableFormatConfig
+     */
+    public static BlockBasedTableConfig getRocksDBTableFormatConfig(final Class<?> cls) {
+        Requires.requireNonNull(cls, "cls");
+        BlockBasedTableConfig cfg = tableFormatConfigTable.get(cls.getName());
+        if (cfg == null) {
+            final BlockBasedTableConfig newCfg = getDefaultRocksDBTableConfig();
+            cfg = tableFormatConfigTable.putIfAbsent(cls.getName(), newCfg);
+            if (cfg == null) {
+                cfg = newCfg;
+            }
+        }
+        return copyTableFormatConfig(cfg);
+    }
+
+    public static BlockBasedTableConfig getDefaultRocksDBTableConfig() {
+        // See https://github.com/sofastack/sofa-jraft/pull/156
+        return new BlockBasedTableConfig() //
+            // Begin to use partitioned index filters
+            // https://github.com/facebook/rocksdb/wiki/Partitioned-Index-Filters#how-to-use-it
+            .setIndexType(IndexType.kTwoLevelIndexSearch) //
+            .setFilter(new BloomFilter(16, false)) //
+            .setPartitionFilters(true) //
+            .setMetadataBlockSize(8 * SizeUnit.KB) //
+            .setCacheIndexAndFilterBlocks(false) //
+            .setCacheIndexAndFilterBlocksWithHighPriority(true) //
+            .setPinL0FilterAndIndexBlocksInCache(true) //
+            // End of partitioned index filters settings.
+            .setBlockSize(4 * SizeUnit.KB)//
+            .setBlockCacheSize(512 * SizeUnit.MB) //
+            .setCacheNumShardBits(8);
+    }
+
+    private static BlockBasedTableConfig copyTableFormatConfig(final BlockBasedTableConfig cfg) {
+        return new BlockBasedTableConfig() //
+            .setNoBlockCache(cfg.noBlockCache()) //
+            .setBlockCacheSize(cfg.blockCacheSize()) //
+            .setCacheNumShardBits(cfg.cacheNumShardBits()) //
+            .setBlockSize(cfg.blockSize()) //
+            .setBlockSizeDeviation(cfg.blockSizeDeviation()) //
+            .setBlockRestartInterval(cfg.blockRestartInterval()) //
+            .setWholeKeyFiltering(cfg.wholeKeyFiltering()) //
+            .setCacheIndexAndFilterBlocks(cfg.cacheIndexAndFilterBlocks()) //
+            .setCacheIndexAndFilterBlocksWithHighPriority(cfg.cacheIndexAndFilterBlocksWithHighPriority()) //
+            .setPinL0FilterAndIndexBlocksInCache(cfg.pinL0FilterAndIndexBlocksInCache()) //
+            .setPartitionFilters(cfg.partitionFilters()) //
+            .setMetadataBlockSize(cfg.metadataBlockSize()) //
+            .setPinTopLevelIndexAndFilter(cfg.pinTopLevelIndexAndFilter()) //
+            .setHashIndexAllowCollision(cfg.hashIndexAllowCollision()) //
+            .setBlockCacheCompressedSize(cfg.blockCacheCompressedSize()) //
+            .setBlockCacheCompressedNumShardBits(cfg.blockCacheCompressedNumShardBits()) //
+            .setChecksumType(cfg.checksumType()) //
+            .setIndexType(cfg.indexType()) //
+            .setFormatVersion(cfg.formatVersion());
+    }
+
     private static <T extends RocksObject> T checkInvalid(final T opts) {
         if (!opts.isOwningHandle()) {
             throw new IllegalStateException(
-                    "the instance of options [" + opts
-                            + "] has been released, calling any of its functions will lead to undefined behavior.");
+                "the instance of options [" + opts
+                        + "] has been released, calling any of its functions will lead to undefined behavior.");
         }
         return opts;
     }

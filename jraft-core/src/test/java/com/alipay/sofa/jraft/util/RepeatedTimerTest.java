@@ -14,30 +14,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.util;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.junit.After;
-import static org.junit.Assert.assertEquals;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import static org.junit.Assert.assertEquals;
 
 public class RepeatedTimerTest {
-
     private static class TestTimer extends RepeatedTimer {
-        AtomicInteger counter = new AtomicInteger(0);
-        AtomicInteger destroyed = new AtomicInteger(0);
-        volatile int nextTimeout = -1;
+        final AtomicInteger counter     = new AtomicInteger(0);
+        final AtomicInteger destroyed   = new AtomicInteger(0);
+        volatile int        nextTimeout = -1;
 
         public TestTimer(String name, int timeoutMs) {
             super(name, timeoutMs);
         }
 
         @Override
-        protected int adjustTimeout(int timeoutMs) {
+        protected int adjustTimeout(final int timeoutMs) {
             if (nextTimeout > 0) {
                 return nextTimeout;
             } else {
@@ -70,48 +68,35 @@ public class RepeatedTimerTest {
     }
 
     @Test
-    public void test() throws Exception {
-        RepeatedTimer timer = new RepeatedTimer("test", 1000) {
-            @Override
-            protected void onTrigger() {
-                System.out.println("test");
-            }
-        };
-        timer.start();
-
-        TimeUnit.SECONDS.sleep(10);
-    }
-
-    @Test
     public void testStartTrigger() throws Exception {
-        assertEquals(0, timer.counter.get());
+        assertEquals(0, this.timer.counter.get());
         this.timer.start();
         Thread.sleep(1000);
-        assertEquals(20, timer.counter.get(), 3);
+        assertEquals(20, this.timer.counter.get(), 3);
     }
 
     @Test
     public void testStopStart() throws Exception {
-        assertEquals(0, timer.counter.get());
+        assertEquals(0, this.timer.counter.get());
         this.timer.start();
         Thread.sleep(1000);
-        assertEquals(20, timer.counter.get(), 5);
+        assertEquals(20, this.timer.counter.get(), 5);
         this.timer.stop();
         Thread.sleep(1000);
-        assertEquals(20, timer.counter.get(), 5);
+        assertEquals(20, this.timer.counter.get(), 5);
         this.timer.start();
         Thread.sleep(1000);
-        assertEquals(40, timer.counter.get(), 5);
+        assertEquals(40, this.timer.counter.get(), 5);
     }
 
     @Test
     public void testRunOnce() throws Exception {
-        assertEquals(0, timer.counter.get());
+        assertEquals(0, this.timer.counter.get());
         this.timer.start();
         this.timer.runOnceNow();
-        assertEquals(1, timer.counter.get());
+        assertEquals(1, this.timer.counter.get());
         Thread.sleep(1000);
-        assertEquals(20, timer.counter.get(), 3);
+        assertEquals(20, this.timer.counter.get(), 3);
     }
 
     @Test
@@ -128,23 +113,23 @@ public class RepeatedTimerTest {
         this.timer.nextTimeout = 100;
         this.timer.start();
         Thread.sleep(1000);
-        assertEquals(10, timer.counter.get(), 3);
+        assertEquals(10, this.timer.counter.get(), 3);
     }
 
     @Test
     public void testReset() throws Exception {
         this.timer.start();
-        assertEquals(50, timer.getTimeoutMs());
+        assertEquals(50, this.timer.getTimeoutMs());
         for (int i = 0; i < 10; i++) {
             Thread.sleep(80);
             this.timer.reset();
         }
-        assertEquals(10, timer.counter.get(), 3);
+        assertEquals(10, this.timer.counter.get(), 3);
         this.timer.reset(100);
         for (int i = 0; i < 10; i++) {
             Thread.sleep(80);
             this.timer.reset();
         }
-        assertEquals(10, timer.counter.get(), 3);
+        assertEquals(10, this.timer.counter.get(), 3);
     }
 }

@@ -43,7 +43,7 @@ public abstract class ReadIndexClosure implements Closure {
      * @param reqCtx the request context passed by {@link Node#readIndex(byte[], ReadIndexClosure)}.
      * @see Node#readIndex(byte[], ReadIndexClosure)
      */
-    public abstract void run(Status status, long index, byte[] reqCtx);
+    public abstract void run(final Status status, final long index, final byte[] reqCtx);
 
     /**
      * Set callback result, called by jraft.
@@ -51,7 +51,7 @@ public abstract class ReadIndexClosure implements Closure {
      * @param index the committed index.
      * @param reqCtx the request context passed by {@link Node#readIndex(byte[], ReadIndexClosure)}.
      */
-    public void setResult(long index, byte[] reqCtx) {
+    public void setResult(final long index, final byte[] reqCtx) {
         this.index = index;
         this.requestContext = reqCtx;
     }
@@ -75,7 +75,7 @@ public abstract class ReadIndexClosure implements Closure {
     }
 
     @Override
-    public void run(Status status) {
-        this.run(status, this.index, this.requestContext);
+    public void run(final Status status) {
+        run(status, this.index, this.requestContext);
     }
 }

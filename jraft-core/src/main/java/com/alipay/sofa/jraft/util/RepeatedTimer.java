@@ -14,16 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.util;
+
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import com.alipay.sofa.jraft.util.timer.HashedWheelTimer;
+import com.alipay.sofa.jraft.util.timer.Timeout;
+import com.alipay.sofa.jraft.util.timer.Timer;
+import com.alipay.sofa.jraft.util.timer.TimerTask;
 
 /**
  * Repeatable timer based on java.util.Timer.
@@ -34,31 +37,32 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public abstract class RepeatedTimer implements Describer {
 
-    public static final Logger LOG = LoggerFactory.getLogger(RepeatedTimer.class);
+    public static final Logger LOG  = LoggerFactory.getLogger(RepeatedTimer.class);
 
-    private final Lock lock = new ReentrantLock();
-    private final Timer timer;
-    private TimerTask timerTask;
-    /** 是否停止 */
-    private boolean stopped;
-    /** 标识正在运行中 */
-    private volatile boolean running;
-    /** 是否销毁 */
-    private boolean destroyed;
-    private boolean invoking;
-    private volatile int timeoutMs;
-    private final String name;
+    private final Lock         lock = new ReentrantLock();
+    private final Timer        timer;
+    private Timeout            timeout;
+    private boolean            stopped;
+    private volatile boolean   running;
+    private boolean            destroyed;
+    private boolean            invoking;
+    private volatile int       timeoutMs;
+    private final String       name;
 
     public int getTimeoutMs() {
         return this.timeoutMs;
     }
 
     public RepeatedTimer(String name, int timeoutMs) {
+        this(name, timeoutMs, new HashedWheelTimer(new NamedThreadFactory(name, true), 1, TimeUnit.MILLISECONDS, 2048));
+    }
+
+    public RepeatedTimer(String name, int timeoutMs, Timer timer) {
         super();
         this.name = name;
         this.timeoutMs = timeoutMs;
         this.stopped = true;
-        this.timer = new Timer(this.name);
+        this.timer = Requires.requireNonNull(timer, "timer");
     }
 
     /**
@@ -84,28 +88,26 @@ public abstract class RepeatedTimer implements Describer {
             this.lock.unlock();
         }
         try {
-            // 自定义定时逻辑
-            this.onTrigger();
-        } catch (Throwable t) {
-            LOG.error("run timer failed", t);
+            onTrigger();
+        } catch (final Throwable t) {
+            LOG.error("Run timer failed.", t);
         }
         boolean invokeDestroyed = false;
         this.lock.lock();
         try {
             this.invoking = false;
-            // 定时任务已经被停止
             if (this.stopped) {
-                running = false;
+                this.running = false;
                 invokeDestroyed = this.destroyed;
             } else {
-                this.timerTask = null;
-                this.schedule();
+                this.timeout = null;
+                schedule();
             }
         } finally {
             this.lock.unlock();
         }
         if (invokeDestroyed) {
-            this.onDestroy();
+            onDestroy();
         }
     }
 
@@ -115,9 +117,9 @@ public abstract class RepeatedTimer implements Describer {
     public void runOnceNow() {
         this.lock.lock();
         try {
-            if (this.timerTask != null && this.timerTask.cancel()) {
-                this.timerTask = null;
-                this.run();
+            if (this.timeout != null && this.timeout.cancel()) {
+                this.timeout = null;
+                run();
             }
         } finally {
             this.lock.unlock();
@@ -128,7 +130,7 @@ public abstract class RepeatedTimer implements Describer {
      * Called after destroy timer.
      */
     protected void onDestroy() {
-        // NO-OP
+        LOG.info("Destroy timer: {}.", this);
     }
 
     /**
@@ -143,37 +145,29 @@ public abstract class RepeatedTimer implements Describer {
             if (!this.stopped) {
                 return;
             }
-            // 启动完一次之后就不允许再启动了
             this.stopped = false;
             if (this.running) {
                 return;
             }
-            // 设置为已经启动
             this.running = true;
-            this.schedule();
+            schedule();
         } finally {
             this.lock.unlock();
         }
     }
 
     private void schedule() {
-        // 如果 timerTask 不为 null，则取消之前的任务
-        if (this.timerTask != null) {
-            this.timerTask.cancel();
+        if(this.timeout != null) {
+            this.timeout.cancel();
         }
-        // 新建一个定时任务，定时执行自定义 run 逻辑
-        this.timerTask = new TimerTask() {
-
-            @Override
-            public void run() {
-                try {
-                    RepeatedTimer.this.run();
-                } catch (final Throwable t) {
-                    LOG.error("Run timer task failed taskName={}.", RepeatedTimer.this.name, t);
-                }
+        final TimerTask timerTask = timeout -> {
+            try {
+                RepeatedTimer.this.run();
+            } catch (final Throwable t) {
+                LOG.error("Run timer task failed, taskName={}.", RepeatedTimer.this.name, t);
             }
         };
-        this.timer.schedule(this.timerTask, this.adjustTimeout(this.timeoutMs));
+        this.timeout = this.timer.newTimeout(timerTask, adjustTimeout(this.timeoutMs), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -181,7 +175,7 @@ public abstract class RepeatedTimer implements Describer {
      *
      * @param timeoutMs timeout millis
      */
-    public void reset(int timeoutMs) {
+    public void reset(final int timeoutMs) {
         this.lock.lock();
         this.timeoutMs = timeoutMs;
         try {
@@ -189,7 +183,7 @@ public abstract class RepeatedTimer implements Describer {
                 return;
             }
             if (this.running) {
-                this.schedule();
+                schedule();
             }
         } finally {
             this.lock.unlock();
@@ -197,12 +191,12 @@ public abstract class RepeatedTimer implements Describer {
     }
 
     /**
-     * reset timer with current timeoutMs
+     * Reset timer with current timeoutMs
      */
     public void reset() {
         this.lock.lock();
         try {
-            this.reset(this.timeoutMs);
+            reset(this.timeoutMs);
         } finally {
             this.lock.unlock();
         }
@@ -222,22 +216,23 @@ public abstract class RepeatedTimer implements Describer {
             if (!this.running) {
                 invokeDestroyed = true;
             }
+            // Timer#stop is idempotent
+            this.timer.stop();
             if (this.stopped) {
                 return;
             }
             this.stopped = true;
-            if (this.timerTask != null) {
-                if (this.timerTask.cancel()) {
+            if (this.timeout != null) {
+                if (this.timeout.cancel()) {
                     invokeDestroyed = true;
                     this.running = false;
                 }
-                this.timerTask = null;
+                this.timeout = null;
             }
-            this.timer.cancel();
         } finally {
             this.lock.unlock();
             if (invokeDestroyed) {
-                this.onDestroy();
+                onDestroy();
             }
         }
     }
@@ -252,10 +247,10 @@ public abstract class RepeatedTimer implements Describer {
                 return;
             }
             this.stopped = true;
-            if (this.timerTask != null) {
-                this.timerTask.cancel();
+            if (this.timeout != null) {
+                this.timeout.cancel();
                 this.running = false;
-                this.timerTask = null;
+                this.timeout = null;
             }
         } finally {
             this.lock.unlock();
@@ -267,17 +262,18 @@ public abstract class RepeatedTimer implements Describer {
         final String _describeString;
         this.lock.lock();
         try {
-            _describeString = this.toString();
+            _describeString = toString();
         } finally {
             this.lock.unlock();
         }
-        out.print("  ").println(_describeString);
+        out.print("  ") //
+            .println(_describeString);
     }
 
     @Override
     public String toString() {
-        return "RepeatedTimer [timerTask=" + this.timerTask + ", stopped=" + this.stopped + ", running=" + this.running
-                + ", destroyed=" + this.destroyed + ", invoking=" + this.invoking + ", timeoutMs=" + this.timeoutMs
-                + "]";
+        return "RepeatedTimer{" + "timeout=" + timeout + ", stopped=" + stopped + ", running=" + running
+               + ", destroyed=" + destroyed + ", invoking=" + invoking + ", timeoutMs=" + timeoutMs + ", name='" + name
+               + '\'' + '}';
     }
 }

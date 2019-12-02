@@ -31,5 +31,5 @@ public interface SnapshotThrottle {
      * @param bytes expect size
      * @return available size
      */
-    long throttledByThroughput(long bytes);
+    long throttledByThroughput(final long bytes);
 }

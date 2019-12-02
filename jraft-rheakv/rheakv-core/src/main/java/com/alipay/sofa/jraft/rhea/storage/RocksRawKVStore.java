@@ -14,33 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.rhea.storage;
 
-import com.alipay.sofa.jraft.rhea.errors.StorageException;
-import com.alipay.sofa.jraft.rhea.metadata.Region;
-import com.alipay.sofa.jraft.rhea.options.RocksDBOptions;
-import com.alipay.sofa.jraft.rhea.rocks.support.RocksStatisticsCollector;
-import com.alipay.sofa.jraft.rhea.serialization.Serializer;
-import com.alipay.sofa.jraft.rhea.serialization.Serializers;
-import com.alipay.sofa.jraft.rhea.util.ByteArray;
-import com.alipay.sofa.jraft.rhea.util.Lists;
-import com.alipay.sofa.jraft.rhea.util.Maps;
-import com.alipay.sofa.jraft.rhea.util.Partitions;
-import com.alipay.sofa.jraft.rhea.util.StackTraceUtil;
-import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
-import com.alipay.sofa.jraft.util.Bits;
-import com.alipay.sofa.jraft.util.BytesUtil;
-import com.alipay.sofa.jraft.util.Requires;
-import com.alipay.sofa.jraft.util.StorageOptionsFactory;
-import com.alipay.sofa.jraft.util.SystemPropertyUtil;
-import com.codahale.metrics.Timer;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
+
 import org.apache.commons.io.FileUtils;
 import org.rocksdb.BackupEngine;
 import org.rocksdb.BackupInfo;
 import org.rocksdb.BackupableDBOptions;
 import org.rocksdb.BlockBasedTableConfig;
-import org.rocksdb.BloomFilter;
 import org.rocksdb.Checkpoint;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
@@ -63,25 +61,30 @@ import org.rocksdb.StatsCollectorInput;
 import org.rocksdb.StringAppendOperator;
 import org.rocksdb.WriteBatch;
 import org.rocksdb.WriteOptions;
-import org.rocksdb.util.SizeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
+import com.alipay.sofa.jraft.rhea.errors.StorageException;
+import com.alipay.sofa.jraft.rhea.metadata.Region;
+import com.alipay.sofa.jraft.rhea.options.RocksDBOptions;
+import com.alipay.sofa.jraft.rhea.rocks.support.RocksStatisticsCollector;
+import com.alipay.sofa.jraft.rhea.serialization.Serializer;
+import com.alipay.sofa.jraft.rhea.serialization.Serializers;
+import com.alipay.sofa.jraft.rhea.util.ByteArray;
+import com.alipay.sofa.jraft.rhea.util.Lists;
+import com.alipay.sofa.jraft.rhea.util.Maps;
+import com.alipay.sofa.jraft.rhea.util.Partitions;
+import com.alipay.sofa.jraft.rhea.util.StackTraceUtil;
+import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
+import com.alipay.sofa.jraft.util.Bits;
+import com.alipay.sofa.jraft.util.BytesUtil;
+import com.alipay.sofa.jraft.util.DebugStatistics;
+import com.alipay.sofa.jraft.util.Describer;
+import com.alipay.sofa.jraft.util.Requires;
+import com.alipay.sofa.jraft.util.StorageOptionsFactory;
+import com.alipay.sofa.jraft.util.SystemPropertyUtil;
+import com.alipay.sofa.jraft.util.concurrent.AdjustableSemaphore;
+import com.codahale.metrics.Timer;
 
 /**
  * Local KV store based on RocksDB
@@ -89,37 +92,39 @@ import java.util.function.Function;
  * @author dennis
  * @author jiachun.fjc
  */
-public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
+public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> implements Describer {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RocksRawKVStore.class);
+    private static final Logger                LOG                  = LoggerFactory.getLogger(RocksRawKVStore.class);
 
     static {
         RocksDB.loadLibrary();
     }
 
     // The maximum number of keys in once batch write
-    public static final int MAX_BATCH_WRITE_SIZE = SystemPropertyUtil.getInt("rhea.rocksdb.user.max_batch_write_size", 128);
+    public static final int                    MAX_BATCH_WRITE_SIZE = SystemPropertyUtil.getInt(
+                                                                        "rhea.rocksdb.user.max_batch_write_size", 128);
 
-    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final AdjustableSemaphore          shutdownLock         = new AdjustableSemaphore();
+    private final ReadWriteLock                readWriteLock        = new ReentrantReadWriteLock();
 
-    private final AtomicLong databaseVersion = new AtomicLong(0);
-    private final Serializer serializer = Serializers.getDefault();
+    private final AtomicLong                   databaseVersion      = new AtomicLong(0);
+    private final Serializer                   serializer           = Serializers.getDefault();
 
-    private final List<ColumnFamilyOptions> cfOptionsList = Lists.newArrayList();
-    private final List<ColumnFamilyDescriptor> cfDescriptors = Lists.newArrayList();
+    private final List<ColumnFamilyOptions>    cfOptionsList        = Lists.newArrayList();
+    private final List<ColumnFamilyDescriptor> cfDescriptors        = Lists.newArrayList();
 
-    private ColumnFamilyHandle defaultHandle;
-    private ColumnFamilyHandle sequenceHandle;
-    private ColumnFamilyHandle lockingHandle;
-    private ColumnFamilyHandle fencingHandle;
+    private ColumnFamilyHandle                 defaultHandle;
+    private ColumnFamilyHandle                 sequenceHandle;
+    private ColumnFamilyHandle                 lockingHandle;
+    private ColumnFamilyHandle                 fencingHandle;
 
-    private RocksDB db;
+    private RocksDB                            db;
 
-    private RocksDBOptions opts;
-    private DBOptions options;
-    private WriteOptions writeOptions;
-    private Statistics statistics;
-    private RocksStatisticsCollector statisticsCollector;
+    private RocksDBOptions                     opts;
+    private DBOptions                          options;
+    private WriteOptions                       writeOptions;
+    private DebugStatistics                    statistics;
+    private RocksStatisticsCollector           statisticsCollector;
 
     @Override
     public boolean init(final RocksDBOptions opts) {
@@ -133,7 +138,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             this.opts = opts;
             this.options = createDBOptions();
             if (opts.isOpenStatisticsCollector()) {
-                this.statistics = new Statistics();
+                this.statistics = new DebugStatistics();
                 this.options.setStatistics(this.statistics);
                 final long intervalSeconds = opts.getStatisticsCallbackIntervalSeconds();
                 if (intervalSeconds > 0) {
@@ -159,6 +164,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             // to reply to the data is the correct behavior.
             destroyRocksDB(opts);
             openRocksDB(opts);
+            this.shutdownLock.setMaxPermits(1);
             LOG.info("[RocksRawKVStore] start successfully, options: {}.", opts);
             return true;
         } catch (final Exception e) {
@@ -177,6 +183,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             if (this.db == null) {
                 return;
             }
+            this.shutdownLock.setMaxPermits(0);
             closeRocksDB();
             if (this.defaultHandle != null) {
                 this.defaultHandle.close();
@@ -276,6 +283,26 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
     }
 
     @Override
+    public void containsKey(final byte[] key, final KVStoreClosure closure) {
+        final Timer.Context timeCtx = getTimeContext("CONTAINS_KEY");
+        final Lock readLock = this.readWriteLock.readLock();
+        readLock.lock();
+        try {
+            boolean exists = false;
+            if (this.db.keyMayExist(key, new StringBuilder(0))) {
+                exists = this.db.get(key) != null;
+            }
+            setSuccess(closure, exists);
+        } catch (final Exception e) {
+            LOG.error("Fail to [CONTAINS_KEY], key: [{}], {}.", BytesUtil.toHex(key), StackTraceUtil.stackTrace(e));
+            setFailure(closure, "Fail to [CONTAINS_KEY]");
+        } finally {
+            readLock.unlock();
+            timeCtx.stop();
+        }
+    }
+
+    @Override
     public void scan(final byte[] startKey, final byte[] endKey, final int limit,
                      @SuppressWarnings("unused") final boolean readOnlySafe, final boolean returnValue,
                      final KVStoreClosure closure) {
@@ -307,7 +334,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, entries);
         } catch (final Exception e) {
             LOG.error("Fail to [SCAN], range: ['[{}, {})'], {}.", BytesUtil.toHex(startKey), BytesUtil.toHex(endKey),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setFailure(closure, "Fail to [SCAN]");
         } finally {
             readLock.unlock();
@@ -346,7 +373,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, new Sequence(startVal, endVal));
         } catch (final Exception e) {
             LOG.error("Fail to [GET_SEQUENCE], [key = {}, step = {}], {}.", BytesUtil.toHex(seqKey), step,
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [GET_SEQUENCE]", e);
         } finally {
             readLock.unlock();
@@ -364,7 +391,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, Boolean.TRUE);
         } catch (final Exception e) {
             LOG.error("Fail to [RESET_SEQUENCE], [key = {}], {}.", BytesUtil.toHex(seqKey),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [RESET_SEQUENCE]", e);
         } finally {
             readLock.unlock();
@@ -394,7 +421,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     }
                 } catch (final Exception e) {
                     LOG.error("Failed to [BATCH_RESET_SEQUENCE], [size = {}], {}.", segment.size(),
-                            StackTraceUtil.stackTrace(e));
+                        StackTraceUtil.stackTrace(e));
                     setCriticalError(Lists.transform(kvStates, KVState::getDone), "Fail to [BATCH_RESET_SEQUENCE]", e);
                 }
                 return null;
@@ -415,7 +442,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, Boolean.TRUE);
         } catch (final Exception e) {
             LOG.error("Fail to [PUT], [{}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(value),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [PUT]", e);
         } finally {
             readLock.unlock();
@@ -468,7 +495,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, prevVal);
         } catch (final Exception e) {
             LOG.error("Fail to [GET_PUT], [{}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(value),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [GET_PUT]", e);
         } finally {
             readLock.unlock();
@@ -505,7 +532,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     }
                 } catch (final Exception e) {
                     LOG.error("Failed to [BATCH_GET_PUT], [size = {}] {}.", segment.size(),
-                            StackTraceUtil.stackTrace(e));
+                        StackTraceUtil.stackTrace(e));
                     setCriticalError(Lists.transform(kvStates, KVState::getDone), "Fail to [BATCH_GET_PUT]", e);
                 }
                 return null;
@@ -531,7 +558,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             }
         } catch (final Exception e) {
             LOG.error("Fail to [COMPARE_PUT], [{}, {}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(expect),
-                    BytesUtil.toHex(update), StackTraceUtil.stackTrace(e));
+                BytesUtil.toHex(update), StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [COMPARE_PUT]", e);
         } finally {
             readLock.unlock();
@@ -581,7 +608,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     }
                 } catch (final Exception e) {
                     LOG.error("Failed to [BATCH_COMPARE_PUT], [size = {}] {}.", segment.size(),
-                            StackTraceUtil.stackTrace(e));
+                        StackTraceUtil.stackTrace(e));
                     setCriticalError(Lists.transform(kvStates, KVState::getDone), "Fail to [BATCH_COMPARE_PUT]", e);
                 }
                 return null;
@@ -602,7 +629,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, Boolean.TRUE);
         } catch (final Exception e) {
             LOG.error("Fail to [MERGE], [{}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(value),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [MERGE]", e);
         } finally {
             readLock.unlock();
@@ -677,7 +704,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, prevVal);
         } catch (final Exception e) {
             LOG.error("Fail to [PUT_IF_ABSENT], [{}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(value),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [PUT_IF_ABSENT]", e);
         } finally {
             readLock.unlock();
@@ -725,7 +752,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     }
                 } catch (final Exception e) {
                     LOG.error("Failed to [BATCH_PUT_IF_ABSENT], [size = {}] {}.", segment.size(),
-                            StackTraceUtil.stackTrace(e));
+                        StackTraceUtil.stackTrace(e));
                     setCriticalError(Lists.transform(kvStates, KVState::getDone), "Fail to [BATCH_PUT_IF_ABSENT]", e);
                 }
                 return null;
@@ -760,72 +787,72 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     if (keepLease) {
                         // it wants to keep the lease but too late, will return failure
                         owner = builder //
-                                // set acquirer id
-                                .id(acquirer.getId())
-                                // fail to keep lease
-                                .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
-                                // set failure
-                                .success(false).build();
+                            // set acquirer id
+                            .id(acquirer.getId())
+                            // fail to keep lease
+                            .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
+                            // set failure
+                            .success(false).build();
                         break;
                     }
                     // is first time to try lock (another possibility is that this lock has been deleted),
                     // will return successful
                     owner = builder //
-                            // set acquirer id, now it will own the lock
-                            .id(acquirer.getId())
-                            // set a new deadline
-                            .deadlineMillis(now + timeoutMillis)
-                            // first time to acquire and success
-                            .remainingMillis(DistributedLock.OwnerBuilder.FIRST_TIME_SUCCESS)
-                            // create a new fencing token
-                            .fencingToken(getNextFencingToken(fencingKey))
-                            // init acquires
-                            .acquires(1)
-                            // set acquirer ctx
-                            .context(acquirer.getContext())
-                            // set successful
-                            .success(true).build();
+                        // set acquirer id, now it will own the lock
+                        .id(acquirer.getId())
+                        // set a new deadline
+                        .deadlineMillis(now + timeoutMillis)
+                        // first time to acquire and success
+                        .remainingMillis(DistributedLock.OwnerBuilder.FIRST_TIME_SUCCESS)
+                        // create a new fencing token
+                        .fencingToken(getNextFencingToken(fencingKey))
+                        // init acquires
+                        .acquires(1)
+                        // set acquirer ctx
+                        .context(acquirer.getContext())
+                        // set successful
+                        .success(true).build();
                     this.db.put(this.lockingHandle, this.writeOptions, key, this.serializer.writeObject(owner));
                     break;
                 }
 
                 // this lock has an owner, check if it has expired
                 final DistributedLock.Owner prevOwner = this.serializer.readObject(prevBytesVal,
-                        DistributedLock.Owner.class);
+                    DistributedLock.Owner.class);
                 final long remainingMillis = prevOwner.getDeadlineMillis() - now;
                 if (remainingMillis < 0) {
                     // the previous owner is out of lease
                     if (keepLease) {
                         // it wants to keep the lease but too late, will return failure
                         owner = builder //
-                                // still previous owner id
-                                .id(prevOwner.getId())
-                                // do not update
-                                .deadlineMillis(prevOwner.getDeadlineMillis())
-                                // fail to keep lease
-                                .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
-                                // set previous ctx
-                                .context(prevOwner.getContext())
-                                // set failure
-                                .success(false).build();
+                            // still previous owner id
+                            .id(prevOwner.getId())
+                            // do not update
+                            .deadlineMillis(prevOwner.getDeadlineMillis())
+                            // fail to keep lease
+                            .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
+                            // set previous ctx
+                            .context(prevOwner.getContext())
+                            // set failure
+                            .success(false).build();
                         break;
                     }
                     // create new lock owner
                     owner = builder //
-                            // set acquirer id, now it will own the lock
-                            .id(acquirer.getId())
-                            // set a new deadline
-                            .deadlineMillis(now + timeoutMillis)
-                            // success as a new acquirer
-                            .remainingMillis(DistributedLock.OwnerBuilder.NEW_ACQUIRE_SUCCESS)
-                            // create a new fencing token
-                            .fencingToken(getNextFencingToken(fencingKey))
-                            // init acquires
-                            .acquires(1)
-                            // set acquirer ctx
-                            .context(acquirer.getContext())
-                            // set successful
-                            .success(true).build();
+                        // set acquirer id, now it will own the lock
+                        .id(acquirer.getId())
+                        // set a new deadline
+                        .deadlineMillis(now + timeoutMillis)
+                        // success as a new acquirer
+                        .remainingMillis(DistributedLock.OwnerBuilder.NEW_ACQUIRE_SUCCESS)
+                        // create a new fencing token
+                        .fencingToken(getNextFencingToken(fencingKey))
+                        // init acquires
+                        .acquires(1)
+                        // set acquirer ctx
+                        .context(acquirer.getContext())
+                        // set successful
+                        .success(true).build();
                     this.db.put(this.lockingHandle, this.writeOptions, key, this.serializer.writeObject(owner));
                     break;
                 }
@@ -837,53 +864,53 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     if (keepLease) {
                         // the old friend only wants to keep lease of lock
                         owner = builder //
-                                // still previous owner id
-                                .id(prevOwner.getId())
-                                // update the deadline to keep lease
-                                .deadlineMillis(now + timeoutMillis)
-                                // success to keep lease
-                                .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_SUCCESS)
-                                // keep fencing token
-                                .fencingToken(prevOwner.getFencingToken())
-                                // keep acquires
-                                .acquires(prevOwner.getAcquires())
-                                // do not update ctx when keeping lease
-                                .context(prevOwner.getContext())
-                                // set successful
-                                .success(true).build();
+                            // still previous owner id
+                            .id(prevOwner.getId())
+                            // update the deadline to keep lease
+                            .deadlineMillis(now + timeoutMillis)
+                            // success to keep lease
+                            .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_SUCCESS)
+                            // keep fencing token
+                            .fencingToken(prevOwner.getFencingToken())
+                            // keep acquires
+                            .acquires(prevOwner.getAcquires())
+                            // do not update ctx when keeping lease
+                            .context(prevOwner.getContext())
+                            // set successful
+                            .success(true).build();
                         this.db.put(this.lockingHandle, this.writeOptions, key, this.serializer.writeObject(owner));
                         break;
                     }
                     // now we are sure that is an old friend who is back again (reentrant lock)
                     owner = builder //
-                            // still previous owner id
-                            .id(prevOwner.getId())
-                            // by the way, the lease will also be kept
-                            .deadlineMillis(now + timeoutMillis)
-                            // success reentrant
-                            .remainingMillis(DistributedLock.OwnerBuilder.REENTRANT_SUCCESS)
-                            // keep fencing token
-                            .fencingToken(prevOwner.getFencingToken())
-                            // acquires++
-                            .acquires(prevOwner.getAcquires() + 1)
-                            // update ctx when reentrant
-                            .context(acquirer.getContext())
-                            // set successful
-                            .success(true).build();
+                        // still previous owner id
+                        .id(prevOwner.getId())
+                        // by the way, the lease will also be kept
+                        .deadlineMillis(now + timeoutMillis)
+                        // success reentrant
+                        .remainingMillis(DistributedLock.OwnerBuilder.REENTRANT_SUCCESS)
+                        // keep fencing token
+                        .fencingToken(prevOwner.getFencingToken())
+                        // acquires++
+                        .acquires(prevOwner.getAcquires() + 1)
+                        // update ctx when reentrant
+                        .context(acquirer.getContext())
+                        // set successful
+                        .success(true).build();
                     this.db.put(this.lockingHandle, this.writeOptions, key, this.serializer.writeObject(owner));
                     break;
                 }
 
                 // the lock is exist and also prev locker is not the same as current
                 owner = builder //
-                        // set previous owner id to tell who is the real owner
-                        .id(prevOwner.getId())
-                        // set the remaining lease time of current owner
-                        .remainingMillis(remainingMillis)
-                        // set previous ctx
-                        .context(prevOwner.getContext())
-                        // set failure
-                        .success(false).build();
+                    // set previous owner id to tell who is the real owner
+                    .id(prevOwner.getId())
+                    // set the remaining lease time of current owner
+                    .remainingMillis(remainingMillis)
+                    // set previous ctx
+                    .context(prevOwner.getContext())
+                    // set failure
+                    .success(false).build();
                 LOG.debug("Another locker [{}] is trying the existed lock [{}].", acquirer, prevOwner);
             } while (false);
 
@@ -912,35 +939,35 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                 if (prevBytesVal == null) {
                     LOG.warn("Lock not exist: {}.", acquirer);
                     owner = builder //
-                            // set acquirer id
-                            .id(acquirer.getId())
-                            // set acquirer fencing token
-                            .fencingToken(acquirer.getFencingToken())
-                            // set acquires=0
-                            .acquires(0)
-                            // set successful
-                            .success(true).build();
+                        // set acquirer id
+                        .id(acquirer.getId())
+                        // set acquirer fencing token
+                        .fencingToken(acquirer.getFencingToken())
+                        // set acquires=0
+                        .acquires(0)
+                        // set successful
+                        .success(true).build();
                     break;
                 }
 
                 final DistributedLock.Owner prevOwner = this.serializer.readObject(prevBytesVal,
-                        DistributedLock.Owner.class);
+                    DistributedLock.Owner.class);
 
                 if (prevOwner.isSameAcquirer(acquirer)) {
                     final long acquires = prevOwner.getAcquires() - 1;
                     owner = builder //
-                            // still previous owner id
-                            .id(prevOwner.getId())
-                            // do not update deadline
-                            .deadlineMillis(prevOwner.getDeadlineMillis())
-                            // keep fencing token
-                            .fencingToken(prevOwner.getFencingToken())
-                            // acquires--
-                            .acquires(acquires)
-                            // set previous ctx
-                            .context(prevOwner.getContext())
-                            // set successful
-                            .success(true).build();
+                        // still previous owner id
+                        .id(prevOwner.getId())
+                        // do not update deadline
+                        .deadlineMillis(prevOwner.getDeadlineMillis())
+                        // keep fencing token
+                        .fencingToken(prevOwner.getFencingToken())
+                        // acquires--
+                        .acquires(acquires)
+                        // set previous ctx
+                        .context(prevOwner.getContext())
+                        // set successful
+                        .success(true).build();
                     if (acquires <= 0) {
                         // real delete, goodbye ~
                         this.db.delete(this.lockingHandle, this.writeOptions, key);
@@ -953,16 +980,16 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
 
                 // invalid acquirer, can't to release the lock
                 owner = builder //
-                        // set previous owner id to tell who is the real owner
-                        .id(prevOwner.getId())
-                        // keep previous fencing token
-                        .fencingToken(prevOwner.getFencingToken())
-                        // do not update acquires
-                        .acquires(prevOwner.getAcquires())
-                        // set previous ctx
-                        .context(prevOwner.getContext())
-                        // set failure
-                        .success(false).build();
+                    // set previous owner id to tell who is the real owner
+                    .id(prevOwner.getId())
+                    // keep previous fencing token
+                    .fencingToken(prevOwner.getFencingToken())
+                    // do not update acquires
+                    .acquires(prevOwner.getAcquires())
+                    // set previous ctx
+                    .context(prevOwner.getContext())
+                    // set failure
+                    .success(false).build();
                 LOG.warn("The lock owner is: [{}], [{}] could't release it.", prevOwner, acquirer);
             } while (false);
 
@@ -1042,7 +1069,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     }
                 } catch (final Exception e) {
                     LOG.error("Failed to [BATCH_DELETE], [size = {}], {}.", segment.size(),
-                            StackTraceUtil.stackTrace(e));
+                        StackTraceUtil.stackTrace(e));
                     setCriticalError(Lists.transform(kvStates, KVState::getDone), "Fail to [BATCH_DELETE]", e);
                 }
                 return null;
@@ -1063,7 +1090,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             setSuccess(closure, Boolean.TRUE);
         } catch (final Exception e) {
             LOG.error("Fail to [DELETE_RANGE], ['[{}, {})'], {}.", BytesUtil.toHex(startKey), BytesUtil.toHex(endKey),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [DELETE_RANGE]", e);
         } finally {
             readLock.unlock();
@@ -1107,7 +1134,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     it.seek(startKey);
                 }
                 long approximateKeys = 0;
-                for (; ; ) {
+                for (;;) {
                     // The accuracy is 100, don't ask more
                     for (int i = 0; i < 100; i++) {
                         if (!it.isValid()) {
@@ -1146,7 +1173,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
                     it.seek(startKey);
                 }
                 long approximateKeys = 0;
-                for (; ; ) {
+                for (;;) {
                     byte[] lastKey = null;
                     if (it.isValid()) {
                         lastKey = it.key();
@@ -1199,7 +1226,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
 
     public void addStatisticsCollectorCallback(final StatisticsCollectorCallback callback) {
         final RocksStatisticsCollector collector = Requires.requireNonNull(this.statisticsCollector,
-                "statisticsCollector");
+            "statisticsCollector");
         final Statistics statistics = Requires.requireNonNull(this.statistics, "statistics");
         collector.addStatsCollectorInput(new StatsCollectorInput(statistics, callback));
     }
@@ -1208,55 +1235,91 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
         return Requires.requireNonNull(this.opts, "opts").isFastSnapshot();
     }
 
-    void createSstFiles(final EnumMap<SstColumnFamily, File> sstFileTable, final byte[] startKey, final byte[] endKey) {
+    boolean isAsyncSnapshot() {
+        return Requires.requireNonNull(this.opts, "opts").isAsyncSnapshot();
+    }
+
+    CompletableFuture<Void> createSstFiles(final EnumMap<SstColumnFamily, File> sstFileTable, final byte[] startKey,
+                                           final byte[] endKey, final ExecutorService executor) {
+        final Snapshot snapshot;
+        final CompletableFuture<Void> sstFuture = new CompletableFuture<>();
+        final Lock readLock = this.readWriteLock.readLock();
+        readLock.lock();
+        try {
+            snapshot = this.db.getSnapshot();
+            if (!isAsyncSnapshot()) {
+                doCreateSstFiles(snapshot, sstFileTable, startKey, endKey, sstFuture);
+                return sstFuture;
+            }
+        } finally {
+            readLock.unlock();
+        }
+
+        // async snapshot
+        executor.execute(() -> doCreateSstFiles(snapshot, sstFileTable, startKey, endKey, sstFuture));
+        return sstFuture;
+    }
+
+    void doCreateSstFiles(final Snapshot snapshot, final EnumMap<SstColumnFamily, File> sstFileTable,
+                          final byte[] startKey, final byte[] endKey, final CompletableFuture<Void> future) {
         final Timer.Context timeCtx = getTimeContext("CREATE_SST_FILE");
         final Lock readLock = this.readWriteLock.readLock();
         readLock.lock();
-        final Snapshot snapshot = this.db.getSnapshot();
-        try (final ReadOptions readOptions = new ReadOptions();
-             final EnvOptions envOptions = new EnvOptions();
-             final Options options = new Options().setMergeOperator(new StringAppendOperator())) {
-            readOptions.setSnapshot(snapshot);
-            for (final Map.Entry<SstColumnFamily, File> entry : sstFileTable.entrySet()) {
-                final SstColumnFamily sstColumnFamily = entry.getKey();
-                final File sstFile = entry.getValue();
-                final ColumnFamilyHandle columnFamilyHandle = findColumnFamilyHandle(sstColumnFamily);
-                try (final RocksIterator it = this.db.newIterator(columnFamilyHandle, readOptions);
-                     final SstFileWriter sstFileWriter = new SstFileWriter(envOptions, options)) {
-                    if (startKey == null) {
-                        it.seekToFirst();
-                    } else {
-                        it.seek(startKey);
-                    }
-                    sstFileWriter.open(sstFile.getAbsolutePath());
-                    long count = 0;
-                    for (; ; ) {
-                        if (!it.isValid()) {
-                            break;
+        try {
+            if (!this.shutdownLock.isAvailable()) {
+                // KV store has shutdown, we do not release rocksdb's snapshot
+                future.completeExceptionally(new StorageException("KV store has shutdown."));
+                return;
+            }
+            try (final ReadOptions readOptions = new ReadOptions();
+                    final EnvOptions envOptions = new EnvOptions();
+                    final Options options = new Options().setMergeOperator(new StringAppendOperator())) {
+                readOptions.setSnapshot(snapshot);
+                for (final Map.Entry<SstColumnFamily, File> entry : sstFileTable.entrySet()) {
+                    final SstColumnFamily sstColumnFamily = entry.getKey();
+                    final File sstFile = entry.getValue();
+                    final ColumnFamilyHandle columnFamilyHandle = findColumnFamilyHandle(sstColumnFamily);
+                    try (final RocksIterator it = this.db.newIterator(columnFamilyHandle, readOptions);
+                            final SstFileWriter sstFileWriter = new SstFileWriter(envOptions, options)) {
+                        if (startKey == null) {
+                            it.seekToFirst();
+                        } else {
+                            it.seek(startKey);
                         }
-                        final byte[] key = it.key();
-                        if (endKey != null && BytesUtil.compare(key, endKey) >= 0) {
-                            break;
+                        sstFileWriter.open(sstFile.getAbsolutePath());
+                        long count = 0;
+                        for (;;) {
+                            if (!it.isValid()) {
+                                break;
+                            }
+                            final byte[] key = it.key();
+                            if (endKey != null && BytesUtil.compare(key, endKey) >= 0) {
+                                break;
+                            }
+                            sstFileWriter.put(key, it.value());
+                            ++count;
+                            it.next();
                         }
-                        sstFileWriter.put(key, it.value());
-                        ++count;
-                        it.next();
+                        if (count == 0) {
+                            sstFileWriter.close();
+                        } else {
+                            sstFileWriter.finish();
+                        }
+                        LOG.info("Finish sst file {} with {} keys.", sstFile, count);
+                    } catch (final RocksDBException e) {
+                        throw new StorageException("Fail to create sst file at path: " + sstFile, e);
                     }
-                    if (count == 0) {
-                        sstFileWriter.close();
-                    } else {
-                        sstFileWriter.finish();
-                    }
-                    LOG.info("Finish sst file {} with {} keys.", sstFile, count);
-                } catch (final RocksDBException e) {
-                    throw new StorageException("Fail to create sst file at path: " + sstFile, e);
                 }
+                future.complete(null);
+            } catch (final Throwable t) {
+                future.completeExceptionally(t);
+            } finally {
+                // Nothing to release, rocksDB never own the pointer for a snapshot.
+                snapshot.close();
+                // The pointer to the snapshot is released by the database instance.
+                this.db.releaseSnapshot(snapshot);
             }
         } finally {
-            // Nothing to release, rocksDB never own the pointer for a snapshot.
-            snapshot.close();
-            // The pointer to the snapshot is released by the database instance.
-            this.db.releaseSnapshot(snapshot);
             readLock.unlock();
             timeCtx.stop();
         }
@@ -1320,8 +1383,8 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
         writeLock.lock();
         closeRocksDB();
         try (final BackupableDBOptions backupOpts = createBackupDBOptions(backupDBPath);
-             final BackupEngine backupEngine = BackupEngine.open(this.options.getEnv(), backupOpts);
-             final RestoreOptions restoreOpts = new RestoreOptions(false)) {
+                final BackupEngine backupEngine = BackupEngine.open(this.options.getEnv(), backupOpts);
+                final RestoreOptions restoreOpts = new RestoreOptions(false)) {
             final String dbPath = this.opts.getDbPath();
             backupEngine.restoreDbFromBackup(rocksBackupInfo.getBackupId(), dbPath, dbPath, restoreOpts);
             LOG.info("Restored rocksDB from {} with {}.", backupDBPath, rocksBackupInfo);
@@ -1386,7 +1449,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
         }
     }
 
-    void writeSstSnapshot(final String snapshotPath, final Region region) {
+    CompletableFuture<Void> writeSstSnapshot(final String snapshotPath, final Region region, final ExecutorService executor) {
         final Timer.Context timeCtx = getTimeContext("WRITE_SST_SNAPSHOT");
         final Lock readLock = this.readWriteLock.readLock();
         readLock.lock();
@@ -1397,12 +1460,26 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
             FileUtils.forceMkdir(tempFile);
 
             final EnumMap<SstColumnFamily, File> sstFileTable = getSstFileTable(tempPath);
-            createSstFiles(sstFileTable, region.getStartKey(), region.getEndKey());
-            final File snapshotFile = new File(snapshotPath);
-            FileUtils.deleteDirectory(snapshotFile);
-            if (!tempFile.renameTo(snapshotFile)) {
-                throw new StorageException("Fail to rename [" + tempPath + "] to [" + snapshotPath + "].");
-            }
+            final CompletableFuture<Void> snapshotFuture = new CompletableFuture<>();
+            final CompletableFuture<Void> sstFuture = createSstFiles(sstFileTable, region.getStartKey(),
+                region.getEndKey(), executor);
+            sstFuture.whenComplete((aVoid, throwable) -> {
+                if (throwable == null) {
+                    try {
+                        final File snapshotFile = new File(snapshotPath);
+                        FileUtils.deleteDirectory(snapshotFile);
+                        if (!tempFile.renameTo(snapshotFile)) {
+                            throw new StorageException("Fail to rename [" + tempPath + "] to [" + snapshotPath + "].");
+                        }
+                        snapshotFuture.complete(null);
+                    } catch (final Throwable t) {
+                        snapshotFuture.completeExceptionally(t);
+                    }
+                } else {
+                    snapshotFuture.completeExceptionally(throwable);
+                }
+            });
+            return snapshotFuture;
         } catch (final Exception e) {
             throw new StorageException("Fail to do read sst snapshot at path: " + snapshotPath, e);
         } finally {
@@ -1478,37 +1555,46 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> {
         }
     }
 
-    // Creates the config for plain table sst format.
-    private static BlockBasedTableConfig createTableConfig() {
-        return new BlockBasedTableConfig() //
-                .setBlockSize(4 * SizeUnit.KB) //
-                .setFilter(new BloomFilter(16, false)) //
-                .setCacheIndexAndFilterBlocks(true) //
-                .setBlockCacheSize(512 * SizeUnit.MB) //
-                .setCacheNumShardBits(8);
-    }
-
     // Creates the rocksDB options, the user must take care
     // to close it after closing db.
     private static DBOptions createDBOptions() {
         return StorageOptionsFactory.getRocksDBOptions(RocksRawKVStore.class) //
-                .setEnv(Env.getDefault());
+            .setEnv(Env.getDefault());
     }
 
     // Creates the column family options to control the behavior
     // of a database.
     private static ColumnFamilyOptions createColumnFamilyOptions() {
-        final BlockBasedTableConfig tConfig = createTableConfig();
+        final BlockBasedTableConfig tConfig = StorageOptionsFactory.getRocksDBTableFormatConfig(RocksRawKVStore.class);
         return StorageOptionsFactory.getRocksDBColumnFamilyOptions(RocksRawKVStore.class) //
-                .setTableFormatConfig(tConfig) //
-                .setMergeOperator(new StringAppendOperator());
+            .setTableFormatConfig(tConfig) //
+            .setMergeOperator(new StringAppendOperator());
     }
 
     // Creates the backupable db options to control the behavior of
     // a backupable database.
     private static BackupableDBOptions createBackupDBOptions(final String backupDBPath) {
         return new BackupableDBOptions(backupDBPath) //
-                .setSync(true) //
-                .setShareTableFiles(false); // don't share data between backups
+            .setSync(true) //
+            .setShareTableFiles(false); // don't share data between backups
+    }
+
+    @Override
+    public void describe(final Printer out) {
+        final Lock readLock = this.readWriteLock.readLock();
+        readLock.lock();
+        try {
+            if (this.db != null) {
+                out.println(this.db.getProperty("rocksdb.stats"));
+            }
+            out.println("");
+            if (this.statistics != null) {
+                out.println(this.statistics.getString());
+            }
+        } catch (final RocksDBException e) {
+            out.println(e);
+        } finally {
+            readLock.unlock();
+        }
     }
 }

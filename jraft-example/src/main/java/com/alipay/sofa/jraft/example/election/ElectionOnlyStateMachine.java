@@ -14,28 +14,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.example.election;
+
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Iterator;
 import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.core.StateMachineAdapter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ *
  * @author jiachun.fjc
  */
 public class ElectionOnlyStateMachine extends StateMachineAdapter {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ElectionOnlyStateMachine.class);
+    private static final Logger             LOG        = LoggerFactory.getLogger(ElectionOnlyStateMachine.class);
 
-    private final AtomicLong leaderTerm = new AtomicLong(-1L);
-    private final List<LeaderStateListener> listeners = new CopyOnWriteArrayList<>();
+    private final AtomicLong                leaderTerm = new AtomicLong(-1L);
+    private final List<LeaderStateListener> listeners;
+
+    public ElectionOnlyStateMachine(List<LeaderStateListener> listeners) {
+        this.listeners = listeners;
+    }
 
     @Override
     public void onApply(final Iterator it) {

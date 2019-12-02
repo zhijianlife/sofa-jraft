@@ -14,10 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.core;
 
-import com.alipay.remoting.util.ConcurrentHashSet;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.alipay.sofa.jraft.ReplicatorGroup;
 import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.closure.CatchUpClosure;
@@ -30,37 +37,29 @@ import com.alipay.sofa.jraft.option.ReplicatorGroupOptions;
 import com.alipay.sofa.jraft.option.ReplicatorOptions;
 import com.alipay.sofa.jraft.rpc.RpcRequests.AppendEntriesResponse;
 import com.alipay.sofa.jraft.rpc.RpcResponseClosure;
+import com.alipay.sofa.jraft.util.OnlyForTest;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.ThreadId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Replicator group for a raft group.
- *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-04 1:54:51 PM
  */
 public class ReplicatorGroupImpl implements ReplicatorGroup {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ReplicatorGroupImpl.class);
+    private static final Logger                   LOG                = LoggerFactory
+                                                                         .getLogger(ReplicatorGroupImpl.class);
 
     // <peerId, replicatorId>
-    private final ConcurrentMap<PeerId, ThreadId> replicatorMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<PeerId, ThreadId> replicatorMap      = new ConcurrentHashMap<>();
     /** common replicator options */
-    private ReplicatorOptions commonOptions;
-    private int dynamicTimeoutMs = -1;
-    private int electionTimeoutMs = -1;
-    private RaftOptions raftOptions;
-    private final Set<PeerId> failureReplicators = new ConcurrentHashSet<>();
+    private ReplicatorOptions                     commonOptions;
+    private int                                   dynamicTimeoutMs   = -1;
+    private int                                   electionTimeoutMs  = -1;
+    private RaftOptions                           raftOptions;
+    private final Map<PeerId, ReplicatorType>     failureReplicators = new ConcurrentHashMap<>();
 
     @Override
     public boolean init(final NodeId nodeId, final ReplicatorGroupOptions opts) {
@@ -78,9 +77,18 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
         this.commonOptions.setGroupId(nodeId.getGroupId());
         this.commonOptions.setServerId(nodeId.getPeerId());
         this.commonOptions.setSnapshotStorage(opts.getSnapshotStorage());
-        this.commonOptions.setRaftRpcService(opts.getRaftRpcClientService());
         this.commonOptions.setTimerManager(opts.getTimerManager());
         return true;
+    }
+
+    @OnlyForTest
+    ConcurrentMap<PeerId, ThreadId> getReplicatorMap() {
+        return this.replicatorMap;
+    }
+
+    @OnlyForTest
+    Map<PeerId, ReplicatorType> getFailureReplicators() {
+        return this.failureReplicators;
     }
 
     @Override
@@ -103,19 +111,25 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
 
     @Override
     public boolean addReplicator(final PeerId peer) {
-        // 校验当前 term
+        return this.addReplicator(peer, ReplicatorType.Follower);
+    }
+
+    @Override
+    public boolean addReplicator(final PeerId peer, final ReplicatorType replicatorType) {
         Requires.requireTrue(this.commonOptions.getTerm() != 0);
+        this.failureReplicators.remove(peer);
         if (this.replicatorMap.containsKey(peer)) {
-            this.failureReplicators.remove(peer);
             return true;
         }
-        final ReplicatorOptions opts = this.commonOptions.copy();
+        final ReplicatorOptions opts = this.commonOptions == null ? new ReplicatorOptions() : this.commonOptions.copy();
+
+        opts.setReplicatorType(replicatorType);
         opts.setPeerId(peer);
         // 启动一个复制线程
         final ThreadId rid = Replicator.start(opts, this.raftOptions);
         if (rid == null) {
             LOG.error("Fail to start replicator to peer={}.", peer);
-            this.failureReplicators.add(peer);
+            this.failureReplicators.put(peer, replicatorType);
             return false;
         }
         return this.replicatorMap.put(peer, rid) == null;
@@ -160,8 +174,6 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     @Override
     public void checkReplicator(final PeerId peer, final boolean lockNode) {
         final ThreadId rid = this.replicatorMap.get(peer);
-        // noinspection StatementWithEmptyBody
-        // 节点 peer 并未 follow 自己
         if (rid == null) {
             // Create replicator if it's not found for leader.
             final NodeImpl node = this.commonOptions.getNode();
@@ -169,19 +181,17 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
                 node.writeLock.lock();
             }
             try {
-                if (node.isLeader() // 当前节点是 leader
-                        && this.failureReplicators.contains(peer)  // 节点 peer 在 failureReplicators 集合中
-                        && this.addReplicator(peer)) { // 将节点 peer 加入到复制组
-                    this.failureReplicators.remove(peer);
+                if (node.isLeader()) {
+                    final ReplicatorType rType = this.failureReplicators.get(peer);
+                    if (rType != null && addReplicator(peer, rType)) {
+                        this.failureReplicators.remove(peer, rType);
+                    }
                 }
             } finally {
                 if (lockNode) {
                     node.writeLock.unlock();
                 }
             }
-        } else { // NOPMD
-            // Unblock it right now.
-            // Replicator.unBlockAndSendNow(rid);
         }
     }
 
@@ -239,7 +249,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     @Override
     public ThreadId stopAllAndFindTheNextCandidate(final ConfigurationEntry conf) {
         ThreadId candidate = null;
-        final PeerId candidateId = this.findTheNextCandidate(conf);
+        final PeerId candidateId = findTheNextCandidate(conf);
         if (candidateId != null) {
             candidate = this.replicatorMap.get(candidateId);
         } else {
@@ -258,15 +268,24 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     @Override
     public PeerId findTheNextCandidate(final ConfigurationEntry conf) {
         PeerId peerId = null;
+        int priority = Integer.MIN_VALUE;
         long maxIndex = -1L;
         for (final Map.Entry<PeerId, ThreadId> entry : this.replicatorMap.entrySet()) {
             if (!conf.contains(entry.getKey())) {
+                continue;
+            }
+            final int nextPriority = entry.getKey().getPriority();
+            if (nextPriority == ElectionPriority.NotElected) {
                 continue;
             }
             final long nextIndex = Replicator.getNextIndex(entry.getValue());
             if (nextIndex > maxIndex) {
                 maxIndex = nextIndex;
                 peerId = entry.getKey();
+                priority = peerId.getPriority();
+            } else if (nextIndex == maxIndex && nextPriority > priority) {
+                peerId = entry.getKey();
+                priority = peerId.getPriority();
             }
         }
 
@@ -285,8 +304,8 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     @Override
     public void describe(final Printer out) {
         out.print("  replicators: ") //
-                .println(this.replicatorMap.values());
+            .println(this.replicatorMap.values());
         out.print("  failureReplicators: ") //
-                .println(this.failureReplicators);
+            .println(this.failureReplicators);
     }
 }

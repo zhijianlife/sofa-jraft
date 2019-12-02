@@ -55,7 +55,7 @@ public interface LogStorage extends Lifecycle<LogStorageOptions>, Storage {
      *
      * 按照日志索引获取 LogEntry
      */
-    LogEntry getEntry(long index);
+    LogEntry getEntry(final long index);
 
     /**
      * Get logEntry's term by index.
@@ -64,35 +64,35 @@ public interface LogStorage extends Lifecycle<LogStorageOptions>, Storage {
      * @deprecated
      */
     @Deprecated
-    long getTerm(long index);
+    long getTerm(final long index);
 
     /**
      * Append entries to log.
      *
      * 追加单个 LogEntry 到日志中
      */
-    boolean appendEntry(LogEntry entry);
+    boolean appendEntry(final LogEntry entry);
 
     /**
      * Append entries to log, return append success number.
      *
      * 追加批量 LogEntry 到日志中
      */
-    int appendEntries(List<LogEntry> entries);
+    int appendEntries(final List<LogEntry> entries);
 
     /**
      * Delete logs from storage's head, [first_log_index, first_index_kept) will be discarded.
      *
      * 从日志头部截断日志
      */
-    boolean truncatePrefix(long firstIndexKept);
+    boolean truncatePrefix(final long firstIndexKept);
 
     /**
      * Delete uncommitted logs from storage's tail, (last_index_kept, last_log_index] will be discarded.
      *
      * 从日志尾部截断日志
      */
-    boolean truncateSuffix(long lastIndexKept);
+    boolean truncateSuffix(final long lastIndexKept);
 
     /**
      * Drop all the existing logs and reset next log index to |next_log_index|.
@@ -100,5 +100,5 @@ public interface LogStorage extends Lifecycle<LogStorageOptions>, Storage {
      *
      * 删除所有日志，重置日志索引
      */
-    boolean reset(long nextLogIndex);
+    boolean reset(final long nextLogIndex);
 }

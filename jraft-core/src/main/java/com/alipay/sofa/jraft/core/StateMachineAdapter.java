@@ -14,8 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.core;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.StateMachine;
@@ -25,11 +27,10 @@ import com.alipay.sofa.jraft.entity.LeaderChangeContext;
 import com.alipay.sofa.jraft.error.RaftException;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * State machine adapter that implements all methods with default behavior except {@link #onApply(com.alipay.sofa.jraft.Iterator)}.
+ * State machine adapter that implements all methods with default behavior
+ * except {@link #onApply(com.alipay.sofa.jraft.Iterator)}.
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -41,73 +42,70 @@ public abstract class StateMachineAdapter implements StateMachine {
 
     @Override
     public void onShutdown() {
-        LOG.info("onShutdown");
+        LOG.info("onShutdown.");
     }
 
     @Override
-    public void onSnapshotSave(SnapshotWriter writer, Closure done) {
-
+    public void onSnapshotSave(final SnapshotWriter writer, final Closure done) {
         // 定期保存 Snapshot
-
-        this.error("onSnapshotSave");
-        this.runClosure(done, "onSnapshotSave");
+        error("onSnapshotSave");
+        runClosure(done, "onSnapshotSave");
     }
 
     @Override
-    public boolean onSnapshotLoad(SnapshotReader reader) {
+    public boolean onSnapshotLoad(final SnapshotReader reader) {
         // 启动或者安装 Snapshot 后加载 Snapshot
-
-        this.error("onSnapshotLoad", "while a snapshot is saved in " + reader.getPath());
+        error("onSnapshotLoad", "while a snapshot is saved in " + reader.getPath());
         return false;
     }
 
     @Override
-    public void onLeaderStart(long term) {
-        LOG.info("onLeaderStart: term={}", term);
+    public void onLeaderStart(final long term) {
+        LOG.info("onLeaderStart: term={}.", term);
     }
 
     @Override
-    public void onLeaderStop(Status status) {
-        LOG.info("onLeaderStop: status={}", status);
+    public void onLeaderStop(final Status status) {
+        LOG.info("onLeaderStop: status={}.", status);
     }
 
     @Override
-    public void onError(RaftException e) {
+    public void onError(final RaftException e) {
         LOG.error(
-                "Encountered an error={} on StateMachine {}, it's highly recommended to implement this method as raft stops working since some error ocurrs, you should figure out the cause and repair or remove this node.",
-                e.getStatus(), this.getClassName(), e);
+            "Encountered an error={} on StateMachine {}, it's highly recommended to implement this method as raft stops working since some error occurs, you should figure out the cause and repair or remove this node.",
+            e.getStatus(), getClassName(), e);
     }
 
     @Override
-    public void onConfigurationCommitted(Configuration conf) {
-        LOG.info("onConfigurationCommitted: {}", conf);
+    public void onConfigurationCommitted(final Configuration conf) {
+        LOG.info("onConfigurationCommitted: {}.", conf);
     }
 
     @Override
-    public void onStopFollowing(LeaderChangeContext ctx) {
-        LOG.info("onStopFollowing: {}", ctx);
+    public void onStopFollowing(final LeaderChangeContext ctx) {
+        LOG.info("onStopFollowing: {}.", ctx);
     }
 
     @Override
-    public void onStartFollowing(LeaderChangeContext ctx) {
-        LOG.info("onStartFollowing: {}", ctx);
+    public void onStartFollowing(final LeaderChangeContext ctx) {
+        LOG.info("onStartFollowing: {}.", ctx);
     }
 
     @SuppressWarnings("SameParameterValue")
-    private void runClosure(Closure done, String methodName) {
-        done.run(new Status(-1, "%s doesn't implement %s", this.getClassName(), methodName));
+    private void runClosure(final Closure done, final String methodName) {
+        done.run(new Status(-1, "%s doesn't implement %s", getClassName(), methodName));
     }
 
     private String getClassName() {
-        return this.getClass().getName();
+        return getClass().getName();
     }
 
     @SuppressWarnings("SameParameterValue")
-    private void error(String methodName) {
-        this.error(methodName, "");
+    private void error(final String methodName) {
+        error(methodName, "");
     }
 
-    private void error(String methodName, String msg) {
-        LOG.error("{} doesn't implement {} {}", this.getClassName(), methodName, msg);
+    private void error(final String methodName, final String msg) {
+        LOG.error("{} doesn't implement {} {}.", getClassName(), methodName, msg);
     }
 }

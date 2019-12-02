@@ -14,28 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.rhea.storage;
 
-import com.alipay.sofa.jraft.rhea.metadata.Region;
-import com.alipay.sofa.jraft.rhea.options.MemoryDBOptions;
-import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.FencingKeyDB;
-import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.LockerDB;
-import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.Segment;
-import com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.SequenceDB;
-import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.TailIndex;
-import com.alipay.sofa.jraft.rhea.util.ByteArray;
-import com.alipay.sofa.jraft.rhea.util.Lists;
-import com.alipay.sofa.jraft.rhea.util.Maps;
-import com.alipay.sofa.jraft.rhea.util.Pair;
-import com.alipay.sofa.jraft.rhea.util.RegionHelper;
-import com.alipay.sofa.jraft.rhea.util.StackTraceUtil;
-import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
-import com.alipay.sofa.jraft.util.BytesUtil;
-import com.codahale.metrics.Timer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.io.File;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -46,24 +27,44 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.alipay.sofa.jraft.rhea.metadata.Region;
+import com.alipay.sofa.jraft.rhea.options.MemoryDBOptions;
+import com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.SequenceDB;
+import com.alipay.sofa.jraft.rhea.util.ByteArray;
+import com.alipay.sofa.jraft.rhea.util.Lists;
+import com.alipay.sofa.jraft.rhea.util.Maps;
+import com.alipay.sofa.jraft.rhea.util.Pair;
+import com.alipay.sofa.jraft.rhea.util.RegionHelper;
+import com.alipay.sofa.jraft.rhea.util.StackTraceUtil;
+import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
+import com.alipay.sofa.jraft.util.BytesUtil;
+import com.codahale.metrics.Timer;
+
+import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.FencingKeyDB;
+import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.LockerDB;
+import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.Segment;
+import static com.alipay.sofa.jraft.rhea.storage.MemoryKVStoreSnapshotFile.TailIndex;
+
 /**
- * 基于 ConcurrentSkipListMap 实现，有更好的性能，但是单机存储容量受内存限制；
- *
  * @author jiachun.fjc
  */
 public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(MemoryRawKVStore.class);
+    private static final Logger                          LOG          = LoggerFactory.getLogger(MemoryRawKVStore.class);
 
-    private static final byte DELIMITER = (byte) ',';
-    private static final Comparator<byte[]> COMPARATOR = BytesUtil.getDefaultByteArrayComparator();
+    private static final byte                            DELIMITER    = (byte) ',';
+    private static final Comparator<byte[]>              COMPARATOR   = BytesUtil.getDefaultByteArrayComparator();
 
-    private final ConcurrentNavigableMap<byte[], byte[]> defaultDB = new ConcurrentSkipListMap<>(COMPARATOR);
-    private final Map<ByteArray, Long> sequenceDB = new ConcurrentHashMap<>();
-    private final Map<ByteArray, Long> fencingKeyDB = new ConcurrentHashMap<>();
-    private final Map<ByteArray, DistributedLock.Owner> lockerDB = new ConcurrentHashMap<>();
+    private final ConcurrentNavigableMap<byte[], byte[]> defaultDB    = new ConcurrentSkipListMap<>(COMPARATOR);
+    private final Map<ByteArray, Long>                   sequenceDB   = new ConcurrentHashMap<>();
+    private final Map<ByteArray, Long>                   fencingKeyDB = new ConcurrentHashMap<>();
+    private final Map<ByteArray, DistributedLock.Owner>  lockerDB     = new ConcurrentHashMap<>();
 
-    private volatile MemoryDBOptions opts;
+    private volatile MemoryDBOptions                     opts;
 
     @Override
     public boolean init(final MemoryDBOptions opts) {
@@ -123,6 +124,20 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
     }
 
     @Override
+    public void containsKey(final byte[] key, final KVStoreClosure closure) {
+        final Timer.Context timeCtx = getTimeContext("CONTAINS_KEY");
+        try {
+            final boolean exists = this.defaultDB.containsKey(key);
+            setSuccess(closure, exists);
+        } catch (final Exception e) {
+            LOG.error("Fail to [CONTAINS_KEY], key: [{}], {}.", BytesUtil.toHex(key), StackTraceUtil.stackTrace(e));
+            setFailure(closure, "Fail to [CONTAINS_KEY]");
+        } finally {
+            timeCtx.stop();
+        }
+    }
+
+    @Override
     public void scan(final byte[] startKey, final byte[] endKey, final int limit,
                      @SuppressWarnings("unused") final boolean readOnlySafe, final boolean returnValue,
                      final KVStoreClosure closure) {
@@ -151,7 +166,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             setSuccess(closure, entries);
         } catch (final Exception e) {
             LOG.error("Fail to [SCAN], range: ['[{}, {})'], {}.", BytesUtil.toHex(startKey), BytesUtil.toHex(endKey),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setFailure(closure, "Fail to [SCAN]");
         } finally {
             timeCtx.stop();
@@ -174,14 +189,14 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
                 setSuccess(closure, new Sequence(startVal, startVal));
                 return;
             }
-            final long endVal = this.getSafeEndValueForSequence(startVal, step);
+            final long endVal = getSafeEndValueForSequence(startVal, step);
             if (startVal != endVal) {
                 this.sequenceDB.put(wrappedKey, endVal);
             }
             setSuccess(closure, new Sequence(startVal, endVal));
         } catch (final Exception e) {
             LOG.error("Fail to [GET_SEQUENCE], [key = {}, step = {}], {}.", BytesUtil.toHex(seqKey), step,
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [GET_SEQUENCE]", e);
         } finally {
             timeCtx.stop();
@@ -196,7 +211,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             setSuccess(closure, Boolean.TRUE);
         } catch (final Exception e) {
             LOG.error("Fail to [RESET_SEQUENCE], [key = {}], {}.", BytesUtil.toHex(seqKey),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [RESET_SEQUENCE]", e);
         } finally {
             timeCtx.stop();
@@ -211,7 +226,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             setSuccess(closure, Boolean.TRUE);
         } catch (final Exception e) {
             LOG.error("Fail to [PUT], [{}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(value),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [PUT]", e);
         } finally {
             timeCtx.stop();
@@ -226,7 +241,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             setSuccess(closure, prevVal);
         } catch (final Exception e) {
             LOG.error("Fail to [GET_PUT], [{}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(value),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [GET_PUT]", e);
         } finally {
             timeCtx.stop();
@@ -246,7 +261,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             }
         } catch (final Exception e) {
             LOG.error("Fail to [COMPARE_PUT], [{}, {}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(expect),
-                    BytesUtil.toHex(update), StackTraceUtil.stackTrace(e));
+                BytesUtil.toHex(update), StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [COMPARE_PUT]", e);
         } finally {
             timeCtx.stop();
@@ -302,7 +317,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             setSuccess(closure, prevValue);
         } catch (final Exception e) {
             LOG.error("Fail to [PUT_IF_ABSENT], [{}, {}], {}.", BytesUtil.toHex(key), BytesUtil.toHex(value),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [PUT_IF_ABSENT]", e);
         } finally {
             timeCtx.stop();
@@ -332,31 +347,31 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
                     if (keepLease) {
                         // it wants to keep the lease but too late, will return failure
                         owner = builder //
-                                // set acquirer id
-                                .id(acquirer.getId())
-                                // fail to keep lease
-                                .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
-                                // set failure
-                                .success(false).build();
+                            // set acquirer id
+                            .id(acquirer.getId())
+                            // fail to keep lease
+                            .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
+                            // set failure
+                            .success(false).build();
                         break;
                     }
                     // is first time to try lock (another possibility is that this lock has been deleted),
                     // will return successful
                     owner = builder //
-                            // set acquirer id, now it will own the lock
-                            .id(acquirer.getId())
-                            // set a new deadline
-                            .deadlineMillis(now + timeoutMillis)
-                            // first time to acquire and success
-                            .remainingMillis(DistributedLock.OwnerBuilder.FIRST_TIME_SUCCESS)
-                            // create a new fencing token
-                            .fencingToken(this.getNextFencingToken(fencingKey))
-                            // init acquires
-                            .acquires(1)
-                            // set acquirer ctx
-                            .context(acquirer.getContext())
-                            // set successful
-                            .success(true).build();
+                        // set acquirer id, now it will own the lock
+                        .id(acquirer.getId())
+                        // set a new deadline
+                        .deadlineMillis(now + timeoutMillis)
+                        // first time to acquire and success
+                        .remainingMillis(DistributedLock.OwnerBuilder.FIRST_TIME_SUCCESS)
+                        // create a new fencing token
+                        .fencingToken(getNextFencingToken(fencingKey))
+                        // init acquires
+                        .acquires(1)
+                        // set acquirer ctx
+                        .context(acquirer.getContext())
+                        // set successful
+                        .success(true).build();
                     this.lockerDB.put(wrappedKey, owner);
                     break;
                 }
@@ -368,34 +383,34 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
                     if (keepLease) {
                         // it wants to keep the lease but too late, will return failure
                         owner = builder //
-                                // still previous owner id
-                                .id(prevOwner.getId())
-                                // do not update
-                                .deadlineMillis(prevOwner.getDeadlineMillis())
-                                // fail to keep lease
-                                .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
-                                // set previous ctx
-                                .context(prevOwner.getContext())
-                                // set failure
-                                .success(false).build();
+                            // still previous owner id
+                            .id(prevOwner.getId())
+                            // do not update
+                            .deadlineMillis(prevOwner.getDeadlineMillis())
+                            // fail to keep lease
+                            .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_FAIL)
+                            // set previous ctx
+                            .context(prevOwner.getContext())
+                            // set failure
+                            .success(false).build();
                         break;
                     }
                     // create new lock owner
                     owner = builder //
-                            // set acquirer id, now it will own the lock
-                            .id(acquirer.getId())
-                            // set a new deadline
-                            .deadlineMillis(now + timeoutMillis)
-                            // success as a new acquirer
-                            .remainingMillis(DistributedLock.OwnerBuilder.NEW_ACQUIRE_SUCCESS)
-                            // create a new fencing token
-                            .fencingToken(this.getNextFencingToken(fencingKey))
-                            // init acquires
-                            .acquires(1)
-                            // set acquirer ctx
-                            .context(acquirer.getContext())
-                            // set successful
-                            .success(true).build();
+                        // set acquirer id, now it will own the lock
+                        .id(acquirer.getId())
+                        // set a new deadline
+                        .deadlineMillis(now + timeoutMillis)
+                        // success as a new acquirer
+                        .remainingMillis(DistributedLock.OwnerBuilder.NEW_ACQUIRE_SUCCESS)
+                        // create a new fencing token
+                        .fencingToken(getNextFencingToken(fencingKey))
+                        // init acquires
+                        .acquires(1)
+                        // set acquirer ctx
+                        .context(acquirer.getContext())
+                        // set successful
+                        .success(true).build();
                     this.lockerDB.put(wrappedKey, owner);
                     break;
                 }
@@ -407,53 +422,53 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
                     if (keepLease) {
                         // the old friend only wants to keep lease of lock
                         owner = builder //
-                                // still previous owner id
-                                .id(prevOwner.getId())
-                                // update the deadline to keep lease
-                                .deadlineMillis(now + timeoutMillis)
-                                // success to keep lease
-                                .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_SUCCESS)
-                                // keep fencing token
-                                .fencingToken(prevOwner.getFencingToken())
-                                // keep acquires
-                                .acquires(prevOwner.getAcquires())
-                                // do not update ctx when keeping lease
-                                .context(prevOwner.getContext())
-                                // set successful
-                                .success(true).build();
+                            // still previous owner id
+                            .id(prevOwner.getId())
+                            // update the deadline to keep lease
+                            .deadlineMillis(now + timeoutMillis)
+                            // success to keep lease
+                            .remainingMillis(DistributedLock.OwnerBuilder.KEEP_LEASE_SUCCESS)
+                            // keep fencing token
+                            .fencingToken(prevOwner.getFencingToken())
+                            // keep acquires
+                            .acquires(prevOwner.getAcquires())
+                            // do not update ctx when keeping lease
+                            .context(prevOwner.getContext())
+                            // set successful
+                            .success(true).build();
                         this.lockerDB.put(wrappedKey, owner);
                         break;
                     }
                     // now we are sure that is an old friend who is back again (reentrant lock)
                     owner = builder //
-                            // still previous owner id
-                            .id(prevOwner.getId())
-                            // by the way, the lease will also be kept
-                            .deadlineMillis(now + timeoutMillis)
-                            // success reentrant
-                            .remainingMillis(DistributedLock.OwnerBuilder.REENTRANT_SUCCESS)
-                            // keep fencing token
-                            .fencingToken(prevOwner.getFencingToken())
-                            // acquires++
-                            .acquires(prevOwner.getAcquires() + 1)
-                            // update ctx when reentrant
-                            .context(acquirer.getContext())
-                            // set successful
-                            .success(true).build();
+                        // still previous owner id
+                        .id(prevOwner.getId())
+                        // by the way, the lease will also be kept
+                        .deadlineMillis(now + timeoutMillis)
+                        // success reentrant
+                        .remainingMillis(DistributedLock.OwnerBuilder.REENTRANT_SUCCESS)
+                        // keep fencing token
+                        .fencingToken(prevOwner.getFencingToken())
+                        // acquires++
+                        .acquires(prevOwner.getAcquires() + 1)
+                        // update ctx when reentrant
+                        .context(acquirer.getContext())
+                        // set successful
+                        .success(true).build();
                     this.lockerDB.put(wrappedKey, owner);
                     break;
                 }
 
                 // the lock is exist and also prev locker is not the same as current
                 owner = builder //
-                        // set previous owner id to tell who is the real owner
-                        .id(prevOwner.getId())
-                        // set the remaining lease time of current owner
-                        .remainingMillis(remainingMillis)
-                        // set previous ctx
-                        .context(prevOwner.getContext())
-                        // set failure
-                        .success(false).build();
+                    // set previous owner id to tell who is the real owner
+                    .id(prevOwner.getId())
+                    // set the remaining lease time of current owner
+                    .remainingMillis(remainingMillis)
+                    // set previous ctx
+                    .context(prevOwner.getContext())
+                    // set failure
+                    .success(false).build();
                 LOG.debug("Another locker [{}] is trying the existed lock [{}].", acquirer, prevOwner);
             } while (false);
 
@@ -480,32 +495,32 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
                 if (prevOwner == null) {
                     LOG.warn("Lock not exist: {}.", acquirer);
                     owner = builder //
-                            // set acquirer id
-                            .id(acquirer.getId())
-                            // set acquirer fencing token
-                            .fencingToken(acquirer.getFencingToken())
-                            // set acquires=0
-                            .acquires(0)
-                            // set successful
-                            .success(true).build();
+                        // set acquirer id
+                        .id(acquirer.getId())
+                        // set acquirer fencing token
+                        .fencingToken(acquirer.getFencingToken())
+                        // set acquires=0
+                        .acquires(0)
+                        // set successful
+                        .success(true).build();
                     break;
                 }
 
                 if (prevOwner.isSameAcquirer(acquirer)) {
                     final long acquires = prevOwner.getAcquires() - 1;
                     owner = builder //
-                            // still previous owner id
-                            .id(prevOwner.getId())
-                            // do not update deadline
-                            .deadlineMillis(prevOwner.getDeadlineMillis())
-                            // keep fencing token
-                            .fencingToken(prevOwner.getFencingToken())
-                            // acquires--
-                            .acquires(acquires)
-                            // set previous ctx
-                            .context(prevOwner.getContext())
-                            // set successful
-                            .success(true).build();
+                        // still previous owner id
+                        .id(prevOwner.getId())
+                        // do not update deadline
+                        .deadlineMillis(prevOwner.getDeadlineMillis())
+                        // keep fencing token
+                        .fencingToken(prevOwner.getFencingToken())
+                        // acquires--
+                        .acquires(acquires)
+                        // set previous ctx
+                        .context(prevOwner.getContext())
+                        // set successful
+                        .success(true).build();
                     if (acquires <= 0) {
                         // real delete, goodbye ~
                         this.lockerDB.remove(wrappedKey);
@@ -518,16 +533,16 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
 
                 // invalid acquirer, can't to release the lock
                 owner = builder //
-                        // set previous owner id to tell who is the real owner
-                        .id(prevOwner.getId())
-                        // keep previous fencing token
-                        .fencingToken(prevOwner.getFencingToken())
-                        // do not update acquires
-                        .acquires(prevOwner.getAcquires())
-                        // set previous ctx
-                        .context(prevOwner.getContext())
-                        // set failure
-                        .success(false).build();
+                    // set previous owner id to tell who is the real owner
+                    .id(prevOwner.getId())
+                    // keep previous fencing token
+                    .fencingToken(prevOwner.getFencingToken())
+                    // do not update acquires
+                    .acquires(prevOwner.getAcquires())
+                    // set previous ctx
+                    .context(prevOwner.getContext())
+                    // set failure
+                    .success(false).build();
                 LOG.warn("The lock owner is: [{}], [{}] could't release it.", prevOwner, acquirer);
             } while (false);
 
@@ -583,7 +598,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             setSuccess(closure, Boolean.TRUE);
         } catch (final Exception e) {
             LOG.error("Fail to [DELETE_RANGE], ['[{}, {})'], {}.", BytesUtil.toHex(startKey), BytesUtil.toHex(endKey),
-                    StackTraceUtil.stackTrace(e));
+                StackTraceUtil.stackTrace(e));
             setCriticalError(closure, "Fail to [DELETE_RANGE]", e);
         } finally {
             timeCtx.stop();
@@ -667,13 +682,18 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
     }
 
     void doSnapshotSave(final MemoryKVStoreSnapshotFile snapshotFile, final String snapshotPath, final Region region)
-            throws Exception {
+                                                                                                                     throws Exception {
         final Timer.Context timeCtx = getTimeContext("SNAPSHOT_SAVE");
         try {
-            snapshotFile.writeToFile(snapshotPath, "sequenceDB", new SequenceDB(subRangeMap(this.sequenceDB, region)));
-            snapshotFile.writeToFile(snapshotPath, "fencingKeyDB",
-                    new FencingKeyDB(subRangeMap(this.fencingKeyDB, region)));
-            snapshotFile.writeToFile(snapshotPath, "lockerDB", new LockerDB(subRangeMap(this.lockerDB, region)));
+            final String tempPath = snapshotPath + "_temp";
+            final File tempFile = new File(tempPath);
+            FileUtils.deleteDirectory(tempFile);
+            FileUtils.forceMkdir(tempFile);
+
+            snapshotFile.writeToFile(tempPath, "sequenceDB", new SequenceDB(subRangeMap(this.sequenceDB, region)));
+            snapshotFile
+                .writeToFile(tempPath, "fencingKeyDB", new FencingKeyDB(subRangeMap(this.fencingKeyDB, region)));
+            snapshotFile.writeToFile(tempPath, "lockerDB", new LockerDB(subRangeMap(this.lockerDB, region)));
             final int size = this.opts.getKeysPerSegment();
             final List<Pair<byte[], byte[]>> segment = Lists.newArrayListWithCapacity(size);
             int index = 0;
@@ -688,14 +708,18 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
             for (final Map.Entry<byte[], byte[]> entry : subMap.entrySet()) {
                 segment.add(Pair.of(entry.getKey(), entry.getValue()));
                 if (segment.size() >= size) {
-                    snapshotFile.writeToFile(snapshotPath, "segment" + index++, new Segment(segment));
+                    snapshotFile.writeToFile(tempPath, "segment" + index++, new Segment(segment));
                     segment.clear();
                 }
             }
             if (!segment.isEmpty()) {
-                snapshotFile.writeToFile(snapshotPath, "segment" + index++, new Segment(segment));
+                snapshotFile.writeToFile(tempPath, "segment" + index++, new Segment(segment));
             }
-            snapshotFile.writeToFile(snapshotPath, "tailIndex", new TailIndex(--index));
+            snapshotFile.writeToFile(tempPath, "tailIndex", new TailIndex(--index));
+
+            final File destinationPath = new File(snapshotPath);
+            FileUtils.deleteDirectory(destinationPath);
+            FileUtils.moveDirectory(tempFile, destinationPath);
         } finally {
             timeCtx.stop();
         }
@@ -706,7 +730,7 @@ public class MemoryRawKVStore extends BatchRawKVStore<MemoryDBOptions> {
         try {
             final SequenceDB sequenceDB = snapshotFile.readFromFile(snapshotPath, "sequenceDB", SequenceDB.class);
             final FencingKeyDB fencingKeyDB = snapshotFile.readFromFile(snapshotPath, "fencingKeyDB",
-                    FencingKeyDB.class);
+                FencingKeyDB.class);
             final LockerDB lockerDB = snapshotFile.readFromFile(snapshotPath, "lockerDB", LockerDB.class);
 
             this.sequenceDB.putAll(sequenceDB.data());

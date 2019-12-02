@@ -14,21 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.core;
-
-import com.alipay.sofa.jraft.Lifecycle;
-import com.alipay.sofa.jraft.util.NamedThreadFactory;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import com.alipay.sofa.jraft.Lifecycle;
+import com.alipay.sofa.jraft.util.NamedThreadFactory;
+
 /**
  * The global timer manager.
- *
- * 全局定时任务管理器
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -40,37 +37,39 @@ public class TimerManager implements Lifecycle<Integer> {
 
     @Override
     public boolean init(Integer coreSize) {
-        executor = Executors.newScheduledThreadPool(
-                coreSize, new NamedThreadFactory("JRaft-Node-ScheduleThreadPool-", true));
+        this.executor = Executors.newScheduledThreadPool(coreSize, new NamedThreadFactory(
+            "JRaft-Node-ScheduleThreadPool-", true));
         return true;
     }
 
     @Override
     public void shutdown() {
-        if (executor != null) {
-            executor.shutdownNow();
-            executor = null;
+        if (this.executor != null) {
+            this.executor.shutdownNow();
+            this.executor = null;
         }
     }
 
     private void checkStarted() {
-        if (executor == null) {
+        if (this.executor == null) {
             throw new IllegalStateException("Please init timer manager.");
         }
     }
 
-    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        this.checkStarted();
-        return executor.schedule(command, delay, unit);
+    public ScheduledFuture<?> schedule(final Runnable command, final long delay, final TimeUnit unit) {
+        checkStarted();
+        return this.executor.schedule(command, delay, unit);
     }
 
-    public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-        this.checkStarted();
-        return executor.scheduleAtFixedRate(command, initialDelay, period, unit);
+    public ScheduledFuture<?> scheduleAtFixedRate(final Runnable command, final long initialDelay, final long period,
+                                                  final TimeUnit unit) {
+        checkStarted();
+        return this.executor.scheduleAtFixedRate(command, initialDelay, period, unit);
     }
 
-    public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
-        this.checkStarted();
-        return executor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
+    public ScheduledFuture<?> scheduleWithFixedDelay(final Runnable command, final long initialDelay, final long delay,
+                                                     final TimeUnit unit) {
+        checkStarted();
+        return this.executor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
 }

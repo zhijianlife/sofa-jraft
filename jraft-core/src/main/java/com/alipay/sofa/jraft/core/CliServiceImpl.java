@@ -14,8 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.core;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.CliService;
 import com.alipay.sofa.jraft.Status;
@@ -25,6 +39,7 @@ import com.alipay.sofa.jraft.error.JRaftException;
 import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.option.CliOptions;
 import com.alipay.sofa.jraft.rpc.CliClientService;
+import com.alipay.sofa.jraft.rpc.CliRequests.AddLearnersRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.AddPeerRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.AddPeerResponse;
 import com.alipay.sofa.jraft.rpc.CliRequests.ChangePeersRequest;
@@ -33,8 +48,11 @@ import com.alipay.sofa.jraft.rpc.CliRequests.GetLeaderRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.GetLeaderResponse;
 import com.alipay.sofa.jraft.rpc.CliRequests.GetPeersRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.GetPeersResponse;
+import com.alipay.sofa.jraft.rpc.CliRequests.LearnersOpResponse;
+import com.alipay.sofa.jraft.rpc.CliRequests.RemoveLearnersRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.RemovePeerRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.RemovePeerResponse;
+import com.alipay.sofa.jraft.rpc.CliRequests.ResetLearnersRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.ResetPeerRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.SnapshotRequest;
 import com.alipay.sofa.jraft.rpc.CliRequests.TransferLeaderRequest;
@@ -43,19 +61,7 @@ import com.alipay.sofa.jraft.rpc.impl.cli.BoltCliClientService;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.Utils;
 import com.google.protobuf.Message;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import com.google.protobuf.ProtocolStringList;
 
 /**
  * Cli service implementation.
@@ -68,11 +74,11 @@ public class CliServiceImpl implements CliService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CliServiceImpl.class);
 
-    private CliOptions cliOptions;
-    private CliClientService cliClientService;
+    private CliOptions          cliOptions;
+    private CliClientService    cliClientService;
 
     @Override
-    public synchronized boolean init(CliOptions opts) {
+    public synchronized boolean init(final CliOptions opts) {
         Requires.requireNonNull(opts, "Null cli options");
 
         if (this.cliClientService != null) {
@@ -108,9 +114,9 @@ public class CliServiceImpl implements CliService {
             return new Status(-1, "Fail to init channel to leader %s", leaderId);
         }
         final AddPeerRequest.Builder rb = AddPeerRequest.newBuilder() //
-                .setGroupId(groupId) //
-                .setLeaderId(leaderId.toString()) //
-                .setPeerId(peer.toString());
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString()) //
+            .setPeerId(peer.toString());
 
         try {
             final Message result = this.cliClientService.addPeer(leaderId.getEndpoint(), rb.build(), null).get();
@@ -163,9 +169,9 @@ public class CliServiceImpl implements CliService {
         }
 
         final RemovePeerRequest.Builder rb = RemovePeerRequest.newBuilder() //
-                .setGroupId(groupId) //
-                .setLeaderId(leaderId.toString()) //
-                .setPeerId(peer.toString());
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString()) //
+            .setPeerId(peer.toString());
 
         try {
             final Message result = this.cliClientService.removePeer(leaderId.getEndpoint(), rb.build(), null).get();
@@ -213,8 +219,8 @@ public class CliServiceImpl implements CliService {
         }
 
         final ChangePeersRequest.Builder rb = ChangePeersRequest.newBuilder() //
-                .setGroupId(groupId) //
-                .setLeaderId(leaderId.toString());
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString());
         for (final PeerId peer : newPeers) {
             rb.addNewPeers(peer.toString());
         }
@@ -258,8 +264,8 @@ public class CliServiceImpl implements CliService {
         }
 
         final ResetPeerRequest.Builder rb = ResetPeerRequest.newBuilder() //
-                .setGroupId(groupId) //
-                .setPeerId(peerId.toString());
+            .setGroupId(groupId) //
+            .setPeerId(peerId.toString());
         for (final PeerId peer : newPeers) {
             rb.addNewPeers(peer.toString());
         }
@@ -267,6 +273,131 @@ public class CliServiceImpl implements CliService {
         try {
             final Message result = this.cliClientService.resetPeer(peerId.getEndpoint(), rb.build(), null).get();
             return statusFromResponse(result);
+        } catch (final Exception e) {
+            return new Status(-1, e.getMessage());
+        }
+    }
+
+    private void checkPeers(final Collection<PeerId> peers) {
+        for (final PeerId peer : peers) {
+            Requires.requireNonNull(peer, "Null peer in collection");
+        }
+    }
+
+    @Override
+    public Status addLearners(final String groupId, final Configuration conf, final List<PeerId> learners) {
+        checkLearnersOpParams(groupId, conf, learners);
+
+        final PeerId leaderId = new PeerId();
+        final Status st = getLeader(groupId, conf, leaderId);
+        if (!st.isOk()) {
+            return st;
+        }
+
+        if (!this.cliClientService.connect(leaderId.getEndpoint())) {
+            return new Status(-1, "Fail to init channel to leader %s", leaderId);
+        }
+        final AddLearnersRequest.Builder rb = AddLearnersRequest.newBuilder() //
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString());
+        for (final PeerId peer : learners) {
+            rb.addLearners(peer.toString());
+        }
+
+        try {
+            final Message result = this.cliClientService.addLearners(leaderId.getEndpoint(), rb.build(), null).get();
+            return processLearnersOpResponse(groupId, result, "adding learners: %s", learners);
+
+        } catch (final Exception e) {
+            return new Status(-1, e.getMessage());
+        }
+    }
+
+    private void checkLearnersOpParams(final String groupId, final Configuration conf, final List<PeerId> learners) {
+        Requires.requireTrue(!StringUtils.isBlank(groupId), "Blank group id");
+        Requires.requireNonNull(conf, "Null configuration");
+        Requires.requireTrue(learners != null && !learners.isEmpty(), "Empty peers");
+        checkPeers(learners);
+    }
+
+    private Status processLearnersOpResponse(final String groupId, final Message result, final String fmt,
+                                             final Object... formatArgs) {
+        if (result instanceof LearnersOpResponse) {
+            final LearnersOpResponse resp = (LearnersOpResponse) result;
+            final Configuration oldConf = new Configuration();
+            for (final String peerIdStr : resp.getOldLearnersList()) {
+                final PeerId oldPeer = new PeerId();
+                oldPeer.parse(peerIdStr);
+                oldConf.addLearner(oldPeer);
+            }
+            final Configuration newConf = new Configuration();
+            for (final String peerIdStr : resp.getNewLearnersList()) {
+                final PeerId newPeer = new PeerId();
+                newPeer.parse(peerIdStr);
+                newConf.addLearner(newPeer);
+            }
+
+            LOG.info("Learners of replication group {} changed from {} to {} after {}.", groupId, oldConf, newConf,
+                String.format(fmt, formatArgs));
+            return Status.OK();
+        } else {
+            return statusFromResponse(result);
+        }
+    }
+
+    @Override
+    public Status removeLearners(final String groupId, final Configuration conf, final List<PeerId> learners) {
+        checkLearnersOpParams(groupId, conf, learners);
+
+        final PeerId leaderId = new PeerId();
+        final Status st = getLeader(groupId, conf, leaderId);
+        if (!st.isOk()) {
+            return st;
+        }
+
+        if (!this.cliClientService.connect(leaderId.getEndpoint())) {
+            return new Status(-1, "Fail to init channel to leader %s", leaderId);
+        }
+        final RemoveLearnersRequest.Builder rb = RemoveLearnersRequest.newBuilder() //
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString());
+        for (final PeerId peer : learners) {
+            rb.addLearners(peer.toString());
+        }
+
+        try {
+            final Message result = this.cliClientService.removeLearners(leaderId.getEndpoint(), rb.build(), null).get();
+            return processLearnersOpResponse(groupId, result, "removing learners: %s", learners);
+
+        } catch (final Exception e) {
+            return new Status(-1, e.getMessage());
+        }
+    }
+
+    @Override
+    public Status resetLearners(final String groupId, final Configuration conf, final List<PeerId> learners) {
+        checkLearnersOpParams(groupId, conf, learners);
+
+        final PeerId leaderId = new PeerId();
+        final Status st = getLeader(groupId, conf, leaderId);
+        if (!st.isOk()) {
+            return st;
+        }
+
+        if (!this.cliClientService.connect(leaderId.getEndpoint())) {
+            return new Status(-1, "Fail to init channel to leader %s", leaderId);
+        }
+        final ResetLearnersRequest.Builder rb = ResetLearnersRequest.newBuilder() //
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString());
+        for (final PeerId peer : learners) {
+            rb.addLearners(peer.toString());
+        }
+
+        try {
+            final Message result = this.cliClientService.resetLearners(leaderId.getEndpoint(), rb.build(), null).get();
+            return processLearnersOpResponse(groupId, result, "resetting learners: %s", learners);
+
         } catch (final Exception e) {
             return new Status(-1, e.getMessage());
         }
@@ -289,8 +420,8 @@ public class CliServiceImpl implements CliService {
         }
 
         final TransferLeaderRequest.Builder rb = TransferLeaderRequest.newBuilder() //
-                .setGroupId(groupId) //
-                .setLeaderId(leaderId.toString());
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString());
         if (!peer.isEmpty()) {
             rb.setPeerId(peer.toString());
         }
@@ -313,8 +444,8 @@ public class CliServiceImpl implements CliService {
         }
 
         final SnapshotRequest.Builder rb = SnapshotRequest.newBuilder() //
-                .setGroupId(groupId) //
-                .setPeerId(peer.toString());
+            .setGroupId(groupId) //
+            .setPeerId(peer.toString());
 
         try {
             final Message result = this.cliClientService.snapshot(peer.getEndpoint(), rb.build(), null).get();
@@ -341,15 +472,15 @@ public class CliServiceImpl implements CliService {
             }
 
             final GetLeaderRequest.Builder rb = GetLeaderRequest.newBuilder() //
-                    .setGroupId(groupId) //
-                    .setPeerId(peer.toString());
+                .setGroupId(groupId) //
+                .setPeerId(peer.toString());
 
             final Future<Message> result = this.cliClientService.getLeader(peer.getEndpoint(), rb.build(), null);
             try {
 
                 final Message msg = result.get(
-                        this.cliOptions.getTimeoutMs() <= 0 ? this.cliOptions.getRpcDefaultTimeout() : this.cliOptions
-                                .getTimeoutMs(), TimeUnit.MILLISECONDS);
+                    this.cliOptions.getTimeoutMs() <= 0 ? this.cliOptions.getRpcDefaultTimeout() : this.cliOptions
+                        .getTimeoutMs(), TimeUnit.MILLISECONDS);
                 if (msg instanceof ErrorResponse) {
                     if (st.isOk()) {
                         st.setError(-1, ((ErrorResponse) msg).getErrorMsg());
@@ -381,12 +512,22 @@ public class CliServiceImpl implements CliService {
 
     @Override
     public List<PeerId> getPeers(final String groupId, final Configuration conf) {
-        return getPeers(groupId, conf, false);
+        return getPeers(groupId, conf, false, false);
     }
 
     @Override
     public List<PeerId> getAlivePeers(final String groupId, final Configuration conf) {
-        return getPeers(groupId, conf, true);
+        return getPeers(groupId, conf, false, true);
+    }
+
+    @Override
+    public List<PeerId> getLearners(final String groupId, final Configuration conf) {
+        return getPeers(groupId, conf, true, false);
+    }
+
+    @Override
+    public List<PeerId> getAliveLearners(final String groupId, final Configuration conf) {
+        return getPeers(groupId, conf, true, true);
     }
 
     @Override
@@ -404,7 +545,7 @@ public class CliServiceImpl implements CliService {
         Status failedStatus = null;
         final Queue<String> groupDeque = new ArrayDeque<>(balanceGroupIds);
         final LeaderCounter leaderCounter = new LeaderCounter(balanceGroupIds.size(), conf.size());
-        for (; ; ) {
+        for (;;) {
             final String groupId = groupDeque.poll();
             if (groupId == null) { // well done
                 break;
@@ -450,8 +591,8 @@ public class CliServiceImpl implements CliService {
         final Status status = failedStatus != null ? failedStatus : Status.OK();
         if (LOG.isInfoEnabled()) {
             LOG.info(
-                    "Rebalanced raft groups={}, status={}, number of transfers={}, elapsed time={} ms, rebalanced result={}.",
-                    balanceGroupIds, status, transfers, Utils.monotonicMs() - start, rebalancedLeaderIds);
+                "Rebalanced raft groups={}, status={}, number of transfers={}, elapsed time={} ms, rebalanced result={}.",
+                balanceGroupIds, status, transfers, Utils.monotonicMs() - start, rebalancedLeaderIds);
         }
         return status;
     }
@@ -470,7 +611,8 @@ public class CliServiceImpl implements CliService {
         return PeerId.emptyPeer();
     }
 
-    private List<PeerId> getPeers(final String groupId, final Configuration conf, final boolean onlyGetAlive) {
+    private List<PeerId> getPeers(final String groupId, final Configuration conf, final boolean returnLearners,
+                                  final boolean onlyGetAlive) {
         Requires.requireTrue(!StringUtils.isBlank(groupId), "Blank group id");
         Requires.requireNonNull(conf, "Null conf");
 
@@ -485,18 +627,19 @@ public class CliServiceImpl implements CliService {
         }
 
         final GetPeersRequest.Builder rb = GetPeersRequest.newBuilder() //
-                .setGroupId(groupId) //
-                .setLeaderId(leaderId.toString()) //
-                .setOnlyAlive(onlyGetAlive);
+            .setGroupId(groupId) //
+            .setLeaderId(leaderId.toString()) //
+            .setOnlyAlive(onlyGetAlive);
 
         try {
             final Message result = this.cliClientService.getPeers(leaderId.getEndpoint(), rb.build(), null).get(
-                    this.cliOptions.getTimeoutMs() <= 0 ? this.cliOptions.getRpcDefaultTimeout()
-                            : this.cliOptions.getTimeoutMs(), TimeUnit.MILLISECONDS);
+                this.cliOptions.getTimeoutMs() <= 0 ? this.cliOptions.getRpcDefaultTimeout()
+                    : this.cliOptions.getTimeoutMs(), TimeUnit.MILLISECONDS);
             if (result instanceof GetPeersResponse) {
                 final GetPeersResponse resp = (GetPeersResponse) result;
                 final List<PeerId> peerIdList = new ArrayList<>();
-                for (final String peerIdStr : resp.getPeersList()) {
+                final ProtocolStringList responsePeers = returnLearners ? resp.getLearnersList() : resp.getPeersList();
+                for (final String peerIdStr : responsePeers) {
                     final PeerId newPeer = new PeerId();
                     newPeer.parse(peerIdStr);
                     peerIdList.add(newPeer);
@@ -514,21 +657,21 @@ public class CliServiceImpl implements CliService {
     }
 
     public CliClientService getCliClientService() {
-        return cliClientService;
+        return this.cliClientService;
     }
 
     private static class LeaderCounter {
 
         private final Map<PeerId, Integer> counter = new HashMap<>();
         // The expected average leader number on every peerId
-        private final int expectedAverage;
+        private final int                  expectedAverage;
 
         public LeaderCounter(final int groupCount, final int peerCount) {
             this.expectedAverage = (int) Math.ceil((double) groupCount / peerCount);
         }
 
         public int getExpectedAverage() {
-            return expectedAverage;
+            return this.expectedAverage;
         }
 
         public int incrementAndGet(final PeerId peerId) {

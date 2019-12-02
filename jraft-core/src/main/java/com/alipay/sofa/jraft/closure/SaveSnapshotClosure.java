@@ -36,5 +36,5 @@ public interface SaveSnapshotClosure extends Closure {
      * @param meta metadata of snapshot.
      * @return returns snapshot writer.
      */
-    SnapshotWriter start(SnapshotMeta meta);
+    SnapshotWriter start(final SnapshotMeta meta);
 }

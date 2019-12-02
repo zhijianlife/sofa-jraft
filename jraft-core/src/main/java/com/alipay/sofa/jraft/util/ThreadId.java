@@ -14,16 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.util;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Replicator id with lock.
@@ -34,15 +33,15 @@ import java.util.concurrent.TimeUnit;
  */
 public class ThreadId {
 
-    private static final int TRY_LOCK_TIMEOUT_MS = 10;
+    private static final Logger    LOG                 = LoggerFactory.getLogger(ThreadId.class);
 
-    private static final Logger LOG = LoggerFactory.getLogger(ThreadId.class);
+    private static final int       TRY_LOCK_TIMEOUT_MS = 10;
 
-    private final Object data;
-    private final NonReentrantLock lock = new NonReentrantLock();
-    private final List<Integer> pendingErrors = Collections.synchronizedList(new ArrayList<>());
-    private final OnError onError;
-    private volatile boolean destroyed;
+    private final Object           data;
+    private final NonReentrantLock lock                = new NonReentrantLock();
+    private final List<Integer>    pendingErrors       = Collections.synchronizedList(new ArrayList<>());
+    private final OnError          onError;
+    private volatile boolean       destroyed;
 
     /**
      * @author boyan (boyan@alibaba-inc.com)
@@ -50,14 +49,15 @@ public class ThreadId {
      * 2018-Mar-29 11:01:54 AM
      */
     public interface OnError {
+
         /**
-         * Error callback,it will be called in lock, but should take care of unlocking it.
+         * Error callback, it will be called in lock, but should take care of unlocking it.
          *
-         * @param id the thread id
-         * @param data the data
+         * @param id        the thread id
+         * @param data      the data
          * @param errorCode the error code
          */
-        void onError(ThreadId id, Object data, int errorCode);
+        void onError(final ThreadId id, final Object data, final int errorCode);
     }
 
     public ThreadId(final Object data, final OnError onError) {
@@ -97,7 +97,7 @@ public class ThreadId {
     public void unlock() {
         if (!this.lock.isHeldByCurrentThread()) {
             LOG.warn("Fail to unlock with {}, the lock is held by {} and current thread is {}.", this.data,
-                    this.lock.getOwner(), Thread.currentThread());
+                this.lock.getOwner(), Thread.currentThread());
             return;
         }
         // calls all pending errors before unlock
@@ -140,7 +140,7 @@ public class ThreadId {
         this.destroyed = true;
         if (!this.lock.isHeldByCurrentThread()) {
             LOG.warn("Fail to unlockAndDestroy with {}, the lock is held by {} and current thread is {}.", this.data,
-                    this.lock.getOwner(), Thread.currentThread());
+                this.lock.getOwner(), Thread.currentThread());
             return;
         }
         this.lock.unlock();

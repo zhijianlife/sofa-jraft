@@ -14,20 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.conf;
-
-import com.alipay.sofa.jraft.util.Requires;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.LinkedList;
 import java.util.ListIterator;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.alipay.sofa.jraft.util.Requires;
+
 /**
  * Configuration manager
- *
- * 配置管理器
  *
  * @author boyan (boyan@alibaba-inc.com)
  * <p>
@@ -35,15 +33,15 @@ import java.util.ListIterator;
  */
 public class ConfigurationManager {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationManager.class);
+    private static final Logger                  LOG            = LoggerFactory.getLogger(ConfigurationManager.class);
 
     private final LinkedList<ConfigurationEntry> configurations = new LinkedList<>();
-    private ConfigurationEntry snapshot = new ConfigurationEntry();
+    private ConfigurationEntry                   snapshot       = new ConfigurationEntry();
 
     /**
      * Adds a new conf entry.
      */
-    public boolean add(ConfigurationEntry entry) {
+    public boolean add(final ConfigurationEntry entry) {
         if (!this.configurations.isEmpty()) {
             if (this.configurations.peekLast().getId().getIndex() >= entry.getId().getIndex()) {
                 LOG.error("Did you forget to call truncateSuffix before the last log index goes back.");
@@ -55,10 +53,8 @@ public class ConfigurationManager {
 
     /**
      * [1, first_index_kept) are being discarded
-     *
-     * 移除 firstIndexKept 前面的配置
      */
-    public void truncatePrefix(long firstIndexKept) {
+    public void truncatePrefix(final long firstIndexKept) {
         while (!this.configurations.isEmpty() && this.configurations.peekFirst().getId().getIndex() < firstIndexKept) {
             this.configurations.pollFirst();
         }
@@ -66,10 +62,8 @@ public class ConfigurationManager {
 
     /**
      * (last_index_kept, infinity) are being discarded
-     *
-     * 移除 lastIndexKept 之后的对象
      */
-    public void truncateSuffix(long lastIndexKept) {
+    public void truncateSuffix(final long lastIndexKept) {
         while (!this.configurations.isEmpty() && this.configurations.peekLast().getId().getIndex() > lastIndexKept) {
             this.configurations.pollLast();
         }
@@ -79,7 +73,7 @@ public class ConfigurationManager {
         return this.snapshot;
     }
 
-    public void setSnapshot(ConfigurationEntry snapshot) {
+    public void setSnapshot(final ConfigurationEntry snapshot) {
         this.snapshot = snapshot;
     }
 
@@ -91,11 +85,12 @@ public class ConfigurationManager {
         }
     }
 
-    public ConfigurationEntry get(long lastIncludedIndex) {
+    public ConfigurationEntry get(final long lastIncludedIndex) {
         if (this.configurations.isEmpty()) {
             Requires.requireTrue(lastIncludedIndex >= this.snapshot.getId().getIndex(),
-                    "lastIncludedIndex %d is less than snapshot index %d", lastIncludedIndex, this.snapshot.getId().getIndex());
-            return snapshot;
+                "lastIncludedIndex %d is less than snapshot index %d", lastIncludedIndex, this.snapshot.getId()
+                    .getIndex());
+            return this.snapshot;
         }
         ListIterator<ConfigurationEntry> it = this.configurations.listIterator();
         while (it.hasNext()) {
@@ -109,7 +104,7 @@ public class ConfigurationManager {
             return it.previous();
         } else {
             // position not found position, return snapshot.
-            return snapshot;
+            return this.snapshot;
         }
     }
 }

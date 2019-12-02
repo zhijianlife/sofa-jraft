@@ -40,7 +40,7 @@ public interface RaftMetaStorage extends Lifecycle<RaftMetaStorageOptions>, Stor
      * Raft 内部状态任期 Term 是在整个 Raft Group 里单调递增的 long 数字，用来表示一轮投票的编号，
      * 其中成功选举出来的 Leader 对应的 Term 称为 Leader Term，Leader 没有发生变更期间提交的日志都有相同的 Term 编号。
      */
-    boolean setTerm(long term);
+    boolean setTerm(final long term);
 
     /**
      * Get current term.
@@ -54,7 +54,7 @@ public interface RaftMetaStorage extends Lifecycle<RaftMetaStorageOptions>, Stor
      *
      * 设置元信息的 PeerId 节点投票
      */
-    boolean setVotedFor(PeerId peerId);
+    boolean setVotedFor(final PeerId peerId);
 
     /**
      * Get voted for information.
@@ -66,5 +66,5 @@ public interface RaftMetaStorage extends Lifecycle<RaftMetaStorageOptions>, Stor
     /**
      * Set term and voted for information.
      */
-    boolean setTermAndVotedFor(long term, PeerId peerId);
+    boolean setTermAndVotedFor(final long term, final PeerId peerId);
 }

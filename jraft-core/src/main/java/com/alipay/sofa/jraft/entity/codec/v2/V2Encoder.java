@@ -14,47 +14,62 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.entity.codec.v2;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 
 import com.alipay.sofa.jraft.entity.LogEntry;
 import com.alipay.sofa.jraft.entity.LogId;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.entity.codec.LogEntryEncoder;
 import com.alipay.sofa.jraft.entity.codec.v2.LogOutter.PBLogEntry;
+import com.alipay.sofa.jraft.error.LogEntryCorruptedException;
 import com.alipay.sofa.jraft.util.AsciiStringUtil;
 import com.alipay.sofa.jraft.util.Requires;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.ZeroByteStringHelper;
 
-import java.io.IOException;
-import java.util.List;
-
 /**
  * V2 log entry encoder based on protobuf, see src/main/resources/log.proto
  *
- * @author boyan(boyan @ antfin.com)
+ * @author boyan(boyan@antfin.com)
  */
 public class V2Encoder implements LogEntryEncoder {
 
     public static final V2Encoder INSTANCE = new V2Encoder();
 
-    private static boolean hasPeers(final List<PeerId> peers) {
+    private static boolean hasPeers(final Collection<PeerId> peers) {
         return peers != null && !peers.isEmpty();
     }
 
     private void encodePeers(final PBLogEntry.Builder builder, final List<PeerId> peers) {
-        int size = peers.size();
+        final int size = peers.size();
         for (int i = 0; i < size; i++) {
             builder.addPeers(ZeroByteStringHelper.wrap(AsciiStringUtil.unsafeEncode(peers.get(i).toString())));
         }
     }
 
     private void encodeOldPeers(final PBLogEntry.Builder builder, final List<PeerId> peers) {
-        int size = peers.size();
+        final int size = peers.size();
         for (int i = 0; i < size; i++) {
             builder.addOldPeers(ZeroByteStringHelper.wrap(AsciiStringUtil.unsafeEncode(peers.get(i).toString())));
+        }
+    }
+
+    private void encodeLearners(final PBLogEntry.Builder builder, final List<PeerId> learners) {
+        final int size = learners.size();
+        for (int i = 0; i < size; i++) {
+            builder.addLearners(ZeroByteStringHelper.wrap(AsciiStringUtil.unsafeEncode(learners.get(i).toString())));
+        }
+    }
+
+    private void encodeOldLearners(final PBLogEntry.Builder builder, final List<PeerId> learners) {
+        final int size = learners.size();
+        for (int i = 0; i < size; i++) {
+            builder.addOldLearners(ZeroByteStringHelper.wrap(AsciiStringUtil.unsafeEncode(learners.get(i).toString())));
         }
     }
 
@@ -64,18 +79,27 @@ public class V2Encoder implements LogEntryEncoder {
 
         final LogId logId = log.getId();
         final PBLogEntry.Builder builder = PBLogEntry.newBuilder() //
-                .setType(log.getType()) //
-                .setIndex(logId.getIndex()) //
-                .setTerm(logId.getTerm());
+            .setType(log.getType()) //
+            .setIndex(logId.getIndex()) //
+            .setTerm(logId.getTerm());
 
         final List<PeerId> peers = log.getPeers();
         if (hasPeers(peers)) {
-            this.encodePeers(builder, peers);
+            encodePeers(builder, peers);
         }
 
         final List<PeerId> oldPeers = log.getOldPeers();
         if (hasPeers(oldPeers)) {
-            this.encodeOldPeers(builder, oldPeers);
+            encodeOldPeers(builder, oldPeers);
+        }
+
+        final List<PeerId> learners = log.getLearners();
+        if (hasPeers(learners)) {
+            encodeLearners(builder, learners);
+        }
+        final List<PeerId> oldLearners = log.getOldLearners();
+        if (hasPeers(oldLearners)) {
+            encodeOldLearners(builder, oldLearners);
         }
 
         if (log.hasChecksum()) {
@@ -100,7 +124,7 @@ public class V2Encoder implements LogEntryEncoder {
         }
 
         // write body
-        this.writeToByteArray(pbLogEntry, ret, i, bodyLen);
+        writeToByteArray(pbLogEntry, ret, i, bodyLen);
 
         return ret;
     }
@@ -111,8 +135,8 @@ public class V2Encoder implements LogEntryEncoder {
             pbLogEntry.writeTo(output);
             output.checkNoSpaceLeft();
         } catch (final IOException e) {
-            throw new RuntimeException(
-                    "Serializing PBLogEntry to a byte array threw an IOException (should never happen).", e);
+            throw new LogEntryCorruptedException(
+                "Serializing PBLogEntry to a byte array threw an IOException (should never happen).", e);
         }
     }
 

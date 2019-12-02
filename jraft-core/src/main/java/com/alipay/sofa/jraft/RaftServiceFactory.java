@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.core.CliServiceImpl;
@@ -37,7 +36,7 @@ public final class RaftServiceFactory {
      *
      * 创建一个 Raft Node 对象
      */
-    public static Node createRaftNode(String groupId, PeerId serverId) {
+    public static Node createRaftNode(final String groupId, final PeerId serverId) {
         return new NodeImpl(groupId, serverId);
     }
 
@@ -47,7 +46,7 @@ public final class RaftServiceFactory {
      *
      * 创建并初始化一个 Raft 节点
      */
-    public static Node createAndInitRaftNode(String groupId, PeerId serverId, NodeOptions opts) {
+    public static Node createAndInitRaftNode(final String groupId, final PeerId serverId, final NodeOptions opts) {
         // 创建一个 Raft Node 对象
         final Node ret = createRaftNode(groupId, serverId);
         // 对 Raft Node 执行初始化
@@ -67,7 +66,7 @@ public final class RaftServiceFactory {
     /**
      * Create and initialize a CliService instance.
      */
-    public static CliService createAndInitCliService(CliOptions cliOptions) {
+    public static CliService createAndInitCliService(final CliOptions cliOptions) {
         final CliService ret = createCliService();
         if (!ret.init(cliOptions)) {
             throw new IllegalStateException("Fail to init CliService");

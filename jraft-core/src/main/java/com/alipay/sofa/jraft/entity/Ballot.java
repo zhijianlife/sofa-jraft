@@ -14,18 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.entity;
-
-import com.alipay.sofa.jraft.conf.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import com.alipay.sofa.jraft.conf.Configuration;
+
 /**
  * A ballot to vote.
- *
- * 选票
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -39,9 +36,9 @@ public class Ballot {
     }
 
     public static class UnfoundPeerId {
-        PeerId peerId;
+        PeerId  peerId;
         boolean found;
-        int index;
+        int     index;
 
         public UnfoundPeerId(PeerId peerId, int index, boolean found) {
             super();
@@ -51,49 +48,45 @@ public class Ballot {
         }
     }
 
-    private final List<UnfoundPeerId> peers = new ArrayList<>();
-    /** 法定人数，也就是一半以上的的人 */
-    private int quorum;
+    private final List<UnfoundPeerId> peers    = new ArrayList<>();
+    private int                       quorum;
     private final List<UnfoundPeerId> oldPeers = new ArrayList<>();
-    private int oldQuorum;
+    private int                       oldQuorum;
 
     /**
      * Init the ballot with current conf and old conf.
      *
-     * 初始化选票
-     *
-     * @param conf current configuration
+     * @param conf    current configuration
      * @param oldConf old configuration
      * @return true if init success
      */
-    public boolean init(Configuration conf, Configuration oldConf) {
-        peers.clear();
-        oldPeers.clear();
-        quorum = oldQuorum = 0;
+    public boolean init(final Configuration conf, final Configuration oldConf) {
+        this.peers.clear();
+        this.oldPeers.clear();
+        this.quorum = this.oldQuorum = 0;
         int index = 0;
         if (conf != null) {
-            for (PeerId peer : conf) {
-                peers.add(new UnfoundPeerId(peer, index++, false));
+            for (final PeerId peer : conf) {
+                this.peers.add(new UnfoundPeerId(peer, index++, false));
             }
         }
 
-        // 超过半数以上
-        quorum = peers.size() / 2 + 1;
+        this.quorum = this.peers.size() / 2 + 1;
         if (oldConf == null) {
             return true;
         }
         index = 0;
-        for (PeerId peer : oldConf) {
-            oldPeers.add(new UnfoundPeerId(peer, index++, false));
+        for (final PeerId peer : oldConf) {
+            this.oldPeers.add(new UnfoundPeerId(peer, index++, false));
         }
 
-        oldQuorum = oldPeers.size() / 2 + 1;
+        this.oldQuorum = this.oldPeers.size() / 2 + 1;
         return true;
     }
 
-    private UnfoundPeerId findPeer(PeerId peerId, List<UnfoundPeerId> peers, int posHint) {
+    private UnfoundPeerId findPeer(final PeerId peerId, final List<UnfoundPeerId> peers, final int posHint) {
         if (posHint < 0 || posHint >= peers.size() || !peers.get(posHint).peerId.equals(peerId)) {
-            for (UnfoundPeerId ufp : peers) {
+            for (final UnfoundPeerId ufp : peers) {
                 if (ufp.peerId.equals(peerId)) {
                     return ufp;
                 }
@@ -104,8 +97,8 @@ public class Ballot {
         return peers.get(posHint);
     }
 
-    public PosHint grant(PeerId peerId, PosHint hint) {
-        UnfoundPeerId peer = this.findPeer(peerId, peers, hint.pos0);
+    public PosHint grant(final PeerId peerId, final PosHint hint) {
+        UnfoundPeerId peer = findPeer(peerId, this.peers, hint.pos0);
         if (peer != null) {
             if (!peer.found) {
                 peer.found = true;
@@ -115,15 +108,15 @@ public class Ballot {
         } else {
             hint.pos0 = -1;
         }
-        if (oldPeers.isEmpty()) {
+        if (this.oldPeers.isEmpty()) {
             hint.pos1 = -1;
             return hint;
         }
-        peer = this.findPeer(peerId, oldPeers, hint.pos1);
+        peer = findPeer(peerId, this.oldPeers, hint.pos1);
         if (peer != null) {
             if (!peer.found) {
                 peer.found = true;
-                oldQuorum--;
+                this.oldQuorum--;
             }
             hint.pos1 = peer.index;
         } else {
@@ -133,8 +126,8 @@ public class Ballot {
         return hint;
     }
 
-    public void grant(PeerId peerId) {
-        this.grant(peerId, new PosHint());
+    public void grant(final PeerId peerId) {
+        grant(peerId, new PosHint());
     }
 
     /**
@@ -143,8 +136,6 @@ public class Ballot {
      * @return true if the ballot is granted
      */
     public boolean isGranted() {
-        // 每收到一个节点的选票，就会将 quorum 值减 1，
-        // 当 quorum 值小于等于 0 的时候说明已经超过指定数目的节点投票给自己
-        return this.quorum <= 0 && oldQuorum <= 0;
+        return this.quorum <= 0 && this.oldQuorum <= 0;
     }
 }

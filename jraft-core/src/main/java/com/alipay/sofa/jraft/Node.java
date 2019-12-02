@@ -20,6 +20,7 @@ package com.alipay.sofa.jraft;
 import com.alipay.sofa.jraft.closure.ReadIndexClosure;
 import com.alipay.sofa.jraft.conf.Configuration;
 import com.alipay.sofa.jraft.core.NodeMetrics;
+import com.alipay.sofa.jraft.core.Replicator;
 import com.alipay.sofa.jraft.entity.NodeId;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.entity.Task;
@@ -134,7 +135,7 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
     List<PeerId> listPeers();
 
     /**
-     * List all alive peers of this raft group, only leader returns.
+     * List all alive peers of this raft group, only leader returns.</p>
      *
      * [NOTE] <strong>list_alive_peers is just a transient data (snapshot)
      * and a short-term loss of response by the follower will cause it to
@@ -144,6 +145,30 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      * @since 1.2.6
      */
     List<PeerId> listAlivePeers();
+
+    /**
+     * List all learners of this raft group, only leader returns.</p>
+     *
+     * [NOTE] <strong>when listLearners concurrency with {@link #addLearners(List, Closure)}/{@link #removeLearners(List, Closure)}/{@link #resetLearners(List, Closure)},
+     * maybe return peers is staled.  Because {@link #addLearners(List, Closure)}/{@link #removeLearners(List, Closure)}/{@link #resetLearners(List, Closure)}
+     * immediately modify configuration in memory</strong>
+     *
+     * @return the learners set
+     * @since 1.3.0
+     */
+    List<PeerId> listLearners();
+
+    /**
+     * List all alive learners of this raft group, only leader returns.</p>
+     *
+     * [NOTE] <strong>when listAliveLearners concurrency with {@link #addLearners(List, Closure)}/{@link #removeLearners(List, Closure)}/{@link #resetLearners(List, Closure)},
+     * maybe return peers is staled.  Because {@link #addLearners(List, Closure)}/{@link #removeLearners(List, Closure)}/{@link #resetLearners(List, Closure)}
+     * immediately modify configuration in memory</strong>
+     *
+     * @return the  alive learners set
+     * @since 1.3.0
+     */
+    List<PeerId> listAliveLearners();
 
     /**
      * Add a new peer to the raft group. done.run() would be invoked after this
@@ -180,8 +205,40 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      * availability.
      * Notice that neither consistency nor consensus are guaranteed in this
      * case, BE CAREFULE when dealing with this method.
+     *
+     * @param newPeers new peers
      */
     Status resetPeers(final Configuration newPeers);
+
+    /**
+     * Add some new learners to the raft group. done.run() will be invoked after this
+     * operation finishes, describing the detailed result.
+     *
+     * @param learners learners to add
+     * @param done     callback
+     * @since 1.3.0
+     */
+    void addLearners(final List<PeerId> learners, final Closure done);
+
+    /**
+     * Remove some learners from the raft group. done.run() will be invoked after this
+     * operation finishes, describing the detailed result.
+     *
+     * @param learners learners to remove
+     * @param done     callback
+     * @since 1.3.0
+     */
+    void removeLearners(final List<PeerId> learners, final Closure done);
+
+    /**
+     * Reset learners in the raft group. done.run() will be invoked after this
+     * operation finishes, describing the detailed result.
+     *
+     * @param learners learners to set
+     * @param done     callback
+     * @since 1.3.0
+     */
+    void resetLearners(final List<PeerId> learners, final Closure done);
 
     /**
      * Start a snapshot immediately if possible. done.run() would be invoked when
@@ -225,4 +282,40 @@ public interface Node extends Lifecycle<NodeOptions>, Describer {
      * @throws LogIndexOutOfBoundsException the special index is out of bounds.
      */
     UserLog readCommittedUserLog(final long index);
+
+    /**
+     * SOFAJRaft users can implement the ReplicatorStateListener interface by themselves.
+     * So users can do their own logical operator in this listener when replicator created, destroyed or had some errors.
+     *
+     * @param replicatorStateListener added ReplicatorStateListener which is implemented by users.
+     */
+    void addReplicatorStateListener(final Replicator.ReplicatorStateListener replicatorStateListener);
+
+    /**
+     * End User can remove their implement the ReplicatorStateListener interface by themselves.
+     *
+     * @param replicatorStateListener need to remove the ReplicatorStateListener which has been added by users.
+     */
+    void removeReplicatorStateListener(final Replicator.ReplicatorStateListener replicatorStateListener);
+
+    /**
+     * Remove all the ReplicatorStateListeners which have been added by users.
+     *
+     */
+    void clearReplicatorStateListeners();
+
+    /**
+     * Get the ReplicatorStateListeners which have been added by users.
+     *
+     * @return node's replicatorStatueListeners which have been added by users.
+     */
+    List<Replicator.ReplicatorStateListener> getReplicatorStatueListeners();
+
+    /**
+     * Get the node's target election priority value.
+     *
+     * @return node's target election priority value.
+     * @since 1.3.0
+     */
+    int getNodeTargetPriority();
 }
