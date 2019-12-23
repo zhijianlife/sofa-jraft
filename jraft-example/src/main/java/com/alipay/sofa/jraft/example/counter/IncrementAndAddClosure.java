@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.counter;
 
 import com.alipay.sofa.jraft.Closure;
@@ -30,11 +31,11 @@ import com.alipay.sofa.jraft.example.counter.rpc.ValueResponse;
  */
 public class IncrementAndAddClosure implements Closure {
 
-    @SuppressWarnings({ "FieldCanBeLocal", "unused" })
-    private CounterServer          counterServer;
+    @SuppressWarnings({"FieldCanBeLocal", "unused"})
+    private CounterServer counterServer;
     private IncrementAndGetRequest request;
-    private ValueResponse          response;
-    private Closure                done;
+    private ValueResponse response;
+    private Closure done;
 
     public IncrementAndAddClosure(CounterServer counterServer, IncrementAndGetRequest request, ValueResponse response,
                                   Closure done) {

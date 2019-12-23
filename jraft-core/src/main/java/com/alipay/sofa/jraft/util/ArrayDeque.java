@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 import java.util.List;
@@ -21,10 +22,10 @@ import java.util.List;
 /**
  * Extend array list to add peek/poll first/last element.
  *
+ * @param <E>
  * @author boyan (boyan@alibaba-inc.com)
  *
- * 2018-Apr-11 11:14:38 AM 
- * @param <E>
+ * 2018-Apr-11 11:14:38 AM
  */
 public class ArrayDeque<E> extends java.util.ArrayList<E> {
 
@@ -97,11 +98,11 @@ public class ArrayDeque<E> extends java.util.ArrayList<E> {
      * (If {@code toIndex==fromIndex}, this operation has no effect.)
      *
      * @throws IndexOutOfBoundsException if {@code fromIndex} or
-     *         {@code toIndex} is out of range
-     *         ({@code fromIndex < 0 ||
-     *          fromIndex >= size() ||
-     *          toIndex > size() ||
-     *          toIndex < fromIndex})
+     *                                   {@code toIndex} is out of range
+     *                                   ({@code fromIndex < 0 ||
+     *                                   fromIndex >= size() ||
+     *                                   toIndex > size() ||
+     *                                   toIndex < fromIndex})
      */
     @Override
     public void removeRange(int fromIndex, int toIndex) {

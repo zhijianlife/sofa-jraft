@@ -14,12 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.counter.rpc;
-
-import java.nio.ByteBuffer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.AsyncContext;
 import com.alipay.remoting.BizContext;
@@ -29,6 +25,10 @@ import com.alipay.remoting.serialization.SerializerManager;
 import com.alipay.sofa.jraft.entity.Task;
 import com.alipay.sofa.jraft.example.counter.CounterServer;
 import com.alipay.sofa.jraft.example.counter.IncrementAndAddClosure;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
 
 /**
  * IncrementAndGetRequest processor.
@@ -50,14 +50,20 @@ public class IncrementAndGetRequestProcessor extends AsyncUserProcessor<Incremen
 
     @Override
     public void handleRequest(final BizContext bizCtx, final AsyncContext asyncCtx, final IncrementAndGetRequest request) {
+        // 如果不是 leader 节点，则将请求转交给 leader
         if (!this.counterServer.getFsm().isLeader()) {
             asyncCtx.sendResponse(this.counterServer.redirect());
             return;
         }
 
+        // 构造响应对象
         final ValueResponse response = new ValueResponse();
-        final IncrementAndAddClosure closure = new IncrementAndAddClosure(counterServer, request, response,
+        final IncrementAndAddClosure closure = new IncrementAndAddClosure(
+                counterServer,
+                request,
+                response,
                 status -> {
+                    // 响应失败
                     if (!status.isOk()) {
                         response.setErrorMsg(status.getErrorMsg());
                         response.setSuccess(false);
@@ -68,10 +74,10 @@ public class IncrementAndGetRequestProcessor extends AsyncUserProcessor<Incremen
         try {
             final Task task = new Task();
             task.setDone(closure);
-            task.setData(ByteBuffer
-                .wrap(SerializerManager.getSerializer(SerializerManager.Hessian2).serialize(request)));
+            // 序列化请求
+            task.setData(ByteBuffer.wrap(SerializerManager.getSerializer(SerializerManager.Hessian2).serialize(request)));
 
-            // apply task to raft group.
+            // 处理请求
             counterServer.getNode().apply(task);
         } catch (final CodecException e) {
             LOG.error("Fail to encode IncrementAndGetRequest", e);

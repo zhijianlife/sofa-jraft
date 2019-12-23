@@ -14,7 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.conf;
+
+import com.alipay.sofa.jraft.entity.PeerId;
+import com.alipay.sofa.jraft.util.Copiable;
+import org.apache.commons.lang.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -23,13 +28,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.lang.StringUtils;
-
-import com.alipay.sofa.jraft.entity.PeerId;
-import com.alipay.sofa.jraft.util.Copiable;
-
 /**
  * A configuration with a set of peers.
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-15 11:00:26 AM
@@ -53,6 +54,9 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         return new Configuration(this.peers);
     }
 
+    /**
+     * 清空当前记录的节点列表
+     */
     public void reset() {
         this.peers.clear();
     }
@@ -148,6 +152,12 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         return sb.toString();
     }
 
+    /**
+     * 解析配置的节点列表
+     *
+     * @param conf
+     * @return
+     */
     public boolean parse(final String conf) {
         if (conf == null) {
             return false;
@@ -164,9 +174,9 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
     }
 
     /**
-     *  Get the difference between |*this| and |rhs|
-     *  |included| would be assigned to |*this| - |rhs|
-     *  |excluded| would be assigned to |rhs| - |*this|
+     * Get the difference between |*this| and |rhs|
+     * |included| would be assigned to |*this| - |rhs|
+     * |excluded| would be assigned to |rhs| - |*this|
      */
     public void diff(final Configuration rhs, final Configuration included, final Configuration excluded) {
         included.peers = new ArrayList<>(this.peers);

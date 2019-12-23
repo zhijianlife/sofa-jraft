@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rpc.impl.cli;
 
-import java.util.concurrent.Future;
+package com.alipay.sofa.jraft.rpc.impl.cli;
 
 import com.alipay.sofa.jraft.option.CliOptions;
 import com.alipay.sofa.jraft.option.RpcOptions;
@@ -39,8 +38,9 @@ import com.alipay.sofa.jraft.rpc.impl.AbstractBoltClientService;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.google.protobuf.Message;
 
+import java.util.concurrent.Future;
+
 /**
- * 
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-09 3:14:55 PM

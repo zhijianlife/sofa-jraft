@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.counter.rpc;
 
 import java.io.Serializable;
@@ -29,15 +30,15 @@ public class ValueResponse implements Serializable {
 
     private static final long serialVersionUID = -4220017686727146773L;
 
-    private long              value;
-    private boolean           success;
+    private long value;
+    private boolean success;
 
     /**
      * redirect peer id
      */
-    private String            redirect;
+    private String redirect;
 
-    private String            errorMsg;
+    private String errorMsg;
 
     public String getErrorMsg() {
         return this.errorMsg;
@@ -86,7 +87,7 @@ public class ValueResponse implements Serializable {
     @Override
     public String toString() {
         return "ValueResponse [value=" + this.value + ", success=" + this.success + ", redirect=" + this.redirect
-               + ", errorMsg=" + this.errorMsg + "]";
+                + ", errorMsg=" + this.errorMsg + "]";
     }
 
 }

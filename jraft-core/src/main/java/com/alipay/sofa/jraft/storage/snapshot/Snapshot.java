@@ -14,15 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.storage.snapshot;
 
-import java.util.Set;
+package com.alipay.sofa.jraft.storage.snapshot;
 
 import com.alipay.sofa.jraft.Status;
 import com.google.protobuf.Message;
 
+import java.util.Set;
+
 /**
  * Represents a state machine snapshot.
+ *
+ * 表示一个快照，即对数据当前值的一个记录，会存盘保存，提供冷备功能
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -33,11 +36,11 @@ public abstract class Snapshot extends Status {
     /**
      * Snapshot metadata file name.
      */
-    public static final String JRAFT_SNAPSHOT_META_FILE   = "__raft_snapshot_meta";
+    public static final String JRAFT_SNAPSHOT_META_FILE = "__raft_snapshot_meta";
     /**
      * Snapshot file prefix.
      */
-    public static final String JRAFT_SNAPSHOT_PREFIX      = "snapshot_";
+    public static final String JRAFT_SNAPSHOT_PREFIX = "snapshot_";
     /** Snapshot uri scheme for remote peer */
     public static final String REMOTE_SNAPSHOT_URI_SCHEME = "remote://";
 

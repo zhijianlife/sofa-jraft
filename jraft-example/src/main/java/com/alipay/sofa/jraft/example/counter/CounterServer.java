@@ -14,12 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.counter;
-
-import java.io.File;
-import java.io.IOException;
-
-import org.apache.commons.io.FileUtils;
 
 import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.Node;
@@ -31,6 +27,10 @@ import com.alipay.sofa.jraft.example.counter.rpc.IncrementAndGetRequestProcessor
 import com.alipay.sofa.jraft.example.counter.rpc.ValueResponse;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
+import org.apache.commons.io.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * Counter server that keeps a counter value in a raft group.
@@ -41,16 +41,18 @@ import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
  */
 public class CounterServer {
 
-    private RaftGroupService    raftGroupService;
-    private Node                node;
+    private RaftGroupService raftGroupService;
+    private Node node;
     private CounterStateMachine fsm;
 
-    public CounterServer(final String dataPath, final String groupId, final PeerId serverId,
+    public CounterServer(final String dataPath,
+                         final String groupId,
+                         final PeerId serverId,
                          final NodeOptions nodeOptions) throws IOException {
         // 初始化路径
         FileUtils.forceMkdir(new File(dataPath));
 
-        // 这里让 raft RPC 和业务 RPC 使用同一个 RPC server, 通常也可以分开
+        // 这里让 raft RPC 和业务 RPC 使用同一个 RPC server， 通常也可以分开
         final RpcServer rpcServer = new RpcServer(serverId.getPort());
         RaftRpcServerFactory.addRaftRequestProcessors(rpcServer);
         // 注册业务处理器
@@ -100,26 +102,37 @@ public class CounterServer {
         return response;
     }
 
+    /**
+     * /tmp/server1 counter 127.0.0.1:8081 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083
+     * /tmp/server2 counter 127.0.0.1:8082 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083
+     * /tmp/server3 counter 127.0.0.1:8083 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083
+     *
+     * @param args
+     * @throws IOException
+     */
     public static void main(final String[] args) throws IOException {
         if (args.length != 4) {
-            System.out
-                .println("Useage : java com.alipay.sofa.jraft.example.counter.CounterServer {dataPath} {groupId} {serverId} {initConf}");
-            System.out
-                .println("Example: java com.alipay.sofa.jraft.example.counter.CounterServer /tmp/server1 counter 127.0.0.1:8081 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
+            System.out.println(
+                    "Useage : java com.alipay.sofa.jraft.example.counter.CounterServer {dataPath} {groupId} {serverId} {initConf}");
+            System.out.println(
+                    "Example: java com.alipay.sofa.jraft.example.counter.CounterServer /tmp/server1 counter 127.0.0.1:8081 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
             System.exit(1);
         }
+        // 数据存储的目录
         final String dataPath = args[0];
+        // groupId
         final String groupId = args[1];
+        // 当前节点 ID
         final String serverIdStr = args[2];
+        // 当前 group 下的节点列表
         final String initConfStr = args[3];
 
         final NodeOptions nodeOptions = new NodeOptions();
-        // 为了测试,调整 snapshot 间隔等参数
         // 设置选举超时时间为 1 秒
         nodeOptions.setElectionTimeoutMs(1000);
-        // 关闭 CLI 服务。
+        // 关闭 CLI 服务
         nodeOptions.setDisableCli(false);
-        // 每隔30秒做一次 snapshot
+        // 为了测试，调整 snapshot 间隔等参数，每隔 30 秒做一次 snapshot
         nodeOptions.setSnapshotIntervalSecs(30);
         // 解析参数
         final PeerId serverId = new PeerId();
@@ -135,7 +148,6 @@ public class CounterServer {
 
         // 启动
         final CounterServer counterServer = new CounterServer(dataPath, groupId, serverId, nodeOptions);
-        System.out.println("Started counter server at port:"
-                           + counterServer.getNode().getNodeId().getPeerId().getPort());
+        System.out.println("Started counter server at port:" + counterServer.getNode().getNodeId().getPeerId().getPort());
     }
 }

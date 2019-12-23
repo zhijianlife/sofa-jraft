@@ -14,11 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft;
 
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package com.alipay.sofa.jraft;
 
 import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.entity.PeerId;
@@ -28,6 +25,9 @@ import com.alipay.sofa.jraft.rpc.ProtobufMsgFactory;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Utils;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A framework to implement a raft group service.
@@ -38,51 +38,50 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class RaftGroupService {
 
-    private static final Logger LOG     = LoggerFactory.getLogger(RaftGroupService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RaftGroupService.class);
 
     static {
         ProtobufMsgFactory.load();
     }
 
-    private volatile boolean    started = false;
+    private volatile boolean started = false;
 
     /**
      * This node serverId
      */
-    private PeerId              serverId;
+    private PeerId serverId;
 
     /**
      * Node options
      */
-    private NodeOptions         nodeOptions;
+    private NodeOptions nodeOptions;
 
     /**
      * The raft RPC server
      */
-    private RpcServer           rpcServer;
+    private RpcServer rpcServer;
 
     /**
      * If we want to share the rpcServer instance, then we can't stop it when shutdown.
      */
-    private final boolean       sharedRpcServer;
+    private final boolean sharedRpcServer;
 
     /**
      * The raft group id
      */
-    private String              groupId;
+    private String groupId;
     /**
      * The raft node.
      */
-    private Node                node;
+    private Node node;
 
     public RaftGroupService(final String groupId, final PeerId serverId, final NodeOptions nodeOptions) {
         this(groupId, serverId, nodeOptions, RaftRpcServerFactory.createRaftRpcServer(serverId.getEndpoint(),
-            JRaftUtils.createExecutor("RAFT-RPC-executor-", nodeOptions.getRaftRpcThreadPoolSize()),
-            JRaftUtils.createExecutor("CLI-RPC-executor-", nodeOptions.getCliRpcThreadPoolSize())));
+                JRaftUtils.createExecutor("RAFT-RPC-executor-", nodeOptions.getRaftRpcThreadPoolSize()),
+                JRaftUtils.createExecutor("CLI-RPC-executor-", nodeOptions.getCliRpcThreadPoolSize())));
     }
 
-    public RaftGroupService(final String groupId, final PeerId serverId, final NodeOptions nodeOptions,
-                            final RpcServer rpcServer) {
+    public RaftGroupService(final String groupId, final PeerId serverId, final NodeOptions nodeOptions, final RpcServer rpcServer) {
         this(groupId, serverId, nodeOptions, rpcServer, false);
     }
 
@@ -117,7 +116,7 @@ public class RaftGroupService {
             return this.node;
         }
         if (this.serverId == null || this.serverId.getEndpoint() == null
-            || this.serverId.getEndpoint().equals(new Endpoint(Utils.IP_ANY, 0))) {
+                || this.serverId.getEndpoint().equals(new Endpoint(Utils.IP_ANY, 0))) {
             throw new IllegalArgumentException("Blank serverId:" + this.serverId);
         }
         if (StringUtils.isBlank(this.groupId)) {
@@ -140,8 +139,7 @@ public class RaftGroupService {
     /**
      * Block thread to wait the server shutdown.
      *
-     * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     * @throws InterruptedException if the current thread is interrupted while waiting
      */
     public synchronized void join() throws InterruptedException {
         if (this.node != null) {

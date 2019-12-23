@@ -14,19 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.StampedLock;
-
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.conf.Configuration;
 import com.alipay.sofa.jraft.entity.PeerId;
@@ -36,6 +25,17 @@ import com.alipay.sofa.jraft.rpc.CliRequests;
 import com.alipay.sofa.jraft.rpc.RpcRequests;
 import com.alipay.sofa.jraft.util.Requires;
 import com.google.protobuf.Message;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.StampedLock;
 
 /**
  * Maintain routes to raft groups.
@@ -46,9 +46,9 @@ import com.google.protobuf.Message;
  */
 public class RouteTable {
 
-    private static final Logger                    LOG            = LoggerFactory.getLogger(RouteTable.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RouteTable.class);
 
-    private static final RouteTable                INSTANCE       = new RouteTable();
+    private static final RouteTable INSTANCE = new RouteTable();
 
     // Map<groupId, groupConf>
     private final ConcurrentMap<String, GroupConf> groupConfTable = new ConcurrentHashMap<>();
@@ -61,7 +61,7 @@ public class RouteTable {
      * Update configuration of group in route table.
      *
      * @param groupId raft group id
-     * @param conf    configuration to update
+     * @param conf configuration to update
      * @return true on success
      */
     public boolean updateConfiguration(final String groupId, final Configuration conf) {
@@ -147,7 +147,7 @@ public class RouteTable {
      * Update leader info.
      *
      * @param groupId raft group id
-     * @param leader  peer of leader
+     * @param leader peer of leader
      * @return true on success
      */
     public boolean updateLeader(final String groupId, final PeerId leader) {
@@ -172,7 +172,7 @@ public class RouteTable {
     /**
      * Update leader info.
      *
-     * @param groupId   raft group id
+     * @param groupId raft group id
      * @param leaderStr peer string of leader
      * @return true on success
      */
@@ -219,20 +219,20 @@ public class RouteTable {
     /**
      * Blocking the thread until query_leader finishes.
      *
-     * @param groupId   raft group id
+     * @param groupId raft group id
      * @param timeoutMs timeout millis
      * @return operation status
      */
-    public Status refreshLeader(final CliClientService cliClientService, final String groupId, final int timeoutMs)
-                                                                                                                   throws InterruptedException,
-                                                                                                                   TimeoutException {
+    public Status refreshLeader(
+            final CliClientService cliClientService, final String groupId, final int timeoutMs)
+            throws InterruptedException, TimeoutException {
         Requires.requireTrue(!StringUtils.isBlank(groupId), "Blank group id");
         Requires.requireTrue(timeoutMs > 0, "Invalid timeout: " + timeoutMs);
 
         final Configuration conf = getConfiguration(groupId);
         if (conf == null) {
             return new Status(RaftError.ENOENT,
-                "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
+                    "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
         }
         final Status st = Status.OK();
         final CliRequests.GetLeaderRequest.Builder rb = CliRequests.GetLeaderRequest.newBuilder();
@@ -290,7 +290,7 @@ public class RouteTable {
         final Configuration conf = getConfiguration(groupId);
         if (conf == null) {
             return new Status(RaftError.ENOENT,
-                "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
+                    "Group %s is not registered in RouteTable, forgot to call updateConfiguration?", groupId);
         }
         final Status st = Status.OK();
         PeerId leaderId = selectLeader(groupId);
@@ -311,7 +311,7 @@ public class RouteTable {
         rb.setLeaderId(leaderId.toString());
         try {
             final Message result = cliClientService.getPeers(leaderId.getEndpoint(), rb.build(), null).get(timeoutMs,
-                TimeUnit.MILLISECONDS);
+                    TimeUnit.MILLISECONDS);
             if (result instanceof CliRequests.GetPeersResponse) {
                 final CliRequests.GetPeersResponse resp = (CliRequests.GetPeersResponse) result;
                 final Configuration newConf = new Configuration();
@@ -360,7 +360,7 @@ public class RouteTable {
 
         private final StampedLock stampedLock = new StampedLock();
 
-        private Configuration     conf;
-        private PeerId            leader;
+        private Configuration conf;
+        private PeerId leader;
     }
 }

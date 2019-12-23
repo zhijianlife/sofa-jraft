@@ -14,10 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.example.counter;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
+package com.alipay.sofa.jraft.example.counter;
 
 import com.alipay.remoting.InvokeCallback;
 import com.alipay.remoting.exception.RemotingException;
@@ -28,37 +26,46 @@ import com.alipay.sofa.jraft.example.counter.rpc.IncrementAndGetRequest;
 import com.alipay.sofa.jraft.option.CliOptions;
 import com.alipay.sofa.jraft.rpc.impl.cli.BoltCliClientService;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+
 public class CounterClient {
 
     public static void main(final String[] args) throws Exception {
         if (args.length != 2) {
-            System.out.println("Useage : java com.alipay.sofa.jraft.example.counter.CounterClient {groupId} {conf}");
-            System.out
-                .println("Example: java com.alipay.sofa.jraft.example.counter.CounterClient counter 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
+            System.out.println(
+                    "Useage : java com.alipay.sofa.jraft.example.counter.CounterClient {groupId} {conf}");
+            System.out.println(
+                    "Example: java com.alipay.sofa.jraft.example.counter.CounterClient counter 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
             System.exit(1);
         }
         final String groupId = args[0];
         final String confStr = args[1];
 
+        // 解析当前 group 下的节点列表
         final Configuration conf = new Configuration();
         if (!conf.parse(confStr)) {
             throw new IllegalArgumentException("Fail to parse conf:" + confStr);
         }
 
+        // 路由表，建立 group 与对应节点列表之间的映射关系
         RouteTable.getInstance().updateConfiguration(groupId, conf);
 
         final BoltCliClientService cliClientService = new BoltCliClientService();
         cliClientService.init(new CliOptions());
 
+        // 等待选主成功
         if (!RouteTable.getInstance().refreshLeader(cliClientService, groupId, 1000).isOk()) {
             throw new IllegalStateException("Refresh leader failed");
         }
 
+        // 获取 leader 节点
         final PeerId leader = RouteTable.getInstance().selectLeader(groupId);
         System.out.println("Leader is " + leader);
         final int n = 1000;
         final CountDownLatch latch = new CountDownLatch(n);
         final long start = System.currentTimeMillis();
+        // 发送 1000 个请求，累加 1000 次
         for (int i = 0; i < n; i++) {
             incrementAndGet(cliClientService, leader, i, latch);
         }
@@ -67,32 +74,36 @@ public class CounterClient {
         System.exit(0);
     }
 
-    private static void incrementAndGet(final BoltCliClientService cliClientService, final PeerId leader,
-                                        final long delta, CountDownLatch latch) throws RemotingException,
-                                                                               InterruptedException {
+    private static void incrementAndGet(final BoltCliClientService cliClientService,
+                                        final PeerId leader,
+                                        final long delta,
+                                        CountDownLatch latch)
+            throws RemotingException, InterruptedException {
         final IncrementAndGetRequest request = new IncrementAndGetRequest();
         request.setDelta(delta);
-        cliClientService.getRpcClient().invokeWithCallback(leader.getEndpoint().toString(), request,
-            new InvokeCallback() {
+        cliClientService.getRpcClient().invokeWithCallback(
+                leader.getEndpoint().toString(),
+                request,
+                new InvokeCallback() {
 
-                @Override
-                public void onResponse(Object result) {
-                    latch.countDown();
-                    System.out.println("incrementAndGet result:" + result);
-                }
+                    @Override
+                    public void onResponse(Object result) {
+                        latch.countDown();
+                        System.out.println("incrementAndGet result:" + result);
+                    }
 
-                @Override
-                public void onException(Throwable e) {
-                    e.printStackTrace();
-                    latch.countDown();
+                    @Override
+                    public void onException(Throwable e) {
+                        e.printStackTrace();
+                        latch.countDown();
 
-                }
+                    }
 
-                @Override
-                public Executor getExecutor() {
-                    return null;
-                }
-            }, 5000);
+                    @Override
+                    public Executor getExecutor() {
+                        return null;
+                    }
+                }, 5000);
     }
 
 }

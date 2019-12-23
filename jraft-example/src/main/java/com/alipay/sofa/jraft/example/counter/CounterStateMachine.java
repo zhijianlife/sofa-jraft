@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.counter;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.exception.CodecException;
 import com.alipay.remoting.serialization.SerializerManager;
@@ -37,6 +30,13 @@ import com.alipay.sofa.jraft.example.counter.snapshot.CounterSnapshotFile;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotReader;
 import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 import com.alipay.sofa.jraft.util.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Counter state machine.
@@ -47,16 +47,16 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class CounterStateMachine extends StateMachineAdapter {
 
-    private static final Logger LOG        = LoggerFactory.getLogger(CounterStateMachine.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CounterStateMachine.class);
 
     /**
      * Counter value
      */
-    private final AtomicLong    value      = new AtomicLong(0);
+    private final AtomicLong value = new AtomicLong(0);
     /**
      * Leader term
      */
-    private final AtomicLong    leaderTerm = new AtomicLong(-1);
+    private final AtomicLong leaderTerm = new AtomicLong(-1);
 
     public boolean isLeader() {
         return this.leaderTerm.get() > 0;
@@ -71,6 +71,7 @@ public class CounterStateMachine extends StateMachineAdapter {
 
     @Override
     public void onApply(final Iterator iter) {
+        // 遍历所有的 Task
         while (iter.hasNext()) {
             long delta = 0;
 
@@ -83,15 +84,19 @@ public class CounterStateMachine extends StateMachineAdapter {
                 // Have to parse FetchAddRequest from this user log.
                 final ByteBuffer data = iter.getData();
                 try {
+                    // 反序列化请求
                     final IncrementAndGetRequest request = SerializerManager.getSerializer(SerializerManager.Hessian2)
-                        .deserialize(data.array(), IncrementAndGetRequest.class.getName());
+                            .deserialize(data.array(), IncrementAndGetRequest.class.getName());
                     delta = request.getDelta();
                 } catch (final CodecException e) {
                     LOG.error("Fail to decode IncrementAndGetRequest", e);
                 }
             }
+            // 获取前置值
             final long prev = this.value.get();
+            // 计算更新后的值
             final long updated = value.addAndGet(delta);
+            // 设置回调
             if (closure != null) {
                 closure.getResponse().setValue(updated);
                 closure.getResponse().setSuccess(true);
@@ -121,7 +126,7 @@ public class CounterStateMachine extends StateMachineAdapter {
 
     @Override
     public void onError(final RaftException e) {
-        LOG.error("Raft error: %s", e, e);
+        LOG.error("Raft error: {}", e, e);
     }
 
     @Override

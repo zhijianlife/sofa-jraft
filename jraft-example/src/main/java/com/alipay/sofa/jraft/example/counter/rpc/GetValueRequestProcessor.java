@@ -14,14 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.example.counter.rpc;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+package com.alipay.sofa.jraft.example.counter.rpc;
 
 import com.alipay.remoting.BizContext;
 import com.alipay.remoting.rpc.protocol.SyncUserProcessor;
 import com.alipay.sofa.jraft.example.counter.CounterServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * GetValueRequest processor.
@@ -34,7 +34,7 @@ public class GetValueRequestProcessor extends SyncUserProcessor<GetValueRequest>
 
     private static final Logger LOG = LoggerFactory.getLogger(GetValueRequestProcessor.class);
 
-    private CounterServer       counterServer;
+    private CounterServer counterServer;
 
     public GetValueRequestProcessor(CounterServer counterServer) {
         super();
@@ -43,10 +43,12 @@ public class GetValueRequestProcessor extends SyncUserProcessor<GetValueRequest>
 
     @Override
     public Object handleRequest(final BizContext bizCtx, final GetValueRequest request) throws Exception {
+        // 当前节点不是 leader，将请求转交给 leader 节点
         if (!this.counterServer.getFsm().isLeader()) {
             return this.counterServer.redirect();
         }
 
+        // 获取计数值并返回
         final ValueResponse response = new ValueResponse();
         response.setSuccess(true);
         response.setValue(this.counterServer.getFsm().getValue());

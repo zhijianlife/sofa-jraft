@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.counter.rpc;
 
 import java.io.Serializable;
@@ -29,7 +30,7 @@ public class IncrementAndGetRequest implements Serializable {
 
     private static final long serialVersionUID = -5623664785560971849L;
 
-    private long              delta;
+    private long delta;
 
     public long getDelta() {
         return this.delta;

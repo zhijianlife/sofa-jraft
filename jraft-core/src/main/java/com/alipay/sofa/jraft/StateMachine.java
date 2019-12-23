@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.conf.Configuration;
@@ -36,8 +37,7 @@ import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 public interface StateMachine {
 
     /**
-     * Update the StateMachine with a batch a tasks that can be accessed
-     * through |iterator|.
+     * Update the StateMachine with a batch a tasks that can be accessed through |iterator|.
      *
      * Invoked when one or more tasks that were passed to Node#apply(Task) have been
      * committed to the raft group (quorum of the group peers have received
@@ -47,6 +47,8 @@ public interface StateMachine {
      * tasks through |iter| have been successfully applied. And if you didn't
      * apply all the the given tasks, we would regard this as a critical error
      * and report a error whose type is ERROR_TYPE_STATE_MACHINE.
+     *
+     * 基于一批 Task 更新状态机
      *
      * @param iter iterator of states
      */
@@ -65,13 +67,12 @@ public interface StateMachine {
      * Default: Save nothing and returns error.
      *
      * @param writer snapshot writer
-     * @param done   callback
+     * @param done callback
      */
     void onSnapshotSave(final SnapshotWriter writer, final Closure done);
 
     /**
-     * User defined snapshot load function
-     * get and load snapshot
+     * User defined snapshot load function get and load snapshot
      * Default: Load nothing and returns error.
      *
      * @param reader snapshot reader
@@ -116,9 +117,9 @@ public interface StateMachine {
      * situations including:
      * 1. handle election timeout and start preVote
      * 2. receive requests with higher term such as VoteRequest from a candidate
-     *    or appendEntries request from a new leader
+     * or appendEntries request from a new leader
      * 3. receive timeoutNow request from current leader and start request vote.
-     * 
+     *
      * the parameter ctx gives the information(leaderId, term and status) about the
      * very leader whom the follower followed before.
      * User can reset the node's information as it stops following some leader.
@@ -133,7 +134,7 @@ public interface StateMachine {
      * situations including:
      * 1. a candidate receives appendEntries request from a leader
      * 2. a follower(without leader) receives appendEntries from a leader
-     * 
+     *
      * the parameter ctx gives the information(leaderId, term and status) about
      * the very leader whom the follower starts to follow.
      * User can reset the node's information as it starts to follow some leader.
