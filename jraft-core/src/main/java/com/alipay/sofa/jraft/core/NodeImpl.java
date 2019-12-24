@@ -157,6 +157,7 @@ public class NodeImpl implements Node, RaftServerService {
     private volatile State state;
     private volatile CountDownLatch shutdownLatch;
     private long currTerm;
+    /** 最近一次收到来自 leader 请求的时间戳 */
     private volatile long lastLeaderTimestamp;
     private PeerId leaderId = new PeerId();
     private PeerId votedId;
@@ -746,7 +747,7 @@ public class NodeImpl implements Node, RaftServerService {
                 .setRingBufferSize(this.raftOptions.getDisruptorBufferSize()) //
                 .setEventFactory(new LogEntryAndClosureFactory()) //
                 .setThreadFactory(new NamedThreadFactory("JRaft-NodeImpl-Disruptor-", true)) //
-                .setProducerType(ProducerType.MULTI) //
+                .setProducerType(ProducerType.MULTI) // 采用多生产者模式
                 .setWaitStrategy(new BlockingWaitStrategy()) //
                 .build();
         this.applyDisruptor.handleEventsWith(new LogEntryAndClosureHandler());
@@ -756,7 +757,9 @@ public class NodeImpl implements Node, RaftServerService {
             this.metrics.getMetricRegistry().register("jraft-node-impl-disruptor", new DisruptorMetricSet(this.applyQueue));
         }
 
+        // 初始化 FSMCaller
         this.fsmCaller = new FSMCallerImpl();
+        // 初始化日志存储
         if (!initLogStorage()) {
             LOG.error("Node {} initLogStorage failed.", getNodeId());
             return false;
@@ -966,10 +969,13 @@ public class NodeImpl implements Node, RaftServerService {
         }
     }
 
+    /**
+     * 节点成为 leader
+     */
     private void becomeLeader() {
         Requires.requireTrue(this.state == State.STATE_CANDIDATE, "Illegal state: " + this.state);
-        LOG.info("Node {} become leader of group, term={}, conf={}, oldConf={}.", getNodeId(), this.currTerm,
-                this.conf.getConf(), this.conf.getOldConf());
+        LOG.info("Node {} become leader of group, term={}, conf={}, oldConf={}.",
+                getNodeId(), this.currTerm, this.conf.getConf(), this.conf.getOldConf());
         // cancel candidate vote timer
         stopVoteTimer();
         this.state = State.STATE_LEADER;
@@ -980,6 +986,7 @@ public class NodeImpl implements Node, RaftServerService {
                 continue;
             }
             LOG.debug("Node {} add replicator, term={}, peer={}.", getNodeId(), this.currTerm, peer);
+            // 将节点加入成为自己的 follower
             if (!this.replicatorGroup.addReplicator(peer)) {
                 LOG.error("Fail to add replicator, peer={}.", peer);
             }

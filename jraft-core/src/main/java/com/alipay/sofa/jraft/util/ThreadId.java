@@ -14,18 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * Replicator id with lock.
+ *
+ * 基于非重入锁实现的 ID
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -33,15 +36,15 @@ import org.slf4j.LoggerFactory;
  */
 public class ThreadId {
 
-    private static final int       TRY_LOCK_TIMEOUT_MS = 10;
+    private static final int TRY_LOCK_TIMEOUT_MS = 10;
 
-    private static final Logger    LOG                 = LoggerFactory.getLogger(ThreadId.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ThreadId.class);
 
-    private final Object           data;
-    private final NonReentrantLock lock                = new NonReentrantLock();
-    private final List<Integer>    pendingErrors       = Collections.synchronizedList(new ArrayList<>());
-    private final OnError          onError;
-    private volatile boolean       destroyed;
+    private final Object data;
+    private final NonReentrantLock lock = new NonReentrantLock();
+    private final List<Integer> pendingErrors = Collections.synchronizedList(new ArrayList<>());
+    private final OnError onError;
+    private volatile boolean destroyed;
 
     /**
      * @author boyan (boyan@alibaba-inc.com)
@@ -51,6 +54,7 @@ public class ThreadId {
     public interface OnError {
         /**
          * Error callback,it will be called in lock, but should take care of unlocking it.
+         *
          * @param id the thread id
          * @param data the data
          * @param errorCode the error code
@@ -69,11 +73,17 @@ public class ThreadId {
         return this.data;
     }
 
+    /**
+     * 加锁
+     *
+     * @return
+     */
     public Object lock() {
         if (this.destroyed) {
             return null;
         }
         try {
+            // 尝试获取非重入锁
             while (!this.lock.tryLock(TRY_LOCK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 if (this.destroyed) {
                     return null;
@@ -92,10 +102,13 @@ public class ThreadId {
         return this.data;
     }
 
+    /**
+     * 解锁
+     */
     public void unlock() {
         if (!this.lock.isHeldByCurrentThread()) {
-            LOG.warn("Fail to unlock with {}, the lock is held by {} and current thread is {}.", this.data,
-                this.lock.getOwner(), Thread.currentThread());
+            LOG.warn("Fail to unlock with {}, the lock is held by {} and current thread is {}.",
+                    this.data, this.lock.getOwner(), Thread.currentThread());
             return;
         }
         // calls all pending errors before unlock
@@ -137,8 +150,8 @@ public class ThreadId {
         }
         this.destroyed = true;
         if (!this.lock.isHeldByCurrentThread()) {
-            LOG.warn("Fail to unlockAndDestroy with {}, the lock is held by {} and current thread is {}.", this.data,
-                this.lock.getOwner(), Thread.currentThread());
+            LOG.warn("Fail to unlockAndDestroy with {}, the lock is held by {} and current thread is {}.",
+                    this.data, this.lock.getOwner(), Thread.currentThread());
             return;
         }
         this.lock.unlock();

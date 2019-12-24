@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.core.CliServiceImpl;
@@ -43,6 +44,7 @@ public final class RaftServiceFactory {
      * Throw {@link IllegalStateException} when fail to initialize.
      */
     public static Node createAndInitRaftNode(String groupId, PeerId serverId, NodeOptions opts) {
+        // 创建并初始化 Raft Node 对象
         final Node ret = createRaftNode(groupId, serverId);
         if (!ret.init(opts)) {
             throw new IllegalStateException("Fail to init node, please see the logs to find the reason.");

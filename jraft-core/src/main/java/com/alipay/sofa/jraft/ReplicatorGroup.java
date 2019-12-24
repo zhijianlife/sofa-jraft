@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft;
 
-import java.util.List;
+package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.closure.CatchUpClosure;
 import com.alipay.sofa.jraft.conf.ConfigurationEntry;
@@ -27,6 +26,8 @@ import com.alipay.sofa.jraft.rpc.RpcRequests.AppendEntriesResponse;
 import com.alipay.sofa.jraft.rpc.RpcResponseClosure;
 import com.alipay.sofa.jraft.util.Describer;
 import com.alipay.sofa.jraft.util.ThreadId;
+
+import java.util.List;
 
 /**
  * Replicators in a raft group.
@@ -40,18 +41,18 @@ public interface ReplicatorGroup extends Describer {
      * Init the replicator group.
      *
      * @param nodeId node id
-     * @param opts   options of replicator grop
+     * @param opts options of replicator grop
      * @return true if init success
      */
     boolean init(final NodeId nodeId, final ReplicatorGroupOptions opts);
 
     /**
      * Add a replicator attached with |peer|
-     * will be a notification when the replicator catches up according to the
-     * arguments.
-     * NOTE: when calling this function, the replicators starts to work
-     * immediately, and might call Node#stepDown which might have race with
-     * the caller, you should deal with this situation.
+     * will be a notification when the replicator catches up according to the arguments.
+     * NOTE: when calling this function, the replicators starts to work immediately,
+     * and might call Node#stepDown which might have race with the caller, you should deal with this situation.
+     *
+     * 将指定节点添加成为自己的 follower
      *
      * @param peer target peer
      * @return true on success
@@ -61,7 +62,7 @@ public interface ReplicatorGroup extends Describer {
     /**
      * Send heartbeat to a peer.
      *
-     * @param peer    target peer
+     * @param peer target peer
      * @param closure callback
      */
     void sendHeartbeat(final PeerId peer, final RpcResponseClosure<AppendEntriesResponse> closure);
@@ -78,7 +79,7 @@ public interface ReplicatorGroup extends Describer {
      * Check replicator state, if it's not started, start it;
      * if it is blocked, unblock it. It should be called by leader.
      *
-     * @param peer     peer of replicator
+     * @param peer peer of replicator
      * @param lockNode if lock with node
      */
     void checkReplicator(final PeerId peer, final boolean lockNode);
@@ -127,8 +128,8 @@ public interface ReplicatorGroup extends Describer {
     /**
      * Reset the interval of heartbeat,
      * This method is supposed to be called when the very candidate becomes the
-     *  leader, so we suppose that there are no running replicators.
-     *  return true when success, false otherwise.
+     * leader, so we suppose that there are no running replicators.
+     * return true when success, false otherwise.
      *
      * @param newIntervalMs new heartbeat interval millis
      * @return true on success
@@ -154,7 +155,7 @@ public interface ReplicatorGroup extends Describer {
     /**
      * Transfer leadership to the given |peer|
      *
-     * @param peer     target peer
+     * @param peer target peer
      * @param logIndex log index
      * @return true on success
      */

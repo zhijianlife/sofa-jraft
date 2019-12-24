@@ -12,6 +12,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 import java.util.concurrent.TimeUnit;
@@ -21,12 +22,14 @@ import java.util.concurrent.locks.Lock;
 
 /**
  * Non reentrant lock, copied from netty project.
+ *
+ * 不可重入锁
  */
 public final class NonReentrantLock extends AbstractQueuedSynchronizer implements Lock {
 
     private static final long serialVersionUID = -833780837233068610L;
 
-    private Thread            owner;
+    private Thread owner;
 
     @Override
     public void lock() {

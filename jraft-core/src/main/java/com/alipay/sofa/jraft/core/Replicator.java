@@ -589,6 +589,8 @@ public class Replicator implements ThreadId.OnError {
     /**
      * Send probe or heartbeat request
      *
+     * 发送探针或心跳请求，其中探针请求的目的是获取 Follower 已经拥有的的日志位置，以便于向 Follower 发送后续的日志
+     *
      * @param isHeartbeat if current entries is heartbeat
      * @param heartBeatClosure heartbeat callback
      */
@@ -607,8 +609,10 @@ public class Replicator implements ThreadId.OnError {
         }
         try {
             final long monotonicSendTimeMs = Utils.monotonicMs();
+            // 空的 AppendEntriesRequest 请求
             final AppendEntriesRequest request = rb.build();
 
+            // 心跳请求
             if (isHeartbeat) {
                 // Sending a heartbeat request
                 this.heartbeatCounter++;
@@ -627,7 +631,9 @@ public class Replicator implements ThreadId.OnError {
                 }
                 this.heartbeatInFly = this.rpcService.appendEntries(this.options.getPeerId().getEndpoint(), request,
                         this.options.getElectionTimeoutMs() / 2, heartbeatDone);
-            } else {
+            }
+            // 探针请求
+            else {
                 // Sending a probe request.
                 this.statInfo.runningState = RunningState.APPENDING_ENTRIES;
                 this.statInfo.firstLogIndex = this.nextIndex;
@@ -694,12 +700,20 @@ public class Replicator implements ThreadId.OnError {
         return true;
     }
 
+    /**
+     * 创建并启动到目标节点的 Replicator
+     *
+     * @param opts
+     * @param raftOptions
+     * @return
+     */
     public static ThreadId start(final ReplicatorOptions opts, final RaftOptions raftOptions) {
         if (opts.getLogManager() == null || opts.getBallotBox() == null || opts.getNode() == null) {
             throw new IllegalArgumentException("Invalid ReplicatorOptions.");
         }
-        final Replicator r = new Replicator(opts, raftOptions);
-        if (!r.rpcService.connect(opts.getPeerId().getEndpoint())) {
+        final Replicator replicator = new Replicator(opts, raftOptions);
+        // 连通性检查
+        if (!replicator.rpcService.connect(opts.getPeerId().getEndpoint())) {
             LOG.error("Fail to init sending channel to {}", opts.getPeerId());
             // Return and it will be retried later.
             return null;
@@ -711,7 +725,7 @@ public class Replicator implements ThreadId.OnError {
             try {
                 final String replicatorMetricName = getReplicatorMetricName(opts);
                 if (!metricRegistry.getNames().contains(replicatorMetricName)) {
-                    metricRegistry.register(replicatorMetricName, new ReplicatorMetricSet(opts, r));
+                    metricRegistry.register(replicatorMetricName, new ReplicatorMetricSet(opts, replicator));
                 }
             } catch (final IllegalArgumentException e) {
                 // ignore
@@ -719,15 +733,15 @@ public class Replicator implements ThreadId.OnError {
         }
 
         // Start replication
-        r.id = new ThreadId(r, r);
-        r.id.lock();
-        LOG.info("Replicator={}@{} is started", r.id, r.options.getPeerId());
-        r.catchUpClosure = null;
-        r.lastRpcSendTimestamp = Utils.monotonicMs();
-        r.startHeartbeatTimer(Utils.nowMs());
+        replicator.id = new ThreadId(replicator, replicator);
+        replicator.id.lock();
+        LOG.info("Replicator={}@{} is started", replicator.id, replicator.options.getPeerId());
+        replicator.catchUpClosure = null;
+        replicator.lastRpcSendTimestamp = Utils.monotonicMs();
+        replicator.startHeartbeatTimer(Utils.nowMs());
         // id.unlock in sendEmptyEntries
-        r.sendEmptyEntries(false);
-        return r.id;
+        replicator.sendEmptyEntries(false);
+        return replicator.id;
     }
 
     private static String getReplicatorMetricName(final ReplicatorOptions opts) {
@@ -1286,6 +1300,14 @@ public class Replicator implements ThreadId.OnError {
         return true;
     }
 
+    /**
+     * 添加一些必要的参数到 AppendEntriesRequest 请求中
+     *
+     * @param rb
+     * @param prevLogIndex
+     * @param isHeartbeat
+     * @return
+     */
     private boolean fillCommonFields(final AppendEntriesRequest.Builder rb, long prevLogIndex, final boolean isHeartbeat) {
         final long prevLogTerm = this.options.getLogManager().getTerm(prevLogIndex);
         if (prevLogTerm == 0 && prevLogIndex != 0) {

@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.closure.LoadSnapshotClosure;
@@ -25,6 +26,8 @@ import com.alipay.sofa.jraft.util.Describer;
 
 /**
  * Finite state machine caller.
+ *
+ * 封装对业务 StateMachine 的状态转换的调用以及日志的写入等
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -117,7 +120,7 @@ public interface FSMCaller extends Lifecycle<FSMCallerOptions>, Describer {
      * Called after shutdown to wait it terminates.
      *
      * @throws InterruptedException if the current thread is interrupted
-     *         while waiting
+     *                              while waiting
      */
     void join() throws InterruptedException;
 }

@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.option;
 
 import com.alipay.sofa.jraft.FSMCaller;
@@ -32,12 +33,12 @@ import com.alipay.sofa.jraft.storage.LogStorage;
  */
 public class LogManagerOptions {
 
-    private LogStorage           logStorage;
+    private LogStorage logStorage;
     private ConfigurationManager configurationManager;
-    private FSMCaller            fsmCaller;
-    private int                  disruptorBufferSize  = 1024;
-    private RaftOptions          raftOptions;
-    private NodeMetrics          nodeMetrics;
+    private FSMCaller fsmCaller;
+    private int disruptorBufferSize = 1024;
+    private RaftOptions raftOptions;
+    private NodeMetrics nodeMetrics;
     private LogEntryCodecFactory logEntryCodecFactory = LogEntryV2CodecFactory.getInstance();
 
     public LogEntryCodecFactory getLogEntryCodecFactory() {

@@ -127,6 +127,7 @@ public class RaftGroupService {
 
         this.node = RaftServiceFactory.createAndInitRaftNode(this.groupId, this.serverId, this.nodeOptions);
         if (startRpcServer) {
+            // 启动 RPC 服务
             this.rpcServer.start();
         } else {
             LOG.warn("RPC server is not started in RaftGroupService.");
