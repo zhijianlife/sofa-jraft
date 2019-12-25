@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.option;
 
 import com.alipay.sofa.jraft.core.BallotBox;
@@ -33,18 +34,18 @@ import com.alipay.sofa.jraft.storage.SnapshotStorage;
  */
 public class ReplicatorOptions {
 
-    private int               dynamicHeartBeatTimeoutMs;
-    private int               electionTimeoutMs;
-    private String            groupId;
-    private PeerId            serverId;
-    private PeerId            peerId;
-    private LogManager        logManager;
-    private BallotBox         ballotBox;
-    private NodeImpl          node;
-    private long              term;
-    private SnapshotStorage   snapshotStorage;
+    private int dynamicHeartBeatTimeoutMs;
+    private int electionTimeoutMs;
+    private String groupId;
+    private PeerId serverId;
+    private PeerId peerId;
+    private LogManager logManager;
+    private BallotBox ballotBox;
+    private NodeImpl node;
+    private long term;
+    private SnapshotStorage snapshotStorage;
     private RaftClientService raftRpcService;
-    private TimerManager      timerManager;
+    private TimerManager timerManager;
 
     public ReplicatorOptions() {
         super();
@@ -83,7 +84,7 @@ public class ReplicatorOptions {
 
     public ReplicatorOptions copy() {
         return new ReplicatorOptions(dynamicHeartBeatTimeoutMs, electionTimeoutMs, groupId, serverId, peerId,
-            logManager, ballotBox, node, term, snapshotStorage, raftRpcService, timerManager);
+                logManager, ballotBox, node, term, snapshotStorage, raftRpcService, timerManager);
     }
 
     public TimerManager getTimerManager() {
@@ -181,9 +182,9 @@ public class ReplicatorOptions {
     @Override
     public String toString() {
         return "ReplicatorOptions{" + "dynamicHeartBeatTimeoutMs=" + dynamicHeartBeatTimeoutMs + ", electionTimeoutMs="
-               + electionTimeoutMs + ", groupId='" + groupId + '\'' + ", serverId=" + serverId + ", peerId=" + peerId
-               + ", logManager=" + logManager + ", ballotBox=" + ballotBox + ", node=" + node + ", term=" + term
-               + ", snapshotStorage=" + snapshotStorage + ", raftRpcService=" + raftRpcService + ", timerManager="
-               + timerManager + '}';
+                + electionTimeoutMs + ", groupId='" + groupId + '\'' + ", serverId=" + serverId + ", peerId=" + peerId
+                + ", logManager=" + logManager + ", ballotBox=" + ballotBox + ", node=" + node + ", term=" + term
+                + ", snapshotStorage=" + snapshotStorage + ", raftRpcService=" + raftRpcService + ", timerManager="
+                + timerManager + '}';
     }
 }

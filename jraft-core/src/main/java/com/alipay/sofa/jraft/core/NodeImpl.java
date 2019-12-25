@@ -1611,8 +1611,10 @@ public class NodeImpl implements Node, RaftServerService {
         boolean doUnlock = true;
         final long startMs = Utils.monotonicMs();
         this.writeLock.lock();
+        // 获取待追加的 entries 数目
         final int entriesCount = request.getEntriesCount();
         try {
+            // 当前节点处于非活跃状态
             if (!this.state.isActive()) {
                 LOG.warn("Node {} is not in active state, currTerm={}.", getNodeId(), this.currTerm);
                 return RpcResponseFactory.newResponse(RaftError.EINVAL, "Node %s is not in active state, state %s.",
@@ -1627,7 +1629,7 @@ public class NodeImpl implements Node, RaftServerService {
                         request.getServerId());
             }
 
-            // Check stale term
+            // 校验任期，Check stale term
             if (request.getTerm() < this.currTerm) {
                 LOG.warn("Node {} ignore stale AppendEntriesRequest from {}, term={}, currTerm={}.", getNodeId(),
                         request.getServerId(), request.getTerm(), this.currTerm);
@@ -1637,13 +1639,13 @@ public class NodeImpl implements Node, RaftServerService {
                         .build();
             }
 
-            // Check term and state to step down
+            // 如果当前节点不是 follower 节点，则需要 stepdown, Check term and state to step down
             checkStepDown(request.getTerm(), serverId);
+            // 发送请求的节点不是当前节点认为的 leader 节点
             if (!serverId.equals(this.leaderId)) {
                 LOG.error("Another peer {} declares that it is the leader at term {} which was occupied by leader {}.",
                         serverId, this.currTerm, this.leaderId);
-                // Increase the term by 1 and make both leaders step down to minimize the
-                // loss of split brain
+                // Increase the term by 1 and make both leaders step down to minimize the loss of split brain
                 stepDown(request.getTerm() + 1, false, new Status(RaftError.ELEADERCONFLICT,
                         "More than one leader in the same term."));
                 return AppendEntriesResponse.newBuilder() //
@@ -1654,6 +1656,7 @@ public class NodeImpl implements Node, RaftServerService {
 
             updateLastLeaderTimestamp(Utils.monotonicMs());
 
+            // 如果正在安装快照，则响应繁忙
             if (entriesCount > 0 && this.snapshotExecutor != null && this.snapshotExecutor.isInstallingSnapshot()) {
                 LOG.warn("Node {} received AppendEntriesRequest while installing snapshot.", getNodeId());
                 return RpcResponseFactory.newResponse(RaftError.EBUSY, "Node %s:%s is installing snapshot.",
@@ -1663,11 +1666,12 @@ public class NodeImpl implements Node, RaftServerService {
             final long prevLogIndex = request.getPrevLogIndex();
             final long prevLogTerm = request.getPrevLogTerm();
             final long localPrevLogTerm = this.logManager.getTerm(prevLogIndex);
+
+            // 对应 index 的任期不匹配
             if (localPrevLogTerm != prevLogTerm) {
                 final long lastLogIndex = this.logManager.getLastLogIndex();
 
-                LOG.warn(
-                        "Node {} reject term_unmatched AppendEntriesRequest from {}, term={}, prevLogIndex={}, prevLogTerm={}, localPrevLogTerm={}, lastLogIndex={}, entriesSize={}.",
+                LOG.warn("Node {} reject term_unmatched AppendEntriesRequest from {}, term={}, prevLogIndex={}, prevLogTerm={}, localPrevLogTerm={}, lastLogIndex={}, entriesSize={}.",
                         getNodeId(), request.getServerId(), request.getTerm(), prevLogIndex, prevLogTerm, localPrevLogTerm,
                         lastLogIndex, entriesCount);
 
@@ -1678,6 +1682,7 @@ public class NodeImpl implements Node, RaftServerService {
                         .build();
             }
 
+            // 心跳请求或者是探针请求
             if (entriesCount == 0) {
                 // heartbeat
                 final AppendEntriesResponse.Builder respBuilder = AppendEntriesResponse.newBuilder() //
@@ -1699,6 +1704,7 @@ public class NodeImpl implements Node, RaftServerService {
                 allData = request.getData().asReadOnlyByteBuffer();
             }
 
+            // 解析待追加的数据
             final List<RaftOutter.EntryMeta> entriesList = request.getEntriesList();
             for (int i = 0; i < entriesCount; i++) {
                 final RaftOutter.EntryMeta entry = entriesList.get(i);

@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc.impl.core;
-
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executor;
-
-import org.apache.commons.lang.StringUtils;
 
 import com.alipay.remoting.AsyncContext;
 import com.alipay.remoting.BizContext;
@@ -40,6 +33,13 @@ import com.alipay.sofa.jraft.util.Utils;
 import com.alipay.sofa.jraft.util.concurrent.MpscSingleThreadExecutor;
 import com.alipay.sofa.jraft.util.concurrent.SingleThreadExecutor;
 import com.google.protobuf.Message;
+import org.apache.commons.lang.StringUtils;
+
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 
 /**
  * Append entries request processor.
@@ -48,13 +48,15 @@ import com.google.protobuf.Message;
  *
  * 2018-Apr-04 3:00:13 PM
  */
-public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEntriesRequest> implements
-                                                                                             ConnectionEventProcessor {
+public class AppendEntriesRequestProcessor
+        extends NodeRequestProcessor<AppendEntriesRequest>
+        implements ConnectionEventProcessor {
 
     static final String PEER_ATTR = "jraft-peer";
 
     /**
      * Peer executor selector.
+     *
      * @author dennis
      */
     final class PeerExecutorSelector implements ExecutorSelector {
@@ -97,7 +99,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
      */
     class SequenceRpcRequestClosure extends RpcRequestClosure {
 
-        private final int    reqSequence;
+        private final int reqSequence;
         private final String groupId;
         private final String peerId;
 
@@ -116,11 +118,12 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
 
     /**
      * Response message wrapper with a request sequence number and asyncContext.done
+     *
      * @author dennis
      */
     static class SequenceMessage implements Comparable<SequenceMessage> {
-        public final Message       msg;
-        private final int          sequence;
+        public final Message msg;
+        private final int sequence;
         private final AsyncContext asyncContext;
 
         public SequenceMessage(AsyncContext asyncContext, Message msg, int sequence) {
@@ -157,8 +160,10 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
         assert (respQueue != null);
 
         synchronized (Utils.withLockObject(respQueue)) {
+            // 将响应数据添加到优先级队列中
             respQueue.add(new SequenceMessage(asyncContext, msg, seq));
 
+            // 校验队列中的待响应请求数是否过多
             if (!ctx.hasTooManyPendingResponses()) {
                 while (!respQueue.isEmpty()) {
                     final SequenceMessage queuedPipelinedResponse = respQueue.peek();
@@ -169,6 +174,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
                     }
                     respQueue.remove();
                     try {
+                        // 发送响应
                         queuedPipelinedResponse.sendResponse();
                     } finally {
                         getAndIncrementNextRequiredSequence(groupId, peerId, connection);
@@ -176,7 +182,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
                 }
             } else {
                 LOG.warn("Closed connection to peer {}/{}, because of too many pending responses, queued={}, max={}",
-                    ctx.groupId, peerId, respQueue.size(), ctx.maxPendingResponses);
+                        ctx.groupId, peerId, respQueue.size(), ctx.maxPendingResponses);
                 connection.close();
                 // Close the connection if there are too many pending responses in queue.
                 removePeerRequestContext(groupId, peerId);
@@ -186,26 +192,26 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
 
     static class PeerRequestContext {
 
-        private final String                         groupId;
-        private final String                         peerId;
+        private final String groupId;
+        private final String peerId;
 
         // Executor to run the requests
-        private SingleThreadExecutor                 executor;
+        private SingleThreadExecutor executor;
         // The request sequence;
-        private int                                  sequence;
+        private int sequence;
         // The required sequence to be sent.
-        private int                                  nextRequiredSequence;
+        private int nextRequiredSequence;
         // The response queue,it's not thread-safe and protected by it self object monitor.
         private final PriorityQueue<SequenceMessage> responseQueue;
 
-        private final int                            maxPendingResponses;
+        private final int maxPendingResponses;
 
         public PeerRequestContext(final String groupId, final String peerId, final int maxPendingResponses) {
             super();
             this.peerId = peerId;
             this.groupId = groupId;
             this.executor = new MpscSingleThreadExecutor(Utils.MAX_APPEND_ENTRIES_TASKS_PER_THREAD,
-                JRaftUtils.createThreadFactory(groupId + "/" + peerId + "-AppendEntriesThread"));
+                    JRaftUtils.createThreadFactory(groupId + "/" + peerId + "-AppendEntriesThread"));
 
             this.sequence = 0;
             this.nextRequiredSequence = 0;
@@ -253,7 +259,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
         if (groupContexts == null) {
             groupContexts = new ConcurrentHashMap<>();
             final ConcurrentMap<String, PeerRequestContext> existsCtxs = this.peerRequestContexts.putIfAbsent(groupId,
-                groupContexts);
+                    groupContexts);
             if (existsCtxs != null) {
                 groupContexts = existsCtxs;
             }
@@ -272,7 +278,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
                     final Node node = NodeManager.getInstance().get(groupId, peer);
                     assert (node != null);
                     peerCtx = new PeerRequestContext(groupId, peerId, node.getRaftOptions()
-                        .getMaxReplicatorInflightMsgs());
+                            .getMaxReplicatorInflightMsgs());
                     groupContexts.put(peerId, peerCtx);
                 }
             }
@@ -286,7 +292,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
 
     void removePeerRequestContext(final String groupId, final String peerId) {
         final ConcurrentMap<String/* peerId */, PeerRequestContext> groupContexts = this.peerRequestContexts
-            .get(groupId);
+                .get(groupId);
         if (groupContexts == null) {
             return;
         }
@@ -307,7 +313,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
     /**
      * The executor selector to select executor for processing request.
      */
-    private final ExecutorSelector                                                 executorSelector;
+    private final ExecutorSelector executorSelector;
 
     public AppendEntriesRequestProcessor(Executor executor) {
         super(executor);
@@ -337,21 +343,26 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
     }
 
     @Override
-    public Message processRequest0(final RaftServerService service, final AppendEntriesRequest request,
+    public Message processRequest0(final RaftServerService service,
+                                   final AppendEntriesRequest request,
                                    final RpcRequestClosure done) {
+
+        /* 处理 AppendEntries 请求 */
 
         final Node node = (Node) service;
 
+        // 默认使用 pipeline 传输
         if (node.getRaftOptions().isReplicatorPipeline()) {
             final String groupId = request.getGroupId();
             final String peerId = request.getPeerId();
 
+            // 获取请求的次数
             final int reqSequence = getAndIncrementSequence(groupId, peerId, done.getBizContext().getConnection());
-            final Message response = service.handleAppendEntriesRequest(request, new SequenceRpcRequestClosure(done,
-                reqSequence, groupId, peerId));
+            // 处理 AppendEntries 请求
+            final Message response = service.handleAppendEntriesRequest(request,
+                    new SequenceRpcRequestClosure(done, reqSequence, groupId, peerId));
             if (response != null) {
-                sendSequenceResponse(groupId, peerId, reqSequence, done.getAsyncContext(), done.getBizContext(),
-                    response);
+                sendSequenceResponse(groupId, peerId, reqSequence, done.getAsyncContext(), done.getBizContext(), response);
             }
             return null;
         } else {
@@ -386,7 +397,7 @@ public class AppendEntriesRequestProcessor extends NodeRequestProcessor<AppendEn
         if (!StringUtils.isBlank(peerAttr) && peer.parse(peerAttr)) {
             // Clear request context when connection disconnected.
             for (final Map.Entry<String, ConcurrentMap<String, PeerRequestContext>> entry : this.peerRequestContexts
-                .entrySet()) {
+                    .entrySet()) {
                 final ConcurrentMap<String, PeerRequestContext> groupCtxs = entry.getValue();
                 synchronized (Utils.withLockObject(groupCtxs)) {
                     final PeerRequestContext ctx = groupCtxs.remove(peer.toString());
