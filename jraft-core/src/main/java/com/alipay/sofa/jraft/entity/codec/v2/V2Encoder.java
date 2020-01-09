@@ -14,10 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.entity.codec.v2;
 
-import java.io.IOException;
-import java.util.List;
+package com.alipay.sofa.jraft.entity.codec.v2;
 
 import com.alipay.sofa.jraft.entity.LogEntry;
 import com.alipay.sofa.jraft.entity.LogId;
@@ -30,10 +28,13 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.ZeroByteStringHelper;
 
+import java.io.IOException;
+import java.util.List;
+
 /**
  * V2 log entry encoder based on protobuf, see src/main/resources/log.proto
  *
- * @author boyan(boyan@antfin.com)
+ * @author boyan (boyan@antfin.com)
  */
 public class V2Encoder implements LogEntryEncoder {
 
@@ -63,9 +64,9 @@ public class V2Encoder implements LogEntryEncoder {
 
         final LogId logId = log.getId();
         final PBLogEntry.Builder builder = PBLogEntry.newBuilder() //
-            .setType(log.getType()) //
-            .setIndex(logId.getIndex()) //
-            .setTerm(logId.getTerm());
+                .setType(log.getType()) //
+                .setIndex(logId.getIndex()) //
+                .setTerm(logId.getTerm());
 
         final List<PeerId> peers = log.getPeers();
         if (hasPeers(peers)) {
@@ -111,7 +112,7 @@ public class V2Encoder implements LogEntryEncoder {
             output.checkNoSpaceLeft();
         } catch (final IOException e) {
             throw new RuntimeException(
-                "Serializing PBLogEntry to a byte array threw an IOException (should never happen).", e);
+                    "Serializing PBLogEntry to a byte array threw an IOException (should never happen).", e);
         }
     }
 

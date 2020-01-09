@@ -428,8 +428,7 @@ public class LogManagerImpl implements LogManager {
                 this.nodeMetrics.recordSize("append-logs-bytes", writtenSize);
                 final int nAppent = this.logStorage.appendEntries(toAppend);
                 if (nAppent != entriesCount) {
-                    LOG.error("**Critical error**, fail to appendEntries, nAppent={}, toAppend={}", nAppent,
-                            toAppend.size());
+                    LOG.error("**Critical error**, fail to appendEntries, nAppent={}, toAppend={}", nAppent, toAppend.size());
                     reportError(RaftError.EIO.getNumber(), "Fail to append log entries");
                 }
                 if (nAppent > 0) {
@@ -525,8 +524,7 @@ public class LogManagerImpl implements LogManager {
                             LOG.debug("Truncating storage to firstIndexKept={}", tpc.firstIndexKept);
                             ret = LogManagerImpl.this.logStorage.truncatePrefix(tpc.firstIndexKept);
                         } finally {
-                            LogManagerImpl.this.nodeMetrics.recordLatency("truncate-log-prefix", Utils.monotonicMs()
-                                    - startMs);
+                            LogManagerImpl.this.nodeMetrics.recordLatency("truncate-log-prefix", Utils.monotonicMs() - startMs);
                         }
                         break;
                     case TRUNCATE_SUFFIX:
@@ -947,8 +945,7 @@ public class LogManagerImpl implements LogManager {
 
     private void unsafeTruncateSuffix(final long lastIndexKept) {
         if (lastIndexKept < this.appliedId.getIndex()) {
-            LOG.error("FATAL ERROR: Can't truncate logs before appliedId={}, lastIndexKept={}", this.appliedId,
-                    lastIndexKept);
+            LOG.error("FATAL ERROR: Can't truncate logs before appliedId={}, lastIndexKept={}", this.appliedId, lastIndexKept);
             return;
         }
         while (!this.logsInMemory.isEmpty()) {
@@ -971,6 +968,7 @@ public class LogManagerImpl implements LogManager {
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
     private boolean checkAndResolveConflict(final List<LogEntry> entries, final StableClosure done) {
         final LogEntry firstLogEntry = ArrayDeque.peekFirst(entries);
+        // 分配 index
         if (firstLogEntry.getId().getIndex() == 0) {
             // Node is currently the leader and |entries| are from the user who
             // don't know the correct indexes the logs should assign to. So we have
@@ -991,8 +989,7 @@ public class LogManagerImpl implements LogManager {
             final long appliedIndex = this.appliedId.getIndex();
             final LogEntry lastLogEntry = ArrayDeque.peekLast(entries);
             if (lastLogEntry.getId().getIndex() <= appliedIndex) {
-                LOG.warn(
-                        "Received entries of which the lastLog={} is not greater than appliedIndex={}, return immediately with nothing changed.",
+                LOG.warn("Received entries of which the lastLog={} is not greater than appliedIndex={}, return immediately with nothing changed.",
                         lastLogEntry.getId().getIndex(), appliedIndex);
                 return false;
             }
@@ -1001,18 +998,19 @@ public class LogManagerImpl implements LogManager {
                 this.lastLogIndex = lastLogEntry.getId().getIndex();
             } else {
                 // Appending entries overlap the local ones. We should find if there
-                // is a conflicting index from which we should truncate the local
-                // ones.
+                // is a conflicting index from which we should truncate the local ones.
                 int conflictingIndex = 0;
+                // 从头开始遍历 entries
                 for (; conflictingIndex < entries.size(); conflictingIndex++) {
+                    // term 值不匹配
                     if (unsafeGetTerm(entries.get(conflictingIndex).getId().getIndex()) != entries.get(conflictingIndex).getId().getTerm()) {
                         break;
                     }
                 }
                 if (conflictingIndex != entries.size()) {
+                    // 删除本地冲突之后的 LogEntry
                     if (entries.get(conflictingIndex).getId().getIndex() <= this.lastLogIndex) {
-                        // Truncate all the conflicting entries to make local logs
-                        // consensus with the leader.
+                        // Truncate all the conflicting entries to make local logs consensus with the leader.
                         unsafeTruncateSuffix(entries.get(conflictingIndex).getId().getIndex() - 1);
                     }
                     this.lastLogIndex = lastLogEntry.getId().getIndex();
