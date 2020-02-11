@@ -48,11 +48,15 @@ public class RaftGroupService {
 
     /**
      * This node serverId
+     *
+     * 当前节点 ID
      */
     private PeerId serverId;
 
     /**
      * Node options
+     *
+     * 节点配置信息
      */
     private NodeOptions nodeOptions;
 
@@ -68,6 +72,8 @@ public class RaftGroupService {
 
     /**
      * The raft group id
+     *
+     * 所属 group 的 ID
      */
     private String groupId;
     /**
@@ -101,6 +107,8 @@ public class RaftGroupService {
 
     /**
      * Starts the raft group service, returns the raft node.
+     *
+     * 启动 Raft 服务
      */
     public synchronized Node start() {
         return this.start(true);
@@ -112,17 +120,23 @@ public class RaftGroupService {
      * @param startRpcServer whether to start RPC server.
      */
     public synchronized Node start(final boolean startRpcServer) {
+        // 已经启动，避免重复启动
         if (this.started) {
             return this.node;
         }
+
+        // 节点设置错误
         if (this.serverId == null || this.serverId.getEndpoint() == null
                 || this.serverId.getEndpoint().equals(new Endpoint(Utils.IP_ANY, 0))) {
             throw new IllegalArgumentException("Blank serverId:" + this.serverId);
         }
+
+        // group 缺失
         if (StringUtils.isBlank(this.groupId)) {
             throw new IllegalArgumentException("Blank group id" + this.groupId);
         }
-        //Adds RPC server to Server.
+
+        // Adds RPC server to Server. 记录节点标识
         NodeManager.getInstance().addAddress(this.serverId.getEndpoint());
 
         this.node = RaftServiceFactory.createAndInitRaftNode(this.groupId, this.serverId, this.nodeOptions);

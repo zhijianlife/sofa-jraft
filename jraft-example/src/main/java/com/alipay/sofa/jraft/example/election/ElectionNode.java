@@ -49,17 +49,23 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
 
     @Override
     public boolean init(final ElectionNodeOptions opts) {
+        // 已经启动过，避免重复启动
         if (this.started) {
             LOG.info("[ElectionNode: {}] already started.", node);
             return true;
         }
+
         // node options
         NodeOptions nodeOpts = opts.getNodeOptions();
         if (nodeOpts == null) {
             nodeOpts = new NodeOptions();
         }
+
+        // 创建状态机对象
         this.fsm = new ElectionOnlyStateMachine();
         nodeOpts.setFsm(this.fsm);
+
+        // 构造集群配置对象
         final Configuration initialConf = new Configuration();
         if (!initialConf.parse(opts.getInitialServerAddressList())) {
             throw new IllegalArgumentException("Fail to parse initConf: " + opts.getInitialServerAddressList());
@@ -79,6 +85,8 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
         nodeOpts.setRaftMetaUri(Paths.get(dataPath, "meta").toString());
         // 纯选举场景不需要设置 snapshot, 不设置可避免启动 snapshot timer
         // nodeOpts.setSnapshotUri(Paths.get(dataPath, "snapshot").toString());
+
+        /* 新建并启动一个 RPC 服务 */
 
         final String groupId = opts.getGroupId();
         final PeerId serverId = new PeerId();

@@ -170,7 +170,10 @@ public class NodeImpl implements Node, RaftServerService {
     private NodeOptions options;
     private RaftOptions raftOptions;
     private final PeerId serverId;
+
     /** Other services */
+
+    // 配置上下文？
     private final ConfigurationCtx confCtx;
     private LogStorage logStorage;
     private RaftMetaStorage metaStorage;
@@ -450,8 +453,8 @@ public class NodeImpl implements Node, RaftServerService {
         }
         this.groupId = groupId;
         this.serverId = serverId != null ? serverId.copy() : null;
-        this.state = State.STATE_UNINITIALIZED;
-        this.currTerm = 0;
+        this.state = State.STATE_UNINITIALIZED; // 设置初始状态
+        this.currTerm = 0; // 初始 term 值为 0
         updateLastLeaderTimestamp(Utils.monotonicMs());
         this.confCtx = new ConfigurationCtx(this);
         this.wakingCandidate = null;

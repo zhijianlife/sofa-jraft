@@ -14,21 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.core;
+
+import com.alipay.sofa.jraft.Lifecycle;
+import com.alipay.sofa.jraft.util.NamedThreadFactory;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import com.alipay.sofa.jraft.Lifecycle;
-import com.alipay.sofa.jraft.util.NamedThreadFactory;
-
 /**
  * The global timer manager.
  *
- * @author boyan (boyan@alibaba-inc.com)
+ * 基于 ScheduledExecutorService 的定时任务调度
  *
+ * @author boyan (boyan@alibaba-inc.com)
  * 2018-Mar-30 3:24:34 PM
  */
 public class TimerManager implements Lifecycle<Integer> {
@@ -37,8 +39,8 @@ public class TimerManager implements Lifecycle<Integer> {
 
     @Override
     public boolean init(Integer coreSize) {
-        executor = Executors.newScheduledThreadPool(coreSize, new NamedThreadFactory("JRaft-Node-ScheduleThreadPool-",
-            true));
+        executor = Executors.newScheduledThreadPool(
+                coreSize, new NamedThreadFactory("JRaft-Node-ScheduleThreadPool-", true));
         return true;
     }
 
