@@ -34,6 +34,8 @@ public final class RaftServiceFactory {
 
     /**
      * Create a raft node with group id and it's serverId.
+     *
+     * 创建指定 group 的 raft 节点
      */
     public static Node createRaftNode(String groupId, PeerId serverId) {
         return new NodeImpl(groupId, serverId);

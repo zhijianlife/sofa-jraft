@@ -42,6 +42,7 @@ public class ElectionBootstrap {
         electionOpts.setServerAddress(serverIdStr);
         electionOpts.setInitialServerAddressList(initialConfStr);
 
+        // 创建并启动节点
         final ElectionNode node = new ElectionNode();
         node.init(electionOpts);
         node.addLeaderStateListener(new LeaderStateListener() {

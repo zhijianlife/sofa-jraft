@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage;
 
 import com.alipay.sofa.jraft.Closure;
@@ -27,6 +28,8 @@ import com.alipay.sofa.jraft.util.Describer;
 
 /**
  * Executing Snapshot related stuff.
+ *
+ * 快照相关执行器
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -52,15 +55,14 @@ public interface SnapshotExecutor extends Lifecycle<SnapshotExecutorOptions>, De
      * After the installing succeeds (StateMachine is reset with the snapshot)
      * or fails, done will be called to respond
      * Errors:
-     *  - Term mismatches: which happens interrupt_downloading_snapshot was 
-     *    called before install_snapshot, indicating that this RPC was issued by
-     *    the old leader.
-     *  - Interrupted: happens when interrupt_downloading_snapshot is called or
-     *    a new RPC with the same or newer snapshot arrives
+     * - Term mismatches: which happens interrupt_downloading_snapshot was
+     * called before install_snapshot, indicating that this RPC was issued by
+     * the old leader.
+     * - Interrupted: happens when interrupt_downloading_snapshot is called or
+     * a new RPC with the same or newer snapshot arrives
      * - Busy: the state machine is saving or loading snapshot
      */
-    void installSnapshot(final InstallSnapshotRequest request, final InstallSnapshotResponse.Builder response,
-                         final RpcRequestClosure done);
+    void installSnapshot(final InstallSnapshotRequest request, final InstallSnapshotResponse.Builder response, final RpcRequestClosure done);
 
     /**
      * Interrupt the downloading if possible.
@@ -68,13 +70,13 @@ public interface SnapshotExecutor extends Lifecycle<SnapshotExecutorOptions>, De
      * happens when receiving RPC from new peer. In this case, it's hard to
      * determine whether to keep downloading snapshot as the new leader
      * possibly contains the missing logs and is going to send AppendEntries. To
-     * make things simplicity and leader changing during snapshot installing is 
+     * make things simplicity and leader changing during snapshot installing is
      * very rare. So we interrupt snapshot downloading when leader changes, and
-     * let the new leader decide whether to install a new snapshot or continue 
+     * let the new leader decide whether to install a new snapshot or continue
      * appending log entries.
-     * 
+     *
      * NOTE: we can't interrupt the snapshot installing which has finished
-     *  downloading and is reseting the State Machine.
+     * downloading and is reseting the State Machine.
      *
      * @param newTerm new term num
      */

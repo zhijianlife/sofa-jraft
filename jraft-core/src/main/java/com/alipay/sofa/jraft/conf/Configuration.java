@@ -31,6 +31,8 @@ import java.util.Set;
 /**
  * A configuration with a set of peers.
  *
+ * 配置类，用于管理集群节点
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-15 11:00:26 AM
@@ -125,7 +127,7 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        if (this.getClass() != obj.getClass()) {
             return false;
         }
         final Configuration other = (Configuration) obj;
@@ -139,7 +141,7 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        final List<PeerId> peers = listPeers();
+        final List<PeerId> peers = this.listPeers();
         int i = 0;
         final int size = peers.size();
         for (final PeerId peer : peers) {
@@ -162,12 +164,12 @@ public class Configuration implements Iterable<PeerId>, Copiable<Configuration> 
         if (conf == null) {
             return false;
         }
-        reset();
+        this.reset();
         final String[] peerStrs = StringUtils.split(conf, ",");
         for (final String peerStr : peerStrs) {
             final PeerId peer = new PeerId();
             if (peer.parse(peerStr)) {
-                addPeer(peer);
+                this.addPeer(peer);
             }
         }
         return true;

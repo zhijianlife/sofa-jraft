@@ -139,6 +139,7 @@ public class RaftGroupService {
         // Adds RPC server to Server. 记录节点标识
         NodeManager.getInstance().addAddress(this.serverId.getEndpoint());
 
+        // 创建并初始化 Raft 节点
         this.node = RaftServiceFactory.createAndInitRaftNode(this.groupId, this.serverId, this.nodeOptions);
         if (startRpcServer) {
             // 启动 RPC 服务

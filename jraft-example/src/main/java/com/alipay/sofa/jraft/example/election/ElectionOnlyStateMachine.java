@@ -28,6 +28,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
+ * 选主状态机
+ *
  * @author jiachun.fjc
  */
 public class ElectionOnlyStateMachine extends StateMachineAdapter {

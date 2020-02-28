@@ -14,12 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rpc.impl.core;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Future;
+package com.alipay.sofa.jraft.rpc.impl.core;
 
 import com.alipay.remoting.ConnectionEventType;
 import com.alipay.remoting.InvokeContext;
@@ -48,6 +44,11 @@ import com.alipay.sofa.jraft.util.concurrent.DefaultFixedThreadsExecutorGroupFac
 import com.alipay.sofa.jraft.util.concurrent.FixedThreadsExecutorGroup;
 import com.google.protobuf.Message;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
+
 /**
  * Raft rpc service based bolt.
  *
@@ -57,23 +58,23 @@ import com.google.protobuf.Message;
  */
 public class BoltRaftClientService extends AbstractBoltClientService implements RaftClientService {
 
-    private static final FixedThreadsExecutorGroup  APPEND_ENTRIES_EXECUTORS = DefaultFixedThreadsExecutorGroupFactory.INSTANCE
-                                                                                 .newExecutorGroup(
-                                                                                     Utils.APPEND_ENTRIES_THREADS_SEND,
-                                                                                     "Append-Entries-Thread-Send",
-                                                                                     Utils.MAX_APPEND_ENTRIES_TASKS_PER_THREAD,
-                                                                                     true);
+    private static final FixedThreadsExecutorGroup APPEND_ENTRIES_EXECUTORS = DefaultFixedThreadsExecutorGroupFactory.INSTANCE
+            .newExecutorGroup(
+                    Utils.APPEND_ENTRIES_THREADS_SEND,
+                    "Append-Entries-Thread-Send",
+                    Utils.MAX_APPEND_ENTRIES_TASKS_PER_THREAD,
+                    true);
 
     private final ConcurrentMap<Endpoint, Executor> appendEntriesExecutorMap = new ConcurrentHashMap<>();
 
     // cached node options
-    private NodeOptions                             nodeOptions;
-    private final ReplicatorGroup                   rgGroup;
+    private NodeOptions nodeOptions;
+    private final ReplicatorGroup rgGroup;
 
     @Override
     protected void configRpcClient(final RpcClient rpcClient) {
         rpcClient.addConnectionEventProcessor(ConnectionEventType.CONNECT, new ClientServiceConnectionEventProcessor(
-            this.rgGroup));
+                this.rgGroup));
     }
 
     public BoltRaftClientService(final ReplicatorGroup rgGroup) {
@@ -92,20 +93,20 @@ public class BoltRaftClientService extends AbstractBoltClientService implements 
     @Override
     public Future<Message> preVote(final Endpoint endpoint, final RequestVoteRequest request,
                                    final RpcResponseClosure<RequestVoteResponse> done) {
-        return invokeWithDone(endpoint, request, done, this.nodeOptions.getElectionTimeoutMs());
+        return this.invokeWithDone(endpoint, request, done, this.nodeOptions.getElectionTimeoutMs());
     }
 
     @Override
     public Future<Message> requestVote(final Endpoint endpoint, final RequestVoteRequest request,
                                        final RpcResponseClosure<RequestVoteResponse> done) {
-        return invokeWithDone(endpoint, request, done, this.nodeOptions.getElectionTimeoutMs());
+        return this.invokeWithDone(endpoint, request, done, this.nodeOptions.getElectionTimeoutMs());
     }
 
     @Override
     public Future<Message> appendEntries(final Endpoint endpoint, final AppendEntriesRequest request,
                                          final int timeoutMs, final RpcResponseClosure<AppendEntriesResponse> done) {
         final Executor executor = this.appendEntriesExecutorMap.computeIfAbsent(endpoint, k -> APPEND_ENTRIES_EXECUTORS.next());
-        return invokeWithDone(endpoint, request, done, timeoutMs, executor);
+        return this.invokeWithDone(endpoint, request, done, timeoutMs, executor);
     }
 
     @Override
@@ -114,24 +115,24 @@ public class BoltRaftClientService extends AbstractBoltClientService implements 
         // open checksum
         final InvokeContext ctx = new InvokeContext();
         ctx.put(InvokeContext.BOLT_CRC_SWITCH, true);
-        return invokeWithDone(endpoint, request, ctx, done, timeoutMs);
+        return this.invokeWithDone(endpoint, request, ctx, done, timeoutMs);
     }
 
     @Override
     public Future<Message> installSnapshot(final Endpoint endpoint, final InstallSnapshotRequest request,
                                            final RpcResponseClosure<InstallSnapshotResponse> done) {
-        return invokeWithDone(endpoint, request, done, this.rpcOptions.getRpcInstallSnapshotTimeout());
+        return this.invokeWithDone(endpoint, request, done, this.rpcOptions.getRpcInstallSnapshotTimeout());
     }
 
     @Override
     public Future<Message> timeoutNow(final Endpoint endpoint, final TimeoutNowRequest request, final int timeoutMs,
                                       final RpcResponseClosure<TimeoutNowResponse> done) {
-        return invokeWithDone(endpoint, request, done, timeoutMs);
+        return this.invokeWithDone(endpoint, request, done, timeoutMs);
     }
 
     @Override
     public Future<Message> readIndex(final Endpoint endpoint, final ReadIndexRequest request, final int timeoutMs,
                                      final RpcResponseClosure<ReadIndexResponse> done) {
-        return invokeWithDone(endpoint, request, done, timeoutMs);
+        return this.invokeWithDone(endpoint, request, done, timeoutMs);
     }
 }
