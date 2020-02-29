@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.impl;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.core.NodeImpl;
 import com.alipay.sofa.jraft.core.NodeMetrics;
@@ -36,9 +29,18 @@ import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.storage.RaftMetaStorage;
 import com.alipay.sofa.jraft.storage.io.ProtoBufFile;
 import com.alipay.sofa.jraft.util.Utils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 
 /**
- * Raft meta storage,it's not thread-safe.
+ * Raft meta storage, it's not thread-safe.
+ *
+ * 元数据本地化存储，基于 protobuf 做序列化
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -46,17 +48,18 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class LocalRaftMetaStorage implements RaftMetaStorage {
 
-    private static final Logger LOG       = LoggerFactory.getLogger(LocalRaftMetaStorage.class);
+    private static final Logger LOG = LoggerFactory.getLogger(LocalRaftMetaStorage.class);
     private static final String RAFT_META = "raft_meta";
 
-    private boolean             isInited;
-    private final String        path;
-    private long                term;
-    /** blank votedFor information*/
-    private PeerId              votedFor  = PeerId.emptyPeer();
-    private final RaftOptions   raftOptions;
-    private NodeMetrics         nodeMetrics;
-    private NodeImpl            node;
+    private boolean isInited;
+    private final String path;
+    /** 任期值 */
+    private long term;
+    /** blank votedFor information */
+    private PeerId votedFor = PeerId.emptyPeer();
+    private final RaftOptions raftOptions;
+    private NodeMetrics nodeMetrics;
+    private NodeImpl node;
 
     public LocalRaftMetaStorage(final String path, final RaftOptions raftOptions) {
         super();
@@ -78,7 +81,8 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
             LOG.error("Fail to mkdir {}", this.path);
             return false;
         }
-        if (load()) {
+        // 从文件中获取 term 值和 votedFor 对象
+        if (this.load()) {
             this.isInited = true;
             return true;
         } else {
@@ -86,11 +90,17 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
         }
     }
 
+    /**
+     * 从文件中获取 term 值和 votedFor 对象
+     *
+     * @return
+     */
     private boolean load() {
-        final ProtoBufFile pbFile = newPbFile();
+        final ProtoBufFile pbFile = this.newPbFile();
         try {
             final StablePBMeta meta = pbFile.load();
             if (meta != null) {
+                // 获取 term 值，以及目标投票节点
                 this.term = meta.getTerm();
                 return this.votedFor.parse(meta.getVotedfor());
             }
@@ -110,19 +120,19 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
     private boolean save() {
         final long start = Utils.monotonicMs();
         final StablePBMeta meta = StablePBMeta.newBuilder(). //
-            setTerm(this.term). //
-            setVotedfor(this.votedFor.toString()). //
-            build();
-        final ProtoBufFile pbFile = newPbFile();
+                setTerm(this.term). //
+                setVotedfor(this.votedFor.toString()). //
+                build();
+        final ProtoBufFile pbFile = this.newPbFile();
         try {
             if (!pbFile.save(meta, this.raftOptions.isSyncMeta())) {
-                reportIOError();
+                this.reportIOError();
                 return false;
             }
             return true;
         } catch (final Exception e) {
             LOG.error("Fail to save raft meta", e);
-            reportIOError();
+            this.reportIOError();
             return false;
         } finally {
             final long cost = Utils.monotonicMs() - start;
@@ -130,13 +140,13 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
                 this.nodeMetrics.recordLatency("save-raft-meta", cost);
             }
             LOG.info("Save raft meta, path={}, term={}, votedFor={}, cost time={} ms", this.path, this.term,
-                this.votedFor, cost);
+                    this.votedFor, cost);
         }
     }
 
     private void reportIOError() {
         this.node.onError(new RaftException(ErrorType.ERROR_TYPE_META, RaftError.EIO,
-            "Fail to save raft meta, path=%s", this.path));
+                "Fail to save raft meta, path=%s", this.path));
     }
 
     @Override
@@ -144,7 +154,7 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
         if (!this.isInited) {
             return;
         }
-        save();
+        this.save();
         this.isInited = false;
     }
 
@@ -156,36 +166,36 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
 
     @Override
     public boolean setTerm(final long term) {
-        checkState();
+        this.checkState();
         this.term = term;
-        return save();
+        return this.save();
     }
 
     @Override
     public long getTerm() {
-        checkState();
+        this.checkState();
         return this.term;
     }
 
     @Override
     public boolean setVotedFor(final PeerId peerId) {
-        checkState();
+        this.checkState();
         this.votedFor = peerId;
-        return save();
+        return this.save();
     }
 
     @Override
     public PeerId getVotedFor() {
-        checkState();
+        this.checkState();
         return this.votedFor;
     }
 
     @Override
     public boolean setTermAndVotedFor(final long term, final PeerId peerId) {
-        checkState();
+        this.checkState();
         this.votedFor = peerId;
         this.term = term;
-        return save();
+        return this.save();
     }
 
     @Override

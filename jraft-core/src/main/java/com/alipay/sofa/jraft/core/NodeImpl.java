@@ -156,12 +156,12 @@ public class NodeImpl implements Node, RaftServerService {
     /** 节点状态 */
     private volatile State state; // 初始为 STATE_UNINITIALIZED
     private volatile CountDownLatch shutdownLatch;
-    /** 当前任期，初始为 0 */
+    /** 当前任期，初始为 0，启动时尝试从元数据文件中获取 */
     private long currTerm;
     /** 最近一次收到来自 leader 请求的时间戳，初始为当前时间 */
     private volatile long lastLeaderTimestamp;
     private PeerId leaderId = new PeerId();
-    /** 当前节点的投票节点，null 或 empty 代表没有投票 */
+    /** 当前节点的投票节点，启动时尝试从元数据文件中获取，null 或 empty 代表没有投票 */
     private PeerId votedId;
     private final Ballot voteCtx = new Ballot();
     private final Ballot prevVoteCtx = new Ballot();
@@ -517,10 +517,17 @@ public class NodeImpl implements Node, RaftServerService {
         return this.logManager.init(opts);
     }
 
+    /**
+     * 初始化元数据存储模块
+     *
+     * @return
+     */
     private boolean initMetaStorage() {
+        // 创建 RaftMetaStorage 对象，默认基本本地存储
         this.metaStorage = this.serviceFactory.createRaftMetaStorage(this.options.getRaftMetaUri(), this.raftOptions);
         RaftMetaStorageOptions opts = new RaftMetaStorageOptions();
         opts.setNode(this);
+        // 初始化元数据存储，主要是从文件中读取 term 和 votedFor
         if (!this.metaStorage.init(opts)) {
             LOG.error("Node {} init meta storage failed, uri={}.", this.serverId, this.options.getRaftMetaUri());
             return false;
@@ -797,13 +804,13 @@ public class NodeImpl implements Node, RaftServerService {
             return false;
         }
 
-        // TODO zhenchao 2020-2-28 18:25:28
-
         // 初始化元数据存储模块
         if (!this.initMetaStorage()) {
             LOG.error("Node {} initMetaStorage failed.", this.getNodeId());
             return false;
         }
+
+        // TODO zhenchao 2020-2-29 18:38:26
 
         // 初始化有限状态机调度器 FSMCaller
         if (!this.initFSMCaller(new LogId(0, 0))) {
