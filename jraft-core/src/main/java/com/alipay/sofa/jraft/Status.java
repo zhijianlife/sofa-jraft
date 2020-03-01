@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.error.RaftError;
@@ -43,8 +44,8 @@ public class Status implements Copiable<Status> {
      */
     private static class State {
         /** error code */
-        int    code;
-        /** error msg*/
+        int code;
+        /** error msg */
         String msg;
 
         State(int code, String msg) {
@@ -215,7 +216,7 @@ public class Status implements Copiable<Status> {
             return "Status[OK]";
         } else {
             return "Status[" + RaftError.describeCode(this.state.code) + "<" + this.state.code + ">: " + this.state.msg
-                   + "]";
+                    + "]";
         }
     }
 

@@ -37,6 +37,7 @@ import java.util.List;
  * 2018-Apr-08 5:35:26 PM
  */
 public interface ReplicatorGroup extends Describer {
+
     /**
      * Init the replicator group.
      *
@@ -116,8 +117,8 @@ public interface ReplicatorGroup extends Describer {
 
     /**
      * Reset the term of all to-add replicators.
-     * This method is supposed to be called when the very candidate becomes the
-     * leader, so we suppose that there are no running replicators.
+     * This method is supposed to be called when the very candidate becomes the leader,
+     * so we suppose that there are no running replicators.
      * Return true on success, false otherwise
      *
      * @param newTerm new term num

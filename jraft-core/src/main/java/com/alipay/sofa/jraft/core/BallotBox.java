@@ -169,13 +169,11 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
         final long stamp = this.stampedLock.writeLock();
         try {
             if (!(this.pendingIndex == 0 && this.pendingMetaQueue.isEmpty())) {
-                LOG.error("resetPendingIndex fail, pendingIndex={}, pendingMetaQueueSize={}.", this.pendingIndex,
-                        this.pendingMetaQueue.size());
+                LOG.error("resetPendingIndex fail, pendingIndex={}, pendingMetaQueueSize={}.", this.pendingIndex, this.pendingMetaQueue.size());
                 return false;
             }
             if (newPendingIndex <= this.lastCommittedIndex) {
-                LOG.error("resetPendingIndex fail, newPendingIndex={}, lastCommittedIndex={}.", newPendingIndex,
-                        this.lastCommittedIndex);
+                LOG.error("resetPendingIndex fail, newPendingIndex={}, lastCommittedIndex={}.", newPendingIndex, this.lastCommittedIndex);
                 return false;
             }
             this.pendingIndex = newPendingIndex;

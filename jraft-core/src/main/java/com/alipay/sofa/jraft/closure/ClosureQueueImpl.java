@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.closure;
-
-import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.Status;
@@ -30,9 +23,18 @@ import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.util.OnlyForTest;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Closure queue implementation.
+ *
+ * 基于 LinkedList 的 ClosureQueue 实现
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -42,8 +44,8 @@ public class ClosureQueueImpl implements ClosureQueue {
 
     private static final Logger LOG = LoggerFactory.getLogger(ClosureQueueImpl.class);
 
-    private final Lock          lock;
-    private long                firstIndex;
+    private final Lock lock;
+    private long firstIndex;
     private LinkedList<Closure> queue;
 
     @OnlyForTest
@@ -122,8 +124,7 @@ public class ClosureQueueImpl implements ClosureQueue {
                 return endIndex + 1;
             }
             if (endIndex > this.firstIndex + queueSize - 1) {
-                LOG.error("Invalid endIndex={}, firstIndex={}, closureQueueSize={}", endIndex, this.firstIndex,
-                    queueSize);
+                LOG.error("Invalid endIndex={}, firstIndex={}, closureQueueSize={}", endIndex, this.firstIndex, queueSize);
                 return -1;
             }
             final long outFirstIndex = this.firstIndex;

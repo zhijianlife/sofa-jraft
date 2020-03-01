@@ -96,6 +96,7 @@ public class LogManagerImpl implements LogManager {
     private volatile long firstLogIndex;
     /** 首次为 0 */
     private volatile long lastLogIndex;
+    /** 快照对应的最后一条日志数据的 ID */
     private volatile LogId lastSnapshotId = new LogId(0, 0);
     private final Map<Long, WaitMeta> waitMap = new HashMap<>();
     private Disruptor<StableClosureEvent> disruptor;
@@ -1119,21 +1120,26 @@ public class LogManagerImpl implements LogManager {
     public Status checkConsistency() {
         this.readLock.lock();
         try {
+            // firstLogIndex 和 lastLogIndex 值合法
             Requires.requireTrue(this.firstLogIndex > 0);
             Requires.requireTrue(this.lastLogIndex >= 0);
+
+            // 未生成过快照
             if (this.lastSnapshotId.equals(new LogId(0, 0))) {
                 if (this.firstLogIndex == 1) {
                     return Status.OK();
                 }
                 return new Status(RaftError.EIO, "Missing logs in (0, %d)", this.firstLogIndex);
-            } else {
+            }
+            // 已经生成过快照
+            else {
+                // 要求快照最后一条日志的 index 必须在 [firstLogIndex -1, lastLogIndex] 之间
                 if (this.lastSnapshotId.getIndex() >= this.firstLogIndex - 1
                         && this.lastSnapshotId.getIndex() <= this.lastLogIndex) {
                     return Status.OK();
                 }
                 return new Status(RaftError.EIO, "There's a gap between snapshot={%d, %d} and log=[%d, %d] ",
-                        this.lastSnapshotId.toString(), this.lastSnapshotId.getTerm(), this.firstLogIndex,
-                        this.lastLogIndex);
+                        this.lastSnapshotId.toString(), this.lastSnapshotId.getTerm(), this.firstLogIndex, this.lastLogIndex);
             }
         } finally {
             this.readLock.unlock();

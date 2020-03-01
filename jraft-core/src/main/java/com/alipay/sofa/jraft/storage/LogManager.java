@@ -112,8 +112,7 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
     /**
      * Wait the log manager to be shut down.
      *
-     * @throws InterruptedException if the current thread is interrupted
-     *                              while waiting
+     * @throws InterruptedException if the current thread is interrupted while waiting
      */
     void join() throws InterruptedException;
 
@@ -235,6 +234,8 @@ public interface LogManager extends Lifecycle<LogManagerOptions>, Describer {
 
     /**
      * Check log consistency, returns the status
+     *
+     * 校验日志数据一致性
      *
      * @return status
      */

@@ -25,6 +25,8 @@ import java.util.List;
 /**
  * A ballot to vote.
  *
+ * 选票
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-15 2:29:11 PM
@@ -72,10 +74,12 @@ public class Ballot {
             }
         }
 
+        // 计算仲裁人数
         this.quorum = this.peers.size() / 2 + 1;
         if (oldConf == null) {
             return true;
         }
+
         index = 0;
         for (PeerId peer : oldConf) {
             this.oldPeers.add(new UnfoundPeerId(peer, index++, false));

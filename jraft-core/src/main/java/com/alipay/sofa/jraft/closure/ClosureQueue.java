@@ -14,16 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.closure;
-
-import java.util.List;
-
-import javax.annotation.concurrent.ThreadSafe;
 
 import com.alipay.sofa.jraft.Closure;
 
+import java.util.List;
+import javax.annotation.concurrent.ThreadSafe;
+
 /**
  * A thread-safe closure queue.
+ *
+ * 管理 closure 的队列，线程安全
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -56,8 +58,8 @@ public interface ClosureQueue {
      * popped out index, returns -1 when out of range, returns index+1
      * when not found.
      *
-     * @param endIndex     the index of queue
-     * @param closures     closure list
+     * @param endIndex the index of queue
+     * @param closures closure list
      * @return returns the first popped out index, returns -1 when out
      * of range, returns index+1
      * when not found.
@@ -69,8 +71,8 @@ public interface ClosureQueue {
      * popped out index, returns -1 when out of range, returns index+1
      * when not found.
      *
-     * @param endIndex     the index of queue
-     * @param closures     closure list
+     * @param endIndex the index of queue
+     * @param closures closure list
      * @param taskClosures task closure list
      * @return returns the first popped out index, returns -1 when out
      * of range, returns index+1

@@ -150,6 +150,7 @@ public class FSMCallerImpl implements FSMCaller {
     }
 
     private LogManager logManager;
+    /** 具体的有限状态机实现 */
     private StateMachine fsm;
     private ClosureQueue closureQueue;
     private final AtomicLong lastAppliedIndex;
@@ -175,14 +176,17 @@ public class FSMCallerImpl implements FSMCaller {
     @Override
     public boolean init(final FSMCallerOptions opts) {
         this.logManager = opts.getLogManager();
+        // 具体的有限状态机实现
         this.fsm = opts.getFsm();
         this.closureQueue = opts.getClosureQueue();
         this.afterShutdown = opts.getAfterShutdown();
         this.node = opts.getNode();
         this.nodeMetrics = this.node.getNodeMetrics();
+
         this.lastAppliedIndex.set(opts.getBootstrapId().getIndex());
         notifyLastAppliedIndexUpdated(this.lastAppliedIndex.get());
         this.lastAppliedTerm = opts.getBootstrapId().getTerm();
+
         this.disruptor = DisruptorBuilder.<ApplyTask>newInstance() //
                 .setEventFactory(new ApplyTaskFactory()) //
                 .setRingBufferSize(opts.getDisruptorBufferSize()) //
@@ -193,9 +197,9 @@ public class FSMCallerImpl implements FSMCaller {
         this.disruptor.handleEventsWith(new ApplyTaskHandler());
         this.disruptor.setDefaultExceptionHandler(new LogExceptionHandler<Object>(getClass().getSimpleName()));
         this.taskQueue = this.disruptor.start();
+
         if (this.nodeMetrics.getMetricRegistry() != null) {
-            this.nodeMetrics.getMetricRegistry().register("jraft-fsm-caller-disruptor",
-                    new DisruptorMetricSet(this.taskQueue));
+            this.nodeMetrics.getMetricRegistry().register("jraft-fsm-caller-disruptor", new DisruptorMetricSet(this.taskQueue));
         }
         this.error = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_NONE);
         LOG.info("Starts FSMCaller successfully.");
