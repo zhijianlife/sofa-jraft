@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Replicator id with lock.
  *
- * 基于非重入锁实现的 ID
+ * 基于非重入锁实现的 replicator ID
  *
  * @author boyan (boyan@alibaba-inc.com)
  *
@@ -83,7 +83,7 @@ public class ThreadId {
             return null;
         }
         try {
-            // 尝试获取非重入锁
+            // 循环尝试获取非重入锁，直到成功为止，超时时间 10s
             while (!this.lock.tryLock(TRY_LOCK_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
                 if (this.destroyed) {
                     return null;

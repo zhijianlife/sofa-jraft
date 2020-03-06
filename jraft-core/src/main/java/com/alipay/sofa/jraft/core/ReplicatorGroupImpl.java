@@ -55,6 +55,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
 
     /** [peerId, replicatorId], 记录与目标节点关联的 Replicator 对象 */
     private final ConcurrentMap<PeerId, ThreadId> replicatorMap = new ConcurrentHashMap<>();
+
     /** common replicator options */
     private ReplicatorOptions commonOptions;
     private int dynamicTimeoutMs = -1;
@@ -84,23 +85,6 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
     }
 
     @Override
-    public void sendHeartbeat(final PeerId peer, final RpcResponseClosure<AppendEntriesResponse> closure) {
-        final ThreadId rid = this.replicatorMap.get(peer);
-        if (rid == null) {
-            if (closure != null) {
-                closure.run(new Status(RaftError.EHOSTDOWN, "Peer %s is not connected", peer));
-            }
-            return;
-        }
-        Replicator.sendHeartbeat(rid, closure);
-    }
-
-    @Override
-    public ThreadId getReplicator(final PeerId peer) {
-        return this.replicatorMap.get(peer);
-    }
-
-    @Override
     public boolean addReplicator(final PeerId peer) {
         Requires.requireTrue(this.commonOptions.getTerm() != 0);
         // 已经添加了 Replicator，直接返回
@@ -120,6 +104,49 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
         }
         // 记录
         return this.replicatorMap.put(peer, rid) == null;
+    }
+
+    @Override
+    public void sendHeartbeat(final PeerId peer, final RpcResponseClosure<AppendEntriesResponse> closure) {
+        final ThreadId rid = this.replicatorMap.get(peer);
+        if (rid == null) {
+            if (closure != null) {
+                closure.run(new Status(RaftError.EHOSTDOWN, "Peer %s is not connected", peer));
+            }
+            return;
+        }
+        // 发送心跳请求
+        Replicator.sendHeartbeat(rid, closure);
+    }
+
+    @Override
+    public void checkReplicator(final PeerId peer, final boolean lockNode) {
+        final ThreadId rid = this.replicatorMap.get(peer);
+        // noinspection StatementWithEmptyBody
+        if (rid == null) {
+            // Create replicator if it's not found for leader.
+            final NodeImpl node = this.commonOptions.getNode();
+            if (lockNode) {
+                node.writeLock.lock();
+            }
+            try {
+                if (node.isLeader() && this.failureReplicators.contains(peer) && this.addReplicator(peer)) {
+                    this.failureReplicators.remove(peer);
+                }
+            } finally {
+                if (lockNode) {
+                    node.writeLock.unlock();
+                }
+            }
+        } else { // NOPMD
+            // Unblock it right now.
+            // Replicator.unBlockAndSendNow(rid);
+        }
+    }
+
+    @Override
+    public ThreadId getReplicator(final PeerId peer) {
+        return this.replicatorMap.get(peer);
     }
 
     @Override
@@ -156,31 +183,6 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
             Replicator.stop(rid);
         }
         return true;
-    }
-
-    @Override
-    public void checkReplicator(final PeerId peer, final boolean lockNode) {
-        final ThreadId rid = this.replicatorMap.get(peer);
-        // noinspection StatementWithEmptyBody
-        if (rid == null) {
-            // Create replicator if it's not found for leader.
-            final NodeImpl node = this.commonOptions.getNode();
-            if (lockNode) {
-                node.writeLock.lock();
-            }
-            try {
-                if (node.isLeader() && this.failureReplicators.contains(peer) && addReplicator(peer)) {
-                    this.failureReplicators.remove(peer);
-                }
-            } finally {
-                if (lockNode) {
-                    node.writeLock.unlock();
-                }
-            }
-        } else { // NOPMD
-            // Unblock it right now.
-            // Replicator.unBlockAndSendNow(rid);
-        }
     }
 
     @Override
@@ -282,9 +284,7 @@ public class ReplicatorGroupImpl implements ReplicatorGroup {
 
     @Override
     public void describe(final Printer out) {
-        out.print("  replicators: ") //
-                .println(this.replicatorMap.values());
-        out.print("  failureReplicators: ") //
-                .println(this.failureReplicators);
+        out.print("  replicators: ").println(this.replicatorMap.values());
+        out.print("  failureReplicators: ").println(this.failureReplicators);
     }
 }

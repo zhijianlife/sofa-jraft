@@ -19,9 +19,11 @@ package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.closure.CatchUpClosure;
 import com.alipay.sofa.jraft.conf.ConfigurationEntry;
+import com.alipay.sofa.jraft.core.Replicator;
 import com.alipay.sofa.jraft.entity.NodeId;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.ReplicatorGroupOptions;
+import com.alipay.sofa.jraft.option.ReplicatorOptions;
 import com.alipay.sofa.jraft.rpc.RpcRequests.AppendEntriesResponse;
 import com.alipay.sofa.jraft.rpc.RpcResponseClosure;
 import com.alipay.sofa.jraft.util.Describer;
@@ -41,6 +43,8 @@ public interface ReplicatorGroup extends Describer {
     /**
      * Init the replicator group.
      *
+     * 初始化复制器组，主要是初始化 {@link ReplicatorOptions}
+     *
      * @param nodeId node id
      * @param opts options of replicator grop
      * @return true if init success
@@ -53,7 +57,7 @@ public interface ReplicatorGroup extends Describer {
      * NOTE: when calling this function, the replicators starts to work immediately,
      * and might call Node#stepDown which might have race with the caller, you should deal with this situation.
      *
-     * 将指定节点添加成为自己的 follower
+     * 创建并启动（{@link Replicator#start}）一个到指定 follower 节点的 replicator，并记录到 Map 中；
      *
      * @param peer target peer
      * @return true on success
@@ -62,6 +66,8 @@ public interface ReplicatorGroup extends Describer {
 
     /**
      * Send heartbeat to a peer.
+     *
+     * 调用 {@link Replicator#sendHeartbeat} 方法向目标节点发送心跳请求；
      *
      * @param peer target peer
      * @param closure callback
@@ -80,6 +86,8 @@ public interface ReplicatorGroup extends Describer {
      * Check replicator state, if it's not started, start it;
      * if it is blocked, unblock it. It should be called by leader.
      *
+     * 检查到目标节点的 replicator 运行状态，如果没有启动则启动，如果被阻塞则尝试解锁
+     *
      * @param peer peer of replicator
      * @param lockNode if lock with node
      */
@@ -87,11 +95,15 @@ public interface ReplicatorGroup extends Describer {
 
     /**
      * Clear failure to start replicators
+     *
+     * 清空本地记录的所有创建或启动失败的 replicator
      */
     void clearFailureReplicators();
 
     /**
      * Wait the peer catchup.
+     *
+     * 等待目标 follower 节点追赶上进度
      */
     boolean waitCaughtUp(final PeerId peer, final long maxMargin, final long dueTime, final CatchUpClosure done);
 

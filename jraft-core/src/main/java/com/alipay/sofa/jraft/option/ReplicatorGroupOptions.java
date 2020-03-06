@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.option;
 
 import com.alipay.sofa.jraft.core.BallotBox;
@@ -32,15 +33,15 @@ import com.alipay.sofa.jraft.storage.SnapshotStorage;
  */
 public class ReplicatorGroupOptions {
 
-    private int               heartbeatTimeoutMs;
-    private int               electionTimeoutMs;
-    private LogManager        logManager;
-    private BallotBox         ballotBox;
-    private NodeImpl          node;
-    private SnapshotStorage   snapshotStorage;
+    private int heartbeatTimeoutMs;
+    private int electionTimeoutMs;
+    private LogManager logManager;
+    private BallotBox ballotBox;
+    private NodeImpl node;
+    private SnapshotStorage snapshotStorage;
     private RaftClientService raftRpcClientService;
-    private RaftOptions       raftOptions;
-    private TimerManager      timerManager;
+    private RaftOptions raftOptions;
+    private TimerManager timerManager;
 
     public TimerManager getTimerManager() {
         return this.timerManager;
@@ -117,8 +118,8 @@ public class ReplicatorGroupOptions {
     @Override
     public String toString() {
         return "ReplicatorGroupOptions{" + "heartbeatTimeoutMs=" + heartbeatTimeoutMs + ", electionTimeoutMs="
-               + electionTimeoutMs + ", logManager=" + logManager + ", ballotBox=" + ballotBox + ", node=" + node
-               + ", snapshotStorage=" + snapshotStorage + ", raftRpcClientService=" + raftRpcClientService
-               + ", raftOptions=" + raftOptions + ", timerManager=" + timerManager + '}';
+                + electionTimeoutMs + ", logManager=" + logManager + ", ballotBox=" + ballotBox + ", node=" + node
+                + ", snapshotStorage=" + snapshotStorage + ", raftRpcClientService=" + raftRpcClientService
+                + ", raftOptions=" + raftOptions + ", timerManager=" + timerManager + '}';
     }
 }

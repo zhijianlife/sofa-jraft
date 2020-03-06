@@ -1087,7 +1087,7 @@ public class NodeImpl implements Node, RaftServerService {
                 this.getNodeId(), this.currTerm, this.conf.getConf(), this.conf.getOldConf());
         // 停止 voteTimer
         this.stopVoteTimer();
-        // 切换角色未 LEADER
+        // 切换角色为 LEADER
         this.state = State.STATE_LEADER;
         this.leaderId = this.serverId.copy();
         this.replicatorGroup.resetTerm(this.currTerm);
@@ -1103,6 +1103,7 @@ public class NodeImpl implements Node, RaftServerService {
                 LOG.error("Fail to add replicator, peer={}.", peer);
             }
         }
+
         // init commit manager
         this.ballotBox.resetPendingIndex(this.logManager.getLastLogIndex() + 1);
         // Register _conf_ctx to reject configuration changing before the first log is committed.
@@ -1110,6 +1111,7 @@ public class NodeImpl implements Node, RaftServerService {
             throw new IllegalStateException();
         }
         this.confCtx.flush(this.conf.getConf(), this.conf.getOldConf());
+
         // 启动 stepdownTimer
         this.stepDownTimer.start();
     }
@@ -1129,6 +1131,7 @@ public class NodeImpl implements Node, RaftServerService {
         if (!this.state.isActive()) {
             return;
         }
+
         // 当前结点处于 CANDIDATE 角色
         if (this.state == State.STATE_CANDIDATE) {
             this.stopVoteTimer();
@@ -2004,9 +2007,17 @@ public class NodeImpl implements Node, RaftServerService {
         }
     }
 
+    /**
+     * 基于通信时间戳检查集群中有效节点是否过半，如果未过半则执行 stepdown
+     *
+     * @param conf
+     * @param monotonicNowMs 当前时间戳
+     */
     private void checkDeadNodes(final Configuration conf, final long monotonicNowMs) {
         final List<PeerId> peers = conf.listPeers();
         final Configuration deadNodes = new Configuration();
+
+        // 有效节点数目过半，直接返回
         if (this.checkDeadNodes0(peers, monotonicNowMs, true, deadNodes)) {
             return;
         }
@@ -2014,23 +2025,42 @@ public class NodeImpl implements Node, RaftServerService {
                 this.getNodeId(), this.currTerm, deadNodes, conf);
         final Status status = new Status();
         status.setError(RaftError.ERAFTTIMEDOUT, "Majority of the group dies: %d/%d", deadNodes.size(), peers.size());
+        // 有效节点未过半，执行 stepdown
         this.stepDown(this.currTerm, false, status);
     }
 
-    private boolean checkDeadNodes0(final List<PeerId> peers, final long monotonicNowMs, final boolean checkReplicator,
+    /**
+     * 检查候选节点集合中的有效节点数目是否过半
+     *
+     * @param peers 待检查节点集合
+     * @param monotonicNowMs 当前时间戳
+     * @param checkReplicator 是否检查 replicator
+     * @param deadNodes 用于存放失效节点集合
+     * @return
+     */
+    private boolean checkDeadNodes0(final List<PeerId> peers,
+                                    final long monotonicNowMs,
+                                    final boolean checkReplicator,
                                     final Configuration deadNodes) {
+        // 租约有效期
         final int leaderLeaseTimeoutMs = this.options.getLeaderLeaseTimeoutMs();
         int aliveCount = 0;
-        long startLease = Long.MAX_VALUE;
+        long startLease = Long.MAX_VALUE; // 记录到有效节点最小的 RPC 时间戳
         for (final PeerId peer : peers) {
+            // 当前节点自己
             if (peer.equals(this.serverId)) {
                 aliveCount++;
                 continue;
             }
+
+            // 如果当前是 leader 节点，检查到目标节点的 replicator 运行状态
             if (checkReplicator) {
                 this.checkReplicator(peer);
             }
+
+            // 获取到目标节点最近一次 RPC 时间戳
             final long lastRpcSendTimestamp = this.replicatorGroup.getLastRpcSendTimestamp(peer);
+            // 如果最近一次 RPC 时间戳距离当前时间戳在租约有效期内则视该节点有效
             if (monotonicNowMs - lastRpcSendTimestamp <= leaderLeaseTimeoutMs) {
                 aliveCount++;
                 if (startLease > lastRpcSendTimestamp) {
@@ -2038,10 +2068,14 @@ public class NodeImpl implements Node, RaftServerService {
                 }
                 continue;
             }
+
+            // 当前节点失效，记录到 deadNodes 中
             if (deadNodes != null) {
                 deadNodes.addPeer(peer);
             }
         }
+
+        // 有效节点过半
         if (aliveCount >= peers.size() / 2 + 1) {
             this.updateLastLeaderTimestamp(startLease);
             return true;
@@ -2065,6 +2099,9 @@ public class NodeImpl implements Node, RaftServerService {
         return alivePeers;
     }
 
+    /**
+     * stepdownTimer 周期性任务
+     */
     private void handleStepDownTimeout() {
         this.writeLock.lock();
         try {
@@ -2074,6 +2111,7 @@ public class NodeImpl implements Node, RaftServerService {
                 return;
             }
             final long monotonicNowMs = Utils.monotonicMs();
+            // 基于通信时间戳检查集群中有效节点是否过半，如果未过半则执行 stepdown
             this.checkDeadNodes(this.conf.getConf(), monotonicNowMs);
             if (!this.conf.getOldConf().isEmpty()) {
                 this.checkDeadNodes(this.conf.getOldConf(), monotonicNowMs);
@@ -2298,7 +2336,7 @@ public class NodeImpl implements Node, RaftServerService {
 
         final long startMs;
         final PeerId peer;
-        final long term;
+        final long term; // 发送请求时的 term 值
         final NodeImpl node;
         RequestVoteRequest request;
 
@@ -2327,35 +2365,37 @@ public class NodeImpl implements Node, RaftServerService {
     /**
      * 处理正常的 vote RequestVote 响应
      *
-     * TODO zhenchao 2020-3-1 18:29:27
-     *
      * @param peerId
-     * @param term
+     * @param term 发送请求时的 term 值
      * @param response
      */
     public void handleRequestVoteResponse(final PeerId peerId, final long term, final RequestVoteResponse response) {
         this.writeLock.lock();
         try {
+            // 节点的当前角色必须是 CANDIDATE
             if (this.state != State.STATE_CANDIDATE) {
                 LOG.warn("Node {} received invalid RequestVoteResponse from {}, state not in STATE_CANDIDATE but {}.",
                         this.getNodeId(), peerId, this.state);
                 return;
             }
-            // check stale term
+
+            // 期间 term 值发生了变化，则忽略响应
             if (term != this.currTerm) {
-                LOG.warn("Node {} received stale RequestVoteResponse from {}, term={}, currTerm={}.", this.getNodeId(),
-                        peerId, term, this.currTerm);
+                LOG.warn("Node {} received stale RequestVoteResponse from {}, term={}, currTerm={}.",
+                        this.getNodeId(), peerId, term, this.currTerm);
                 return;
             }
-            // check response term
+
+            // 响应中的 term 值相对当前节点更大，需要执行 stepdown 操作
             if (response.getTerm() > this.currTerm) {
-                LOG.warn("Node {} received invalid RequestVoteResponse from {}, term={}, expect={}.", this.getNodeId(),
-                        peerId, response.getTerm(), this.currTerm);
-                this.stepDown(response.getTerm(), false, new Status(RaftError.EHIGHERTERMRESPONSE,
-                        "Raft node receives higher term request_vote_response."));
+                LOG.warn("Node {} received invalid RequestVoteResponse from {}, term={}, expect={}.",
+                        this.getNodeId(), peerId, response.getTerm(), this.currTerm);
+                this.stepDown(response.getTerm(), false,
+                        new Status(RaftError.EHIGHERTERMRESPONSE, "Raft node receives higher term request_vote_response."));
                 return;
             }
-            // check granted quorum?
+
+            // 响应节点同意投票
             if (response.getGranted()) {
                 this.voteCtx.grant(peerId);
                 if (this.voteCtx.isGranted()) {
