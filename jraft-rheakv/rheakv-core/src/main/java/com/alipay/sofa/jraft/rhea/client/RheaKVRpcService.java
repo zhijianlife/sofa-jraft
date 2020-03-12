@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.client;
 
-import java.util.concurrent.CompletableFuture;
+package com.alipay.sofa.jraft.rhea.client;
 
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.rhea.client.failover.FailoverClosure;
@@ -24,7 +23,11 @@ import com.alipay.sofa.jraft.rhea.cmd.store.BaseRequest;
 import com.alipay.sofa.jraft.rhea.errors.Errors;
 import com.alipay.sofa.jraft.rhea.options.RpcOptions;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
+ * 针对 kv 服务的 rpc client包装，实现了 failover 逻辑
+ *
  * RheaKV's rpc client for sending kv requests and receiving kv responses.
  *
  * @author jiachun.fjc
@@ -34,20 +37,20 @@ public interface RheaKVRpcService extends Lifecycle<RpcOptions> {
     /**
      * @see #callAsyncWithRpc(BaseRequest, FailoverClosure, Errors, boolean)
      */
-    <V> CompletableFuture<V> callAsyncWithRpc(final BaseRequest request, final FailoverClosure<V> closure,
-                                              final Errors lastCause);
+    <V> CompletableFuture<V> callAsyncWithRpc(
+            final BaseRequest request, final FailoverClosure<V> closure, final Errors lastCause);
 
     /**
      * Send KV requests to the remote data service nodes.
      *
-     * @param request       request data
-     * @param closure       callback for failover strategy
-     * @param lastCause     the exception information held by the last call
-     *                      failed, the initial value is null
+     * @param request request data
+     * @param closure callback for failover strategy
+     * @param lastCause the exception information held by the last call
+     * failed, the initial value is null
      * @param requireLeader if true, then request to call the leader node
-     * @param <V>           the type of response
+     * @param <V> the type of response
      * @return a future with response
      */
-    <V> CompletableFuture<V> callAsyncWithRpc(final BaseRequest request, final FailoverClosure<V> closure,
-                                              final Errors lastCause, final boolean requireLeader);
+    <V> CompletableFuture<V> callAsyncWithRpc(
+            final BaseRequest request, final FailoverClosure<V> closure, final Errors lastCause, final boolean requireLeader);
 }

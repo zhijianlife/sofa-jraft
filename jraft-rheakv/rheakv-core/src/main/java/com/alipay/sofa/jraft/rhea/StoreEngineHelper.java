@@ -14,16 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea;
 
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
+package com.alipay.sofa.jraft.rhea;
 
 import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.rhea.cmd.store.BatchDeleteRequest;
@@ -49,8 +41,16 @@ import com.alipay.sofa.jraft.rhea.util.concurrent.CallerRunsPolicyWithReport;
 import com.alipay.sofa.jraft.rhea.util.concurrent.NamedThreadFactory;
 import com.alipay.sofa.jraft.util.ThreadPoolUtil;
 
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+
 /**
- *
  * @author jiachun.fjc
  */
 public final class StoreEngineHelper {
@@ -133,15 +133,15 @@ public final class StoreEngineHelper {
                                            final BlockingQueue<Runnable> workQueue, final String name,
                                            final RejectedExecutionHandler handler) {
         return ThreadPoolUtil.newBuilder() //
-            .poolName(name) //
-            .enableMetric(true) //
-            .coreThreads(coreThreads) //
-            .maximumThreads(maxThreads) //
-            .keepAliveSeconds(60L) //
-            .workQueue(workQueue) //
-            .threadFactory(new NamedThreadFactory(name, true)) //
-            .rejectedHandler(handler) //
-            .build();
+                .poolName(name) //
+                .enableMetric(true) //
+                .coreThreads(coreThreads) //
+                .maximumThreads(maxThreads) //
+                .keepAliveSeconds(60L) //
+                .workQueue(workQueue) //
+                .threadFactory(new NamedThreadFactory(name, true)) //
+                .rejectedHandler(handler) //
+                .build();
     }
 
     private StoreEngineHelper() {

@@ -14,18 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea;
-
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.Lifecycle;
@@ -49,6 +39,16 @@ import com.alipay.sofa.jraft.util.Requires;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
 import com.codahale.metrics.Slf4jReporter;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Minimum execution/copy unit of RheaKVStore.
@@ -59,19 +59,19 @@ public class RegionEngine implements Lifecycle<RegionEngineOptions> {
 
     private static final Logger LOG = LoggerFactory.getLogger(RegionEngine.class);
 
-    private final Region        region;
-    private final StoreEngine   storeEngine;
+    private final Region region;
+    private final StoreEngine storeEngine;
 
-    private RaftRawKVStore      raftRawKVStore;
-    private MetricsRawKVStore   metricsRawKVStore;
-    private RaftGroupService    raftGroupService;
-    private Node                node;
+    private RaftRawKVStore raftRawKVStore;
+    private MetricsRawKVStore metricsRawKVStore;
+    private RaftGroupService raftGroupService;
+    private Node node;
     private KVStoreStateMachine fsm;
     private RegionEngineOptions regionOpts;
 
-    private ScheduledReporter   regionMetricsReporter;
+    private ScheduledReporter regionMetricsReporter;
 
-    private boolean             started;
+    private boolean started;
 
     public RegionEngine(Region region, StoreEngine storeEngine) {
         this.region = region;
@@ -85,6 +85,7 @@ public class RegionEngine implements Lifecycle<RegionEngineOptions> {
             return true;
         }
         this.regionOpts = Requires.requireNonNull(opts, "opts");
+        // 创建对应的状态机
         this.fsm = new KVStoreStateMachine(this.region, this.storeEngine);
 
         // node options
@@ -118,19 +119,21 @@ public class RegionEngine implements Lifecycle<RegionEngineOptions> {
             final Path snapshotUri = Paths.get(raftDataPath, "snapshot");
             nodeOpts.setSnapshotUri(snapshotUri.toString());
         }
-        LOG.info("[RegionEngine: {}], log uri: {}, raft meta uri: {}, snapshot uri: {}.", this.region,
-            nodeOpts.getLogUri(), nodeOpts.getRaftMetaUri(), nodeOpts.getSnapshotUri());
+        LOG.info("[RegionEngine: {}], log uri: {}, raft meta uri: {}, snapshot uri: {}.",
+                this.region, nodeOpts.getLogUri(), nodeOpts.getRaftMetaUri(), nodeOpts.getSnapshotUri());
         final Endpoint serverAddress = opts.getServerAddress();
         final PeerId serverId = new PeerId(serverAddress, 0);
         final RpcServer rpcServer = this.storeEngine.getRpcServer();
         this.raftGroupService = new RaftGroupService(opts.getRaftGroupId(), serverId, nodeOpts, rpcServer, true);
         this.node = this.raftGroupService.start(false);
+
         RouteTable.getInstance().updateConfiguration(this.raftGroupService.getGroupId(), nodeOpts.getInitialConf());
         if (this.node != null) {
             final RawKVStore rawKVStore = this.storeEngine.getRawKVStore();
             final Executor readIndexExecutor = this.storeEngine.getReadIndexExecutor();
             this.raftRawKVStore = new RaftRawKVStore(this.node, rawKVStore, readIndexExecutor);
             this.metricsRawKVStore = new MetricsRawKVStore(this.region.getId(), this.raftRawKVStore);
+
             // metrics config
             if (this.regionMetricsReporter == null && metricsReportPeriod > 0) {
                 final MetricRegistry metricRegistry = this.node.getNodeMetrics().getMetricRegistry();
@@ -138,15 +141,16 @@ public class RegionEngine implements Lifecycle<RegionEngineOptions> {
                     final ScheduledExecutorService scheduler = this.storeEngine.getMetricsScheduler();
                     // start raft node metrics reporter
                     this.regionMetricsReporter = Slf4jReporter.forRegistry(metricRegistry) //
-                        .prefixedWith("region_" + this.region.getId()) //
-                        .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
-                        .outputTo(LOG) //
-                        .scheduleOn(scheduler) //
-                        .shutdownExecutorOnStop(scheduler != null) //
-                        .build();
+                            .prefixedWith("region_" + this.region.getId()) //
+                            .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
+                            .outputTo(LOG) //
+                            .scheduleOn(scheduler) //
+                            .shutdownExecutorOnStop(scheduler != null) //
+                            .build();
                     this.regionMetricsReporter.start(metricsReportPeriod, TimeUnit.SECONDS);
                 }
             }
+
             this.started = true;
             LOG.info("[RegionEngine] start successfully: {}.", this);
         }
@@ -181,7 +185,7 @@ public class RegionEngine implements Lifecycle<RegionEngineOptions> {
             LOG.info("Transfer-leadership succeeded: [{} --> {}].", this.storeEngine.getSelfEndpoint(), endpoint);
         } else {
             LOG.error("Transfer-leadership failed: {}, [{} --> {}].", status, this.storeEngine.getSelfEndpoint(),
-                endpoint);
+                    endpoint);
         }
         return isOk;
     }

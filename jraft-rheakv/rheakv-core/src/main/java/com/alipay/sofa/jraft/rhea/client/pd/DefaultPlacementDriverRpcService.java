@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.client.pd;
-
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.remoting.InvokeCallback;
 import com.alipay.remoting.InvokeContext;
@@ -41,21 +34,28 @@ import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.ExecutorServiceHelper;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.ThreadPoolUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * @author jiachun.fjc
  */
 public class DefaultPlacementDriverRpcService implements PlacementDriverRpcService {
 
-    private static final Logger         LOG = LoggerFactory.getLogger(DefaultPlacementDriverRpcService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultPlacementDriverRpcService.class);
 
     private final PlacementDriverClient pdClient;
-    private final RpcClient             rpcClient;
+    private final RpcClient rpcClient;
 
-    private ThreadPoolExecutor          rpcCallbackExecutor;
-    private int                         rpcTimeoutMillis;
+    private ThreadPoolExecutor rpcCallbackExecutor;
+    private int rpcTimeoutMillis;
 
-    private boolean                     started;
+    private boolean started;
 
     public DefaultPlacementDriverRpcService(PlacementDriverClient pdClient) {
         this.pdClient = pdClient;
@@ -135,14 +135,14 @@ public class DefaultPlacementDriverRpcService implements PlacementDriverRpcServi
 
         final String name = "rheakv-pd-rpc-callback";
         return ThreadPoolUtil.newBuilder() //
-            .poolName(name) //
-            .enableMetric(true) //
-            .coreThreads(callbackExecutorCorePoolSize) //
-            .maximumThreads(callbackExecutorMaximumPoolSize) //
-            .keepAliveSeconds(120L) //
-            .workQueue(new ArrayBlockingQueue<>(opts.getCallbackExecutorQueueCapacity())) //
-            .threadFactory(new NamedThreadFactory(name, true)) //
-            .rejectedHandler(new CallerRunsPolicyWithReport(name)) //
-            .build();
+                .poolName(name) //
+                .enableMetric(true) //
+                .coreThreads(callbackExecutorCorePoolSize) //
+                .maximumThreads(callbackExecutorMaximumPoolSize) //
+                .keepAliveSeconds(120L) //
+                .workQueue(new ArrayBlockingQueue<>(opts.getCallbackExecutorQueueCapacity())) //
+                .threadFactory(new NamedThreadFactory(name, true)) //
+                .rejectedHandler(new CallerRunsPolicyWithReport(name)) //
+                .build();
     }
 }

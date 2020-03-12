@@ -14,46 +14,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.options;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+package com.alipay.sofa.jraft.rhea.options;
 
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.rhea.storage.StorageType;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Utils;
 
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
 /**
- *
  * @author jiachun.fjc
  */
 public class StoreEngineOptions {
 
-    private StorageType               storageType                   = StorageType.RocksDB;
-    private RocksDBOptions            rocksDBOptions;
-    private MemoryDBOptions           memoryDBOptions;
-    private String                    raftDataPath;
-    private Endpoint                  serverAddress;
+    private StorageType storageType = StorageType.RocksDB;
+    private RocksDBOptions rocksDBOptions;
+    private MemoryDBOptions memoryDBOptions;
+    private String raftDataPath;
+    private Endpoint serverAddress;
     // Most configurations do not need to be configured separately for each raft-group,
     // so a common configuration is provided, and each raft-group can copy from here.
-    private NodeOptions               commonNodeOptions             = new NodeOptions();
+    private NodeOptions commonNodeOptions = new NodeOptions();
     private List<RegionEngineOptions> regionEngineOptionsList;
-    private String                    initialServerList;
-    private HeartbeatOptions          heartbeatOptions;
-    private boolean                   useSharedRpcExecutor;
+    private String initialServerList;
+    private HeartbeatOptions heartbeatOptions;
+    private boolean useSharedRpcExecutor;
     // thread poll number of threads
-    private int                       readIndexCoreThreads          = Math.max(Utils.cpus() << 2, 16);
-    private int                       leaderStateTriggerCoreThreads = 4;
-    private int                       snapshotCoreThreads           = 1;
-    private int                       snapshotMaxThreads            = 32;
-    private int                       cliRpcCoreThreads             = Utils.cpus() << 2;
-    private int                       raftRpcCoreThreads            = Math.max(Utils.cpus() << 3, 32);
-    private int                       kvRpcCoreThreads              = Math.max(Utils.cpus() << 3, 32);
+    private int readIndexCoreThreads = Math.max(Utils.cpus() << 2, 16);
+    private int leaderStateTriggerCoreThreads = 4;
+    private int snapshotCoreThreads = 1;
+    private int snapshotMaxThreads = 32;
+    private int cliRpcCoreThreads = Utils.cpus() << 2;
+    private int raftRpcCoreThreads = Math.max(Utils.cpus() << 3, 32);
+    private int kvRpcCoreThreads = Math.max(Utils.cpus() << 3, 32);
     // metrics schedule option (seconds), won't start reporter id metricsReportPeriod <= 0
-    private long                      metricsReportPeriod           = TimeUnit.MINUTES.toSeconds(5);
+    private long metricsReportPeriod = TimeUnit.MINUTES.toSeconds(5);
     // the minimum number of keys required to split, less than this value will refuse to split
-    private long                      leastKeysOnSplit              = 10000;
+    private long leastKeysOnSplit = 10000;
 
     public StorageType getStorageType() {
         return storageType;
@@ -210,14 +210,14 @@ public class StoreEngineOptions {
     @Override
     public String toString() {
         return "StoreEngineOptions{" + "storageType=" + storageType + ", rocksDBOptions=" + rocksDBOptions
-               + ", memoryDBOptions=" + memoryDBOptions + ", raftDataPath='" + raftDataPath + '\'' + ", serverAddress="
-               + serverAddress + ", commonNodeOptions=" + commonNodeOptions + ", regionEngineOptionsList="
-               + regionEngineOptionsList + ", initialServerList='" + initialServerList + '\'' + ", heartbeatOptions="
-               + heartbeatOptions + ", useSharedRpcExecutor=" + useSharedRpcExecutor + ", readIndexCoreThreads="
-               + readIndexCoreThreads + ", leaderStateTriggerCoreThreads=" + leaderStateTriggerCoreThreads
-               + ", snapshotCoreThreads=" + snapshotCoreThreads + ", snapshotMaxThreads=" + snapshotMaxThreads
-               + ", cliRpcCoreThreads=" + cliRpcCoreThreads + ", raftRpcCoreThreads=" + raftRpcCoreThreads
-               + ", kvRpcCoreThreads=" + kvRpcCoreThreads + ", metricsReportPeriod=" + metricsReportPeriod
-               + ", leastKeysOnSplit=" + leastKeysOnSplit + '}';
+                + ", memoryDBOptions=" + memoryDBOptions + ", raftDataPath='" + raftDataPath + '\'' + ", serverAddress="
+                + serverAddress + ", commonNodeOptions=" + commonNodeOptions + ", regionEngineOptionsList="
+                + regionEngineOptionsList + ", initialServerList='" + initialServerList + '\'' + ", heartbeatOptions="
+                + heartbeatOptions + ", useSharedRpcExecutor=" + useSharedRpcExecutor + ", readIndexCoreThreads="
+                + readIndexCoreThreads + ", leaderStateTriggerCoreThreads=" + leaderStateTriggerCoreThreads
+                + ", snapshotCoreThreads=" + snapshotCoreThreads + ", snapshotMaxThreads=" + snapshotMaxThreads
+                + ", cliRpcCoreThreads=" + cliRpcCoreThreads + ", raftRpcCoreThreads=" + raftRpcCoreThreads
+                + ", kvRpcCoreThreads=" + kvRpcCoreThreads + ", metricsReportPeriod=" + metricsReportPeriod
+                + ", leastKeysOnSplit=" + leastKeysOnSplit + '}';
     }
 }

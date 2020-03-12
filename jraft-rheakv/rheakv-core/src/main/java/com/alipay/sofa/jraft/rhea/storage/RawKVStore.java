@@ -14,11 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
 
-import java.util.List;
-
 import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
+
+import java.util.List;
 
 /**
  * Raw KV store
@@ -152,7 +153,7 @@ public interface RawKVStore {
     /**
      * Add merge operand for key/value pair.
      *
-     *  <pre>
+     * <pre>
      *     // Writing aa under key
      *     db.put("key", "aa");
      *

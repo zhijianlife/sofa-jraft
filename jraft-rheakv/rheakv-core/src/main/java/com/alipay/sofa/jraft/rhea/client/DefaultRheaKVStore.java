@@ -14,17 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.client;
-
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.RouteTable;
 import com.alipay.sofa.jraft.Status;
@@ -105,6 +96,15 @@ import com.lmax.disruptor.EventFactory;
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Default client of RheaKV store implementation.
@@ -186,36 +186,41 @@ import com.lmax.disruptor.dsl.Disruptor;
  */
 public class DefaultRheaKVStore implements RheaKVStore {
 
-    private static final Logger                LOG                    = LoggerFactory
-                                                                          .getLogger(DefaultRheaKVStore.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultRheaKVStore.class);
 
     static {
         ExtSerializerSupports.init();
     }
 
     private final StateListenerContainer<Long> stateListenerContainer = new StateListenerContainer<>();
-    private StoreEngine                        storeEngine;
-    private PlacementDriverClient              pdClient;
-    private RheaKVRpcService                   rheaKVRpcService;
-    private RheaKVStoreOptions                 opts;
-    private int                                failoverRetries;
-    private long                               futureTimeoutMillis;
-    private boolean                            onlyLeaderRead;
-    private Dispatcher                         kvDispatcher;
-    private BatchingOptions                    batchingOpts;
-    private GetBatching                        getBatching;
-    private GetBatching                        getBatchingOnlySafe;
-    private PutBatching                        putBatching;
+    private StoreEngine storeEngine;
+    private PlacementDriverClient pdClient;
+    /** RheaKV 的 RPC Client，用于发送请求和接收响应 */
+    private RheaKVRpcService rheaKVRpcService;
+    private RheaKVStoreOptions opts;
+    private int failoverRetries;
+    private long futureTimeoutMillis;
+    private boolean onlyLeaderRead;
+    private Dispatcher kvDispatcher;
+    private BatchingOptions batchingOpts;
+    private GetBatching getBatching;
+    private GetBatching getBatchingOnlySafe;
+    private PutBatching putBatching;
 
-    private volatile boolean                   started;
+    private volatile boolean started;
 
     @Override
     public synchronized boolean init(final RheaKVStoreOptions opts) {
+        // 已经初始化过
         if (this.started) {
             LOG.info("[DefaultRheaKVStore] already started.");
             return true;
         }
+
         this.opts = opts;
+
+        /* 初始化 PD */
+
         // init placement driver
         final PlacementDriverOptions pdOpts = opts.getPlacementDriverOptions();
         final String clusterName = opts.getClusterName();
@@ -226,14 +231,19 @@ public class DefaultRheaKVStore implements RheaKVStore {
             pdOpts.setInitialServerList(opts.getInitialServerList());
         }
         if (pdOpts.isFake()) {
+            // 不启用 PD 机制
             this.pdClient = new FakePlacementDriverClient(opts.getClusterId(), clusterName);
         } else {
+            // 启用 PD 机制
             this.pdClient = new RemotePlacementDriverClient(opts.getClusterId(), clusterName);
         }
         if (!this.pdClient.init(pdOpts)) {
             LOG.error("Fail to init [PlacementDriverClient].");
             return false;
         }
+
+        /* 初始化存储引擎，默认使用 RocksDB */
+
         // init store engine
         final StoreEngineOptions stOpts = opts.getStoreEngineOptions();
         if (stOpts != null) {
@@ -247,6 +257,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
         final Endpoint selfEndpoint = this.storeEngine == null ? null : this.storeEngine.getSelfEndpoint();
         final RpcOptions rpcOpts = opts.getRpcOptions();
         Requires.requireNonNull(rpcOpts, "opts.rpcOptions");
+        // 创建并初始化 RheaKV 的 RPC Client，用于发送请求和接收响应
         this.rheaKVRpcService = new DefaultRheaKVRpcService(this.pdClient, selfEndpoint) {
 
             @Override
@@ -262,6 +273,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
             LOG.error("Fail to init [RheaKVRpcService].");
             return false;
         }
+
         this.failoverRetries = opts.getFailoverRetries();
         this.futureTimeoutMillis = opts.getFutureTimeoutMillis();
         this.onlyLeaderRead = opts.isOnlyLeaderRead();
@@ -275,12 +287,9 @@ public class DefaultRheaKVStore implements RheaKVStore {
         }
         this.batchingOpts = opts.getBatchingOptions();
         if (this.batchingOpts.isAllowBatching()) {
-            this.getBatching = new GetBatching(KeyEvent::new, "get_batching",
-                    new GetBatchingHandler("get", false));
-            this.getBatchingOnlySafe = new GetBatching(KeyEvent::new, "get_batching_only_safe",
-                    new GetBatchingHandler("get_only_safe", true));
-            this.putBatching = new PutBatching(KVEvent::new, "put_batching",
-                    new PutBatchingHandler("put"));
+            this.getBatching = new GetBatching(KeyEvent::new, "get_batching", new GetBatchingHandler("get", false));
+            this.getBatchingOnlySafe = new GetBatching(KeyEvent::new, "get_batching_only_safe", new GetBatchingHandler("get_only_safe", true));
+            this.putBatching = new PutBatching(KVEvent::new, "put_batching", new PutBatchingHandler("put"));
         }
         LOG.info("[DefaultRheaKVStore] start successfully, options: {}.", opts);
         return this.started = true;
@@ -431,7 +440,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
         checkState();
         Requires.requireNonNull(keys, "keys");
         final FutureGroup<Map<ByteArray, byte[]>> futureGroup = internalMultiGet(keys, readOnlySafe,
-            this.failoverRetries, null);
+                this.failoverRetries, null);
         return FutureHelper.joinMap(futureGroup, keys.size());
     }
 
@@ -564,7 +573,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
             Requires.requireTrue(BytesUtil.compare(realStartKey, endKey) < 0, "startKey must < endKey");
         }
         final FutureGroup<List<KVEntry>> futureGroup = internalScan(realStartKey, endKey, readOnlySafe, returnValue,
-            this.failoverRetries, null);
+                this.failoverRetries, null);
         return FutureHelper.joinList(futureGroup);
     }
 
@@ -672,7 +681,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
         Requires.requireTrue(limit > 0, "limit must > 0");
         final CompletableFuture<List<KVEntry>> future = new CompletableFuture<>();
         internalSingleRegionScan(realStartKey, endKey, limit, readOnlySafe, returnValue, future, this.failoverRetries,
-            null, this.onlyLeaderRead);
+                null, this.onlyLeaderRead);
         return FutureHelper.get(future, this.futureTimeoutMillis);
     }
 
@@ -1676,8 +1685,8 @@ public class DefaultRheaKVStore implements RheaKVStore {
         protected final Histogram histogramWithKeys;
         protected final Histogram histogramWithBytes;
 
-        protected final List<T>   events      = Lists.newArrayListWithCapacity(batchingOpts.getBatchSize());
-        protected int             cachedBytes = 0;
+        protected final List<T> events = Lists.newArrayListWithCapacity(batchingOpts.getBatchSize());
+        protected int cachedBytes = 0;
 
         public AbstractBatchingHandler(String metricsName) {
             this.histogramWithKeys = KVMetrics.histogram(KVMetricNames.SEND_BATCHING, metricsName + "_keys");
@@ -1701,7 +1710,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
 
     private static class KeyEvent {
 
-        private byte[]                    key;
+        private byte[] key;
         private CompletableFuture<byte[]> future;
 
         public void reset() {
@@ -1712,7 +1721,7 @@ public class DefaultRheaKVStore implements RheaKVStore {
 
     private static class KVEvent {
 
-        private KVEntry                    kvEntry;
+        private KVEntry kvEntry;
         private CompletableFuture<Boolean> future;
 
         public void reset() {
@@ -1723,8 +1732,8 @@ public class DefaultRheaKVStore implements RheaKVStore {
 
     private static abstract class Batching<T, E, F> {
 
-        protected final String        name;
-        protected final Disruptor<T>  disruptor;
+        protected final String name;
+        protected final Disruptor<T> disruptor;
         protected final RingBuffer<T> ringBuffer;
 
         @SuppressWarnings("unchecked")

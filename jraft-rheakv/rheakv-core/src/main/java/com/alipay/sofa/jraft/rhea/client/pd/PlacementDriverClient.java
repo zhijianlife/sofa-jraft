@@ -14,10 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.client.pd;
 
-import java.util.List;
-import java.util.Map;
+package com.alipay.sofa.jraft.rhea.client.pd;
 
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.rhea.client.RegionRouteTable;
@@ -28,6 +26,9 @@ import com.alipay.sofa.jraft.rhea.options.PlacementDriverOptions;
 import com.alipay.sofa.jraft.rhea.options.StoreEngineOptions;
 import com.alipay.sofa.jraft.rhea.storage.KVEntry;
 import com.alipay.sofa.jraft.util.Endpoint;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Placement driver client

@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.rheakv;
 
 import com.alipay.sofa.jraft.rhea.client.DefaultRheaKVStore;
@@ -21,20 +22,20 @@ import com.alipay.sofa.jraft.rhea.client.RheaKVStore;
 import com.alipay.sofa.jraft.rhea.options.RheaKVStoreOptions;
 
 /**
- *
  * @author jiachun.fjc
  */
 public class Node {
 
     private final RheaKVStoreOptions options;
 
-    private RheaKVStore              rheaKVStore;
+    private RheaKVStore rheaKVStore;
 
     public Node(RheaKVStoreOptions options) {
         this.options = options;
     }
 
     public void start() {
+        // DefaultRheaKVStore 是目前 RheaKVStore 的唯一实现
         this.rheaKVStore = new DefaultRheaKVStore();
         this.rheaKVStore.init(this.options);
     }

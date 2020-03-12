@@ -14,13 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.client;
 
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+package com.alipay.sofa.jraft.rhea.client;
 
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.rhea.FollowerStateListener;
@@ -33,8 +28,18 @@ import com.alipay.sofa.jraft.rhea.storage.Sequence;
 import com.alipay.sofa.jraft.rhea.util.ByteArray;
 import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
 
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 /**
  * User layer KV store api.
+ *
+ * 最上层 User API，默认实现为 DefaultRheaKVStore，
+ * RheaKVStore 为纯异步实现，所以通常阻塞调用导致的客户端出现瓶颈，理论上不会在RheaKV上遭遇，
+ * DefaultRheaKVStore 实现了包括请求路由、request 分裂、response 聚合以及失败重试等功能
  *
  * <pre>
  *                           ┌────────────────────────────┐
@@ -94,9 +99,9 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * with the specified input key if any.  null will be returned if
      * the specified key is not found.
      *
-     * @param key          the key retrieve the value.
+     * @param key the key retrieve the value.
      * @param readOnlySafe provide consistent reading if {@code readOnlySafe}
-     *                     is true.
+     * is true.
      * @return a byte array storing the value associated with the input key if
      * any.  null if it does not find the specified key.
      */
@@ -135,9 +140,9 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
     /**
      * Returns a map of keys for which values were found in database.
      *
-     * @param keys         list of keys for which values need to be retrieved.
+     * @param keys list of keys for which values need to be retrieved.
      * @param readOnlySafe provide consistent reading if {@code readOnlySafe}
-     *                     is true.
+     * is true.
      * @return a map where key of map is the key passed by user and value for map
      * entry is the corresponding value in database.
      */
@@ -203,13 +208,13 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      *
      * Scanning across multi regions maybe slower and devastating.
      *
-     * @param startKey     first key to scan within database (included),
-     *                     null means 'min-key' in the database.
-     * @param endKey       last key to scan within database (excluded).
-     *                     null means 'max-key' in the database.
+     * @param startKey first key to scan within database (included),
+     * null means 'min-key' in the database.
+     * @param endKey last key to scan within database (excluded).
+     * null means 'max-key' in the database.
      * @param readOnlySafe provide consistent reading if {@code readOnlySafe}
-     *                     is true.
-     * @param returnValue  whether to return value.
+     * is true.
+     * @param returnValue whether to return value.
      * @return a list where the key of range [startKey, endKey) passed by user
      * and value for {@code KVEntry}
      */
@@ -284,13 +289,13 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * a large amount of data returning to the client at one time causing
      * memory overflow, can think of it as a 'lazy scan' method.
      *
-     * @param startKey     first key to scan within database (included),
-     *                     null means 'min-key' in the database.
-     * @param endKey       last key to scan within database (excluded),
-     *                     null means 'max-key' in the database.
+     * @param startKey first key to scan within database (included),
+     * null means 'min-key' in the database.
+     * @param endKey last key to scan within database (excluded),
+     * null means 'max-key' in the database.
      * @param readOnlySafe provide consistent reading if {@code readOnlySafe}
-     *                     is true.
-     * @param returnValue  whether to return value.
+     * is true.
+     * @param returnValue whether to return value.
      * @return a iterator where the key of range [startKey, endKey) passed by
      * user and value for {@code KVEntry}
      */
@@ -310,7 +315,7 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * by other methods, you won't get it.
      *
      * @param seqKey the key of sequence
-     * @param step   number of values obtained
+     * @param step number of values obtained
      * @return a values range of [startValue, endValue)
      */
     CompletableFuture<Sequence> getSequence(final byte[] seqKey, final int step);
@@ -335,10 +340,9 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      *
      * Equivalent to {@code getSequence(seqKey, 0)}.
      *
-     * @see #getSequence(byte[], int)
-     *
      * @param seqKey the key of sequence
      * @return the latest sequence value
+     * @see #getSequence(byte[], int)
      */
     CompletableFuture<Long> getLatestSequence(final byte[] seqKey);
 
@@ -382,7 +386,7 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
     /**
      * Set the database entry for "key" to "value".
      *
-     * @param key   the specified key to be inserted.
+     * @param key the specified key to be inserted.
      * @param value the value associated with the specified key.
      * @return {@code true} if success.
      */
@@ -407,7 +411,8 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * Set the database entry for "key" to "value", and return the
      * previous value associated with "key", or null if there was no
      * mapping for "key".
-     * @param key   the specified key to be inserted.
+     *
+     * @param key the specified key to be inserted.
      * @param value the value associated with the specified key.
      * @return the previous value associated with "key", or null if
      * there was no mapping for "key".
@@ -433,7 +438,7 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * Atomically sets the value to the given updated value
      * if the current value equal (compare bytes) the expected value.
      *
-     * @param key    the key retrieve the value
+     * @param key the key retrieve the value
      * @param expect the expected value
      * @param update the new value
      * @return true if successful. False return indicates that the actual
@@ -469,9 +474,9 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      *     assertThat(db.get("key")).isEqualTo("aa,bb");
      * </pre>
      *
-     * @param key   the specified key to be merged.
+     * @param key the specified key to be merged.
      * @param value the value to be merged with the current value for
-     *              the specified key.
+     * the specified key.
      * @return {@code true} if success.
      */
     CompletableFuture<Boolean> merge(final String key, final String value);
@@ -496,7 +501,7 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * associates it with the given value and returns {@code null},
      * else returns the current value.
      *
-     * @param key   the specified key to be inserted.
+     * @param key the specified key to be inserted.
      * @param value the value associated with the specified key.
      * @return the previous value associated with the specified key,
      * or {@code null} if there was no mapping for the key.
@@ -548,7 +553,7 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * including "startKey" and excluding "endKey".
      *
      * @param startKey first key to delete within database (included)
-     * @param endKey   last key to delete within database (excluded)
+     * @param endKey last key to delete within database (excluded)
      * @return {@code true} if success.
      */
     CompletableFuture<Boolean> deleteRange(final byte[] startKey, final byte[] endKey);
@@ -610,13 +615,13 @@ public interface RheaKVStore extends Lifecycle<RheaKVStoreOptions> {
      * every process flows approximately at the same rate, with an error
      * which is small compared to the auto-release time of the lock.
      *
-     * @param target   key of the distributed lock that acquired.
-     * @param lease    the lease time for the distributed lock to live.
-     * @param unit     the time unit of the {@code expire} argument.
+     * @param target key of the distributed lock that acquired.
+     * @param lease the lease time for the distributed lock to live.
+     * @param unit the time unit of the {@code expire} argument.
      * @param watchdog if the watchdog is not null, it will auto keep
-     *                 lease of current lock, otherwise won't keep lease,
-     *                 this method dose not pay attention to the life cycle
-     *                 of watchdog, please maintain it yourself.
+     * lease of current lock, otherwise won't keep lease,
+     * this method dose not pay attention to the life cycle
+     * of watchdog, please maintain it yourself.
      * @return a distributed lock instance.
      */
     DistributedLock<byte[]> getDistributedLock(final byte[] target, final long lease, final TimeUnit unit,

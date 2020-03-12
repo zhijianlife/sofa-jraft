@@ -14,11 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.util;
 
-import java.util.Formatter;
-
 import com.alipay.sofa.jraft.util.SystemPropertyUtil;
+
+import java.util.Formatter;
 
 /**
  * Rhea's constants
@@ -27,7 +28,7 @@ import com.alipay.sofa.jraft.util.SystemPropertyUtil;
  */
 public final class Constants {
 
-    public static final String  NEWLINE;
+    public static final String NEWLINE;
 
     static {
         String newLine;
@@ -40,9 +41,9 @@ public final class Constants {
     }
 
     public static final boolean THREAD_AFFINITY_ENABLED = SystemPropertyUtil.getBoolean("rhea.thread.affinity.enabled",
-                                                            false);
+            false);
 
-    public static final long    DEFAULT_REGION_ID       = -1L;
+    public static final long DEFAULT_REGION_ID = -1L;
 
     private Constants() {
     }

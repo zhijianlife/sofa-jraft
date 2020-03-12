@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.rheakv;
 
 import com.alipay.sofa.jraft.rhea.options.PlacementDriverOptions;
@@ -27,29 +28,35 @@ import com.alipay.sofa.jraft.rhea.storage.StorageType;
 import com.alipay.sofa.jraft.util.Endpoint;
 
 /**
- *
  * @author jiachun.fjc
  */
 public class Server1 {
 
     public static void main(final String[] args) throws Exception {
+        // PD 配置，这里使用 fake 类型，即无 PD
         final PlacementDriverOptions pdOpts = PlacementDriverOptionsConfigured.newConfigured()
                 .withFake(true) // use a fake pd
                 .config();
+
+        // 存储引擎配置
         final StoreEngineOptions storeOpts = StoreEngineOptionsConfigured.newConfigured() //
                 .withStorageType(StorageType.RocksDB)
                 .withRocksDBOptions(RocksDBOptionsConfigured.newConfigured().withDbPath(Configs.DB_PATH).config())
                 .withRaftDataPath(Configs.RAFT_DATA_PATH)
                 .withServerAddress(new Endpoint("127.0.0.1", 8181))
                 .config();
+
+        // rheakv 配置
         final RheaKVStoreOptions opts = RheaKVStoreOptionsConfigured.newConfigured() //
                 .withClusterName(Configs.CLUSTER_NAME) //
                 .withInitialServerList(Configs.ALL_NODE_ADDRESSES)
                 .withStoreEngineOptions(storeOpts) //
                 .withPlacementDriverOptions(pdOpts) //
                 .config();
+
         System.out.println(opts);
-        final Node node = new Node(opts);
+        final Node node = new Node(opts); // rheakv node, not raft node
+        // 创建并初始化 DefaultRheaKVStore
         node.start();
         Runtime.getRuntime().addShutdownHook(new Thread(node::stop));
         System.out.println("server1 start OK");
