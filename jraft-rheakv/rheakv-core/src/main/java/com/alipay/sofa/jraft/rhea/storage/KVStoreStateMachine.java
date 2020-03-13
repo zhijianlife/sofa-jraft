@@ -62,6 +62,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
     private final Serializer serializer = Serializers.getDefault();
     private final Region region;
     private final StoreEngine storeEngine;
+    /** 默认使用 RocksRawKVStore */
     private final BatchRawKVStore<?> rawKVStore;
     private final KVStoreSnapshotFile storeSnapshotFile;
     private final Meter applyMeter;
@@ -83,6 +84,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
         int applied = 0;
         try {
             KVStateOutputList kvStates = KVStateOutputList.newInstance();
+            // 遍历处理每一个 task
             while (it.hasNext()) {
                 KVOperation kvOp;
                 final KVClosureAdapter done = (KVClosureAdapter) it.done();
@@ -103,6 +105,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
                 }
                 final KVState first = kvStates.getFirstElement();
                 if (first != null && !first.isSameOp(kvOp)) {
+                    // 应用 KV 操作
                     applied += batchApplyAndRecycle(first.getOpByte(), kvStates);
                     kvStates = KVStateOutputList.newInstance();
                 }
@@ -138,12 +141,11 @@ public class KVStoreStateMachine extends StateMachineAdapter {
             }
 
             // metrics: op qps
-            final Meter opApplyMeter = KVMetrics.meter(STATE_MACHINE_APPLY_QPS, String.valueOf(this.region.getId()),
-                    KVOperation.opName(opByte));
+            final Meter opApplyMeter = KVMetrics.meter(STATE_MACHINE_APPLY_QPS, String.valueOf(this.region.getId()), KVOperation.opName(opByte));
             opApplyMeter.mark(size);
             this.batchWriteHistogram.update(size);
 
-            // do batch apply
+            // 批量应用 task
             batchApply(opByte, kvStates);
 
             return size;

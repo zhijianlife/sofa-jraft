@@ -14,9 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea;
 
-import java.util.concurrent.Executor;
+package com.alipay.sofa.jraft.rhea;
 
 import com.alipay.remoting.AsyncContext;
 import com.alipay.remoting.BizContext;
@@ -47,6 +46,8 @@ import com.alipay.sofa.jraft.rhea.errors.Errors;
 import com.alipay.sofa.jraft.rhea.errors.RheaRuntimeException;
 import com.alipay.sofa.jraft.util.Requires;
 
+import java.util.concurrent.Executor;
+
 /**
  * Rhea KV store RPC request processing service.
  *
@@ -54,7 +55,7 @@ import com.alipay.sofa.jraft.util.Requires;
  */
 public class KVCommandProcessor<T extends BaseRequest> extends AsyncUserProcessor<T> {
 
-    private final Class<T>    reqClazz;
+    private final Class<T> reqClazz;
     private final StoreEngine storeEngine;
 
     public KVCommandProcessor(Class<T> reqClazz, StoreEngine storeEngine) {
@@ -65,8 +66,7 @@ public class KVCommandProcessor<T extends BaseRequest> extends AsyncUserProcesso
     @Override
     public void handleRequest(final BizContext bizCtx, final AsyncContext asyncCtx, final T request) {
         Requires.requireNonNull(request, "request");
-        final RequestProcessClosure<BaseRequest, BaseResponse<?>> closure = new RequestProcessClosure<>(request,
-            bizCtx, asyncCtx);
+        final RequestProcessClosure<BaseRequest, BaseResponse<?>> closure = new RequestProcessClosure<>(request, bizCtx, asyncCtx);
         final RegionKVService regionKVService = this.storeEngine.getRegionKVService(request.getRegionId());
         if (regionKVService == null) {
             final NoRegionFoundResponse noRegion = new NoRegionFoundResponse();

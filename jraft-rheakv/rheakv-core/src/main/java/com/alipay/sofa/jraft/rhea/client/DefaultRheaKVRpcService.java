@@ -87,17 +87,18 @@ public class DefaultRheaKVRpcService implements RheaKVRpcService {
     }
 
     @Override
-    public <V> CompletableFuture<V> callAsyncWithRpc(final BaseRequest request, final FailoverClosure<V> closure,
-                                                     final Errors lastCause) {
+    public <V> CompletableFuture<V> callAsyncWithRpc(
+            final BaseRequest request, final FailoverClosure<V> closure, final Errors lastCause) {
         return callAsyncWithRpc(request, closure, lastCause, true);
     }
 
     @Override
-    public <V> CompletableFuture<V> callAsyncWithRpc(final BaseRequest request, final FailoverClosure<V> closure,
-                                                     final Errors lastCause, final boolean requireLeader) {
+    public <V> CompletableFuture<V> callAsyncWithRpc(
+            final BaseRequest request, final FailoverClosure<V> closure, final Errors lastCause, final boolean requireLeader) {
         final boolean forceRefresh = ErrorsHelper.isInvalidPeer(lastCause);
-        final Endpoint endpoint = getRpcEndpoint(request.getRegionId(), forceRefresh, this.rpcTimeoutMillis,
-                requireLeader);
+        // 获取目标请求节点
+        final Endpoint endpoint = getRpcEndpoint(request.getRegionId(), forceRefresh, this.rpcTimeoutMillis, requireLeader);
+        // 发送 RPC 请求
         internalCallAsyncWithRpc(endpoint, request, closure);
         return closure.future();
     }
@@ -110,11 +111,13 @@ public class DefaultRheaKVRpcService implements RheaKVRpcService {
         return this.pdClient.getLuckyPeer(regionId, forceRefresh, timeoutMillis, this.selfEndpoint);
     }
 
-    public Endpoint getRpcEndpoint(final long regionId, final boolean forceRefresh, final long timeoutMillis,
-                                   final boolean requireLeader) {
+    public Endpoint getRpcEndpoint(
+            final long regionId, final boolean forceRefresh, final long timeoutMillis, final boolean requireLeader) {
         if (requireLeader) {
+            // 获取 Leader 节点
             return getLeader(regionId, forceRefresh, timeoutMillis);
         } else {
+            // 轮询节点
             return getLuckyPeer(regionId, forceRefresh, timeoutMillis);
         }
     }

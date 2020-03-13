@@ -100,6 +100,7 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
     private long startTime = System.currentTimeMillis();
     private File dbPath;
     private RpcServer rpcServer;
+    /** 默认使用 RocksRawKVStore */
     private BatchRawKVStore<?> rawKVStore;
     private HeartbeatSender heartbeatSender;
     private StoreEngineOptions storeOpts;

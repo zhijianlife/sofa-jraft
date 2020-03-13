@@ -14,14 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
-
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.Executor;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Node;
 import com.alipay.sofa.jraft.Status;
@@ -34,6 +28,12 @@ import com.alipay.sofa.jraft.rhea.util.Clock;
 import com.alipay.sofa.jraft.rhea.util.Pair;
 import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
 import com.alipay.sofa.jraft.util.BytesUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * KVStore based on RAFT replica state machine.
@@ -44,9 +44,10 @@ public class RaftRawKVStore implements RawKVStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(RaftRawKVStore.class);
 
-    private final Node          node;
-    private final RawKVStore    kvStore;
-    private final Executor      readIndexExecutor;
+    /** Raft Node */
+    private final Node node;
+    private final RawKVStore kvStore;
+    private final Executor readIndexExecutor;
 
     public RaftRawKVStore(Node node, RawKVStore kvStore, Executor readIndexExecutor) {
         this.node = node;
@@ -312,11 +313,13 @@ public class RaftRawKVStore implements RawKVStore {
     }
 
     private void applyOperation(final KVOperation op, final KVStoreClosure closure) {
+        // 当前节点不是 Leader，直接响应错误
         if (!isLeader()) {
             closure.setError(Errors.NOT_LEADER);
             closure.run(new Status(RaftError.EPERM, "Not leader"));
             return;
         }
+        // 将写入操作封装成一个 Task，然后应用到状态机
         final Task task = new Task();
         task.setData(ByteBuffer.wrap(Serializers.getDefault().writeObject(op)));
         task.setDone(new KVClosureAdapter(closure, op));

@@ -14,18 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.client.failover.impl;
-
-import java.util.concurrent.CompletableFuture;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.rhea.client.FutureGroup;
 import com.alipay.sofa.jraft.rhea.client.failover.RetryCallable;
 import com.alipay.sofa.jraft.rhea.errors.ApiExceptionHelper;
 import com.alipay.sofa.jraft.rhea.util.Attachable;
 import com.alipay.sofa.jraft.rhea.util.StackTraceUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A helper future for bool result failover, which is an immutable object.
@@ -36,11 +36,11 @@ import com.alipay.sofa.jraft.rhea.util.StackTraceUtil;
  */
 public final class BoolFailoverFuture extends CompletableFuture<Boolean> implements Attachable<Object> {
 
-    private static final Logger          LOG = LoggerFactory.getLogger(BoolFailoverFuture.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BoolFailoverFuture.class);
 
-    private final int                    retriesLeft;
+    private final int retriesLeft;
     private final RetryCallable<Boolean> retryCallable;
-    private final Object                 attachments;
+    private final Object attachments;
 
     public BoolFailoverFuture(int retriesLeft, RetryCallable<Boolean> retryCallable) {
         this(retriesLeft, retryCallable, null);

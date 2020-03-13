@@ -14,13 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.rhea.storage;
 
-import java.io.Serializable;
+package com.alipay.sofa.jraft.rhea.storage;
 
 import com.alipay.sofa.jraft.util.BytesUtil;
 
+import java.io.Serializable;
+
 /**
+ * 键值对
  *
  * @author jiachun.fjc
  */
@@ -28,8 +30,8 @@ public class KVEntry implements Serializable {
 
     private static final long serialVersionUID = -5678680976506834026L;
 
-    private byte[]            key;
-    private byte[]            value;
+    private byte[] key;
+    private byte[] value;
 
     public KVEntry() {
     }

@@ -14,15 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
 
-import java.util.List;
-
-import com.alipay.sofa.jraft.rhea.metrics.KVMetrics;
-import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
-import com.codahale.metrics.Timer;
-
 import static com.alipay.sofa.jraft.rhea.metrics.KVMetricNames.RPC_REQUEST_HANDLE_TIMER;
+import com.alipay.sofa.jraft.rhea.metrics.KVMetrics;
 import static com.alipay.sofa.jraft.rhea.storage.KVOperation.COMPARE_PUT;
 import static com.alipay.sofa.jraft.rhea.storage.KVOperation.CONTAINS_KEY;
 import static com.alipay.sofa.jraft.rhea.storage.KVOperation.DELETE;
@@ -41,16 +37,20 @@ import static com.alipay.sofa.jraft.rhea.storage.KVOperation.PUT_IF_ABSENT;
 import static com.alipay.sofa.jraft.rhea.storage.KVOperation.PUT_LIST;
 import static com.alipay.sofa.jraft.rhea.storage.KVOperation.RESET_SEQUENCE;
 import static com.alipay.sofa.jraft.rhea.storage.KVOperation.SCAN;
+import com.alipay.sofa.jraft.rhea.util.concurrent.DistributedLock;
+import com.codahale.metrics.Timer;
+
+import java.util.List;
 
 /**
- *
  * @author jiachun.fjc
  */
 public class MetricsRawKVStore implements RawKVStore {
 
-    private final String     regionId;
+    private final String regionId;
+    /** 使用的是 RaftRawKVStore */
     private final RawKVStore rawKVStore;
-    private final Timer      timer;
+    private final Timer timer;
 
     public MetricsRawKVStore(long regionId, RawKVStore rawKVStore) {
         this.regionId = String.valueOf(regionId);
