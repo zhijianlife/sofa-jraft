@@ -1,10 +1,15 @@
-syntax="proto2";
+syntax = "proto2";
 
 package jraft;
 import "raft.proto";
 
-option java_package="com.alipay.sofa.jraft.rpc";
+option java_package = "com.alipay.sofa.jraft.rpc";
 option java_outer_classname = "RpcRequests";
+
+message KeyValue {
+  required string name = 1;
+  required string value = 2;
+}
 
 message PingRequest {
   required int64 send_timestamp = 1;
