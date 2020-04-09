@@ -62,7 +62,7 @@ public class KVStoreStateMachine extends StateMachineAdapter {
     private final Serializer serializer = Serializers.getDefault();
     private final Region region;
     private final StoreEngine storeEngine;
-    /** 默认使用 RocksRawKVStore */
+    /** RocksRawKVStore */
     private final BatchRawKVStore<?> rawKVStore;
     private final KVStoreSnapshotFile storeSnapshotFile;
     private final Meter applyMeter;

@@ -85,6 +85,7 @@ public class DefaultRegionKVService implements RegionKVService {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultRegionKVService.class);
 
     private final RegionEngine regionEngine;
+    /** MetricsRawKVStore */
     private final RawKVStore rawKVStore;
 
     public DefaultRegionKVService(RegionEngine regionEngine) {

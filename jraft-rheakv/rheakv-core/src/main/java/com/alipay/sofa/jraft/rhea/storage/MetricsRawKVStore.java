@@ -48,7 +48,7 @@ import java.util.List;
 public class MetricsRawKVStore implements RawKVStore {
 
     private final String regionId;
-    /** 使用的是 RaftRawKVStore */
+    /** RaftRawKVStore */
     private final RawKVStore rawKVStore;
     private final Timer timer;
 
