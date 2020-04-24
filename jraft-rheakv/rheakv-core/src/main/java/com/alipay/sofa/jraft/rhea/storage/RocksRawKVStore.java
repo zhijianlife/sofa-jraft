@@ -1239,8 +1239,10 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> implements 
         return Requires.requireNonNull(this.opts, "opts").isAsyncSnapshot();
     }
 
-    CompletableFuture<Void> createSstFiles(final EnumMap<SstColumnFamily, File> sstFileTable, final byte[] startKey,
-                                           final byte[] endKey, final ExecutorService executor) {
+    CompletableFuture<Void> createSstFiles(final EnumMap<SstColumnFamily, File> sstFileTable,
+                                           final byte[] startKey,
+                                           final byte[] endKey,
+                                           final ExecutorService executor) {
         final Snapshot snapshot;
         final CompletableFuture<Void> sstFuture = new CompletableFuture<>();
         final Lock readLock = this.readWriteLock.readLock();
@@ -1461,8 +1463,7 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> implements 
 
             final EnumMap<SstColumnFamily, File> sstFileTable = getSstFileTable(tempPath);
             final CompletableFuture<Void> snapshotFuture = new CompletableFuture<>();
-            final CompletableFuture<Void> sstFuture = createSstFiles(sstFileTable, region.getStartKey(),
-                    region.getEndKey(), executor);
+            final CompletableFuture<Void> sstFuture = createSstFiles(sstFileTable, region.getStartKey(), region.getEndKey(), executor);
             sstFuture.whenComplete((aVoid, throwable) -> {
                 if (throwable == null) {
                     try {

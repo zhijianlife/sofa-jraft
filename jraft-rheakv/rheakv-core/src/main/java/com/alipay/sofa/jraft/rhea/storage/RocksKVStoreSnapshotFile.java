@@ -14,19 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.storage;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-
+import static com.alipay.sofa.jraft.entity.LocalFileMetaOutter.LocalFileMeta;
 import com.alipay.sofa.jraft.rhea.errors.StorageException;
 import com.alipay.sofa.jraft.rhea.metadata.Region;
 import com.alipay.sofa.jraft.rhea.util.RegionHelper;
 
-import static com.alipay.sofa.jraft.entity.LocalFileMetaOutter.LocalFileMeta;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 
 /**
- *
  * @author jiachun.fjc
  */
 public class RocksKVStoreSnapshotFile extends AbstractKVStoreSnapshotFile {
@@ -38,8 +37,10 @@ public class RocksKVStoreSnapshotFile extends AbstractKVStoreSnapshotFile {
     }
 
     @Override
-    CompletableFuture<LocalFileMeta.Builder> doSnapshotSave(final String snapshotPath, final Region region,
+    CompletableFuture<LocalFileMeta.Builder> doSnapshotSave(final String snapshotPath,
+                                                            final Region region,
                                                             final ExecutorService executor) throws Exception {
+        // 当前 region 存在多个 raft group
         if (RegionHelper.isMultiGroup(region)) {
             final CompletableFuture<Void> snapshotFuture = this.kvStore.writeSstSnapshot(snapshotPath, region, executor);
             final CompletableFuture<LocalFileMeta.Builder> metaFuture = new CompletableFuture<>();
@@ -66,8 +67,7 @@ public class RocksKVStoreSnapshotFile extends AbstractKVStoreSnapshotFile {
         if (RegionHelper.isMultiGroup(region)) {
             final Region snapshotRegion = readMetadata(meta, Region.class);
             if (!RegionHelper.isSameRange(region, snapshotRegion)) {
-                throw new StorageException("Invalid snapshot region: " + snapshotRegion + " current region is: "
-                                           + region);
+                throw new StorageException("Invalid snapshot region: " + snapshotRegion + " current region is: " + region);
             }
             this.kvStore.readSstSnapshot(snapshotPath);
             return;
