@@ -14,12 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.storage.snapshot.local;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.nio.ByteBuffer;
+package com.alipay.sofa.jraft.storage.snapshot.local;
 
 import com.alipay.sofa.jraft.entity.LocalFileMetaOutter.LocalFileMeta;
 import com.alipay.sofa.jraft.error.RetryAgainException;
@@ -27,6 +23,11 @@ import com.alipay.sofa.jraft.storage.SnapshotThrottle;
 import com.alipay.sofa.jraft.storage.io.LocalDirReader;
 import com.alipay.sofa.jraft.storage.snapshot.Snapshot;
 import com.alipay.sofa.jraft.util.ByteBufferCollector;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 
 /**
  * Snapshot file reader

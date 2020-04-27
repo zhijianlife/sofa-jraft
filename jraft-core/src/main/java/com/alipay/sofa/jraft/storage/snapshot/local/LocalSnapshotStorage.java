@@ -14,22 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.snapshot.local;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.error.RaftError;
 import com.alipay.sofa.jraft.option.RaftOptions;
@@ -43,6 +29,20 @@ import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.Utils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Snapshot storage based on local file storage.
@@ -53,17 +53,17 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class LocalSnapshotStorage implements SnapshotStorage {
 
-    private static final Logger                      LOG       = LoggerFactory.getLogger(LocalSnapshotStorage.class);
+    private static final Logger LOG = LoggerFactory.getLogger(LocalSnapshotStorage.class);
 
-    private static final String                      TEMP_PATH = "temp";
-    private final ConcurrentMap<Long, AtomicInteger> refMap    = new ConcurrentHashMap<>();
-    private final String                             path;
-    private Endpoint                                 addr;
-    private boolean                                  filterBeforeCopyRemote;
-    private long                                     lastSnapshotIndex;
-    private final Lock                               lock;
-    private final RaftOptions                        raftOptions;
-    private SnapshotThrottle                         snapshotThrottle;
+    private static final String TEMP_PATH = "temp";
+    private final ConcurrentMap<Long, AtomicInteger> refMap = new ConcurrentHashMap<>();
+    private final String path;
+    private Endpoint addr;
+    private boolean filterBeforeCopyRemote;
+    private long lastSnapshotIndex;
+    private final Lock lock;
+    private final RaftOptions raftOptions;
+    private SnapshotThrottle snapshotThrottle;
 
     @Override
     public void setSnapshotThrottle(SnapshotThrottle snapshotThrottle) {
@@ -307,8 +307,8 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             return null;
         }
         final String snapshotPath = getSnapshotPath(lsIndex);
-        final SnapshotReader reader = new LocalSnapshotReader(this, this.snapshotThrottle, this.addr, this.raftOptions,
-            snapshotPath);
+        final SnapshotReader reader = new LocalSnapshotReader(
+                this, this.snapshotThrottle, this.addr, this.raftOptions, snapshotPath);
         if (!reader.init(null)) {
             LOG.error("Fail to init reader for path {}.", snapshotPath);
             unref(lsIndex);

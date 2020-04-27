@@ -37,7 +37,7 @@ public class RocksKVStoreSnapshotFile extends AbstractKVStoreSnapshotFile {
     }
 
     @Override
-    CompletableFuture<LocalFileMeta.Builder> doSnapshotSave(final String snapshotPath,
+    CompletableFuture<LocalFileMeta.Builder> doSnapshotSave(final String snapshotPath, // snapshot/kv
                                                             final Region region,
                                                             final ExecutorService executor) throws Exception {
         // 当前 region 存在多个 raft group

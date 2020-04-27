@@ -14,14 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.snapshot.local;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.entity.RaftOutter.SnapshotMeta;
 import com.alipay.sofa.jraft.error.RaftError;
@@ -33,6 +27,12 @@ import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.OnlyForTest;
 import com.alipay.sofa.jraft.util.Utils;
 import com.google.protobuf.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Set;
 
 /**
  * Snapshot reader on local file system.
@@ -43,16 +43,16 @@ import com.google.protobuf.Message;
  */
 public class LocalSnapshotReader extends SnapshotReader {
 
-    private static final Logger          LOG = LoggerFactory.getLogger(LocalSnapshotReader.class);
+    private static final Logger LOG = LoggerFactory.getLogger(LocalSnapshotReader.class);
 
-    /** Generated reader id*/
-    private long                         readerId;
+    /** Generated reader id */
+    private long readerId;
     /** remote peer addr */
-    private final Endpoint               addr;
+    private final Endpoint addr;
     private final LocalSnapshotMetaTable metaTable;
-    private final String                 path;
-    private final LocalSnapshotStorage   snapshotStorage;
-    private final SnapshotThrottle       snapshotThrottle;
+    private final String path;
+    private final LocalSnapshotStorage snapshotStorage;
+    private final SnapshotThrottle snapshotThrottle;
 
     @Override
     public void close() throws IOException {
@@ -60,8 +60,11 @@ public class LocalSnapshotReader extends SnapshotReader {
         this.destroyReaderInFileService();
     }
 
-    public LocalSnapshotReader(LocalSnapshotStorage snapshotStorage, SnapshotThrottle snapshotThrottle, Endpoint addr,
-                               RaftOptions raftOptions, String path) {
+    public LocalSnapshotReader(LocalSnapshotStorage snapshotStorage,
+                               SnapshotThrottle snapshotThrottle,
+                               Endpoint addr,
+                               RaftOptions raftOptions,
+                               String path) {
         super();
         this.snapshotStorage = snapshotStorage;
         this.snapshotThrottle = snapshotThrottle;
@@ -80,7 +83,7 @@ public class LocalSnapshotReader extends SnapshotReader {
     public boolean init(final Void v) {
         final File dir = new File(this.path);
         if (!dir.exists()) {
-            LOG.error("No such path %s for snapshot reader.", this.path);
+            LOG.error("No such path {} for snapshot reader.", this.path);
             setError(RaftError.ENOENT, "No such path %s for snapshot reader", this.path);
             return false;
         }

@@ -122,7 +122,7 @@ public abstract class AbstractKVStoreSnapshotFile implements KVStoreSnapshotFile
                                     final LocalFileMeta.Builder metaBuilder,
                                     final Closure done) {
         final String writerPath = writer.getPath();
-        final String outputFile = Paths.get(writerPath, SNAPSHOT_ARCHIVE).toString();
+        final String outputFile = Paths.get(writerPath, SNAPSHOT_ARCHIVE).toString(); // snapshot/kv.zip
         try {
             final Checksum checksum = new CRC64();
             ZipUtil.compress(writerPath, SNAPSHOT_DIR, outputFile, checksum);

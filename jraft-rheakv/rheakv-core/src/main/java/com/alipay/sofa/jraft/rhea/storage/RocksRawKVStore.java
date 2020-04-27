@@ -1353,6 +1353,11 @@ public class RocksRawKVStore extends BatchRawKVStore<RocksDBOptions> implements 
         }
     }
 
+    /**
+     * @param backupDBPath snapshot/kv
+     * @return
+     * @throws IOException
+     */
     RocksDBBackupInfo backupDB(final String backupDBPath) throws IOException {
         final Timer.Context timeCtx = getTimeContext("BACKUP_DB");
         FileUtils.forceMkdir(new File(backupDBPath));
