@@ -14,7 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rhea.util;
+
+import com.alipay.sofa.jraft.util.CRC64;
+import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,16 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.zip.Checksum;
 
-import org.apache.commons.io.FileUtils;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.alipay.sofa.jraft.util.CRC64;
-
 /**
- *
  * @author jiachun.fjc
  */
 public class ZipUtilTest {
@@ -40,7 +39,7 @@ public class ZipUtilTest {
 
     @Before
     public void startup() throws IOException {
-        this.sourceDir = new File("zip_test");
+        this.sourceDir = new File("/tmp/jraft/zip_test");
         if (this.sourceDir.exists()) {
             FileUtils.forceDelete(this.sourceDir);
         }
