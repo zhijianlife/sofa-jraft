@@ -14,23 +14,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.election;
 
 import com.alipay.sofa.jraft.option.NodeOptions;
 
 /**
- *
  * @author jiachun.fjc
  */
 public class ElectionNodeOptions {
 
-    private String      dataPath;
+    private String dataPath;
     // raft group id
-    private String      groupId;
+    private String groupId;
     // ip:port
-    private String      serverAddress;
+    private String serverAddress;
     // ip:port,ip:port,ip:port
-    private String      initialServerAddressList;
+    private String initialServerAddressList;
     // raft node options
     private NodeOptions nodeOptions;
 
@@ -77,7 +77,7 @@ public class ElectionNodeOptions {
     @Override
     public String toString() {
         return "ElectionNodeOptions{" + "dataPath='" + dataPath + '\'' + ", groupId='" + groupId + '\''
-               + ", serverAddress='" + serverAddress + '\'' + ", initialServerAddressList='" + initialServerAddressList
-               + '\'' + ", nodeOptions=" + nodeOptions + '}';
+                + ", serverAddress='" + serverAddress + '\'' + ", initialServerAddressList='" + initialServerAddressList
+                + '\'' + ", nodeOptions=" + nodeOptions + '}';
     }
 }

@@ -14,31 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc.impl;
-
-import java.io.IOException;
-import java.net.SocketAddress;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import io.grpc.MethodDescriptor;
-import io.grpc.Server;
-import io.grpc.ServerCallHandler;
-import io.grpc.ServerInterceptor;
-import io.grpc.ServerInterceptors;
-import io.grpc.ServerServiceDefinition;
-import io.grpc.protobuf.ProtoUtils;
-import io.grpc.stub.ServerCalls;
-import io.grpc.util.MutableHandlerRegistry;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.rpc.Connection;
 import com.alipay.sofa.jraft.rpc.RpcContext;
@@ -51,6 +28,28 @@ import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.ThreadPoolUtil;
 import com.alipay.sofa.jraft.util.internal.ThrowUtil;
 import com.google.protobuf.Message;
+import io.grpc.MethodDescriptor;
+import io.grpc.Server;
+import io.grpc.ServerCallHandler;
+import io.grpc.ServerInterceptor;
+import io.grpc.ServerInterceptors;
+import io.grpc.ServerServiceDefinition;
+import io.grpc.protobuf.ProtoUtils;
+import io.grpc.stub.ServerCalls;
+import io.grpc.util.MutableHandlerRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.net.SocketAddress;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * GRPC RPC server implement.
@@ -60,19 +59,19 @@ import com.google.protobuf.Message;
  */
 public class GrpcServer implements RpcServer {
 
-    private static final Logger                       LOG                  = LoggerFactory.getLogger(GrpcServer.class);
+    private static final Logger LOG = LoggerFactory.getLogger(GrpcServer.class);
 
-    private static final String                       EXECUTOR_NAME        = "grpc-default-executor";
+    private static final String EXECUTOR_NAME = "grpc-default-executor";
 
-    private final Server                              server;
-    private final MutableHandlerRegistry              handlerRegistry;
-    private final Map<String, Message>                parserClasses;
-    private final MarshallerRegistry                  marshallerRegistry;
-    private final List<ServerInterceptor>             serverInterceptors   = new CopyOnWriteArrayList<>();
+    private final Server server;
+    private final MutableHandlerRegistry handlerRegistry;
+    private final Map<String, Message> parserClasses;
+    private final MarshallerRegistry marshallerRegistry;
+    private final List<ServerInterceptor> serverInterceptors = new CopyOnWriteArrayList<>();
     private final List<ConnectionClosedEventListener> closedEventListeners = new CopyOnWriteArrayList<>();
-    private final AtomicBoolean                       started              = new AtomicBoolean(false);
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
-    private ExecutorService                           defaultExecutor;
+    private ExecutorService defaultExecutor;
 
     public GrpcServer(Server server, MutableHandlerRegistry handlerRegistry, Map<String, Message> parserClasses,
                       MarshallerRegistry marshallerRegistry) {
@@ -90,19 +89,19 @@ public class GrpcServer implements RpcServer {
         }
 
         this.defaultExecutor = ThreadPoolUtil.newBuilder() //
-            .poolName(EXECUTOR_NAME) //
-            .enableMetric(true) //
-            .coreThreads(Math.min(20, GrpcRaftRpcFactory.RPC_SERVER_PROCESSOR_POOL_SIZE / 5)) //
-            .maximumThreads(GrpcRaftRpcFactory.RPC_SERVER_PROCESSOR_POOL_SIZE) //
-            .keepAliveSeconds(60L) //
-            .workQueue(new SynchronousQueue<>()) //
-            .threadFactory(new NamedThreadFactory(EXECUTOR_NAME + "-", true)) //
-            .rejectedHandler((r, executor) -> {
-                throw new RejectedExecutionException("[" + EXECUTOR_NAME + "], task " + r.toString() +
-                        " rejected from " +
-                        executor.toString());
-            })
-            .build();
+                .poolName(EXECUTOR_NAME) //
+                .enableMetric(true) //
+                .coreThreads(Math.min(20, GrpcRaftRpcFactory.RPC_SERVER_PROCESSOR_POOL_SIZE / 5)) //
+                .maximumThreads(GrpcRaftRpcFactory.RPC_SERVER_PROCESSOR_POOL_SIZE) //
+                .keepAliveSeconds(60L) //
+                .workQueue(new SynchronousQueue<>()) //
+                .threadFactory(new NamedThreadFactory(EXECUTOR_NAME + "-", true)) //
+                .rejectedHandler((r, executor) -> {
+                    throw new RejectedExecutionException("[" + EXECUTOR_NAME + "], task " + r.toString() +
+                            " rejected from " +
+                            executor.toString());
+                })
+                .build();
 
         try {
             this.server.start();
@@ -135,7 +134,7 @@ public class GrpcServer implements RpcServer {
                 .<Message, Message>newBuilder() //
                 .setType(MethodDescriptor.MethodType.UNARY) //
                 .setFullMethodName(
-                    MethodDescriptor.generateFullMethodName(processor.interest(), GrpcRaftRpcFactory.FIXED_METHOD_NAME)) //
+                        MethodDescriptor.generateFullMethodName(processor.interest(), GrpcRaftRpcFactory.FIXED_METHOD_NAME)) //
                 .setRequestMarshaller(ProtoUtils.marshaller(reqIns)) //
                 .setResponseMarshaller(ProtoUtils.marshaller(this.marshallerRegistry.findResponseInstanceByRequest(interest))) //
                 .build();
@@ -201,9 +200,9 @@ public class GrpcServer implements RpcServer {
                 .builder(interest) //
                 .addMethod(method, handler) //
                 .build();
-        
+
         this.handlerRegistry
-            .addService(ServerInterceptors.intercept(serviceDef, this.serverInterceptors.toArray(new ServerInterceptor[0])));
+                .addService(ServerInterceptors.intercept(serviceDef, this.serverInterceptors.toArray(new ServerInterceptor[0])));
     }
 
     @Override

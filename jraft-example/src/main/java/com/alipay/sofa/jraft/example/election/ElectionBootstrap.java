@@ -14,12 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.example.election;
 
 import com.alipay.sofa.jraft.entity.PeerId;
 
 /**
- *
  * @author jiachun.fjc
  */
 public class ElectionBootstrap {
@@ -28,17 +28,18 @@ public class ElectionBootstrap {
     // the first parameter `dataPath` should not be the same.
     public static void main(final String[] args) {
         if (args.length < 4) {
-            System.out
-                .println("Useage : java com.alipay.sofa.jraft.example.election.ElectionBootstrap {dataPath} {groupId} {serverId} {initConf}");
-            System.out
-                .println("Example: java com.alipay.sofa.jraft.example.election.ElectionBootstrap /tmp/server1 election_test 127.0.0.1:8081 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
+            System.out.println(
+                    "Useage : java com.alipay.sofa.jraft.example.election.ElectionBootstrap {dataPath} {groupId} {serverId} {initConf}");
+            System.out.println(
+                    "Example: java com.alipay.sofa.jraft.example.election.ElectionBootstrap /tmp/server1 election_test 127.0.0.1:8081 127.0.0.1:8081,127.0.0.1:8082,127.0.0.1:8083");
             System.exit(1);
         }
-        final String dataPath = args[0];
-        final String groupId = args[1];
-        final String serverIdStr = args[2];
-        final String initialConfStr = args[3];
+        final String dataPath = args[0]; // 数据根路径
+        final String groupId = args[1]; // 组 ID
+        final String serverIdStr = args[2]; // 节点地址
+        final String initialConfStr = args[3]; // 初始节点列表
 
+        // 节点初始化参数设置
         final ElectionNodeOptions electionOpts = new ElectionNodeOptions();
         electionOpts.setDataPath(dataPath);
         electionOpts.setGroupId(groupId);
@@ -46,11 +47,12 @@ public class ElectionBootstrap {
         electionOpts.setInitialServerAddressList(initialConfStr);
 
         final ElectionNode node = new ElectionNode();
+        // 注册监听器，监听当前节点竞选 leader 成功或 stepdown
         node.addLeaderStateListener(new LeaderStateListener() {
 
-            PeerId serverId = node.getNode().getLeaderId();
-            String ip       = serverId.getIp();
-            int    port     = serverId.getPort();
+            final PeerId serverId = node.getNode().getLeaderId();
+            final String ip = serverId.getIp();
+            final int port = serverId.getPort();
 
             @Override
             public void onLeaderStart(long leaderTerm) {
@@ -63,6 +65,8 @@ public class ElectionBootstrap {
                 System.out.println("[ElectionBootstrap] Leader stop on term: " + leaderTerm);
             }
         });
+
+        // 初始化并启动节点
         node.init(electionOpts);
     }
 }

@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 import com.alipay.sofa.jraft.rpc.RaftRpcFactory;
@@ -24,8 +25,7 @@ import com.alipay.sofa.jraft.rpc.RpcResponseFactory;
  */
 public class RpcFactoryHelper {
 
-    private static final RaftRpcFactory RPC_FACTORY = JRaftServiceLoader.load(RaftRpcFactory.class) //
-                                                        .first();
+    private static final RaftRpcFactory RPC_FACTORY = JRaftServiceLoader.load(RaftRpcFactory.class).first();
 
     public static RaftRpcFactory rpcFactory() {
         return RPC_FACTORY;

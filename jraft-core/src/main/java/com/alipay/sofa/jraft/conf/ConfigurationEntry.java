@@ -14,30 +14,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.conf;
+
+import com.alipay.sofa.jraft.entity.LogId;
+import com.alipay.sofa.jraft.entity.PeerId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.alipay.sofa.jraft.entity.LogId;
-import com.alipay.sofa.jraft.entity.PeerId;
-
 /**
  * A configuration entry with current peers and old peers.
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-04 2:25:06 PM
  */
 public class ConfigurationEntry {
 
-    private static final Logger LOG     = LoggerFactory.getLogger(ConfigurationEntry.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationEntry.class);
 
-    private LogId               id      = new LogId(0, 0);
-    private Configuration       conf    = new Configuration();
-    private Configuration       oldConf = new Configuration();
+    private LogId id = new LogId(0, 0);
+    private Configuration conf = new Configuration();
+    private Configuration oldConf = new Configuration();
 
     public LogId getId() {
         return this.id;
@@ -98,10 +99,11 @@ public class ConfigurationEntry {
             return false;
         }
 
-        // The peer set and learner set should not have intersection set.
+        // 计算 peers 和 learners 的交集
         final Set<PeerId> intersection = listPeers();
         intersection.retainAll(listLearners());
         if (intersection.isEmpty()) {
+            // 不允许为空
             return true;
         }
         LOG.error("Invalid conf entry {}, peers and learners have intersection: {}.", this, intersection);

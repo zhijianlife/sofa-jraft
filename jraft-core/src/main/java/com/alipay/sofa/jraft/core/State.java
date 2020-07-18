@@ -14,10 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.core;
 
 /**
  * Node state
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-08 5:41:54 PM

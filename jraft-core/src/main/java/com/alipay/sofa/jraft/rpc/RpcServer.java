@@ -14,13 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.rpc;
 
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.rpc.impl.ConnectionClosedEventListener;
 
 /**
- *
  * @author jiachun.fjc
  */
 public interface RpcServer extends Lifecycle<Void> {
@@ -40,8 +40,8 @@ public interface RpcServer extends Lifecycle<Void> {
     void registerProcessor(final RpcProcessor<?> processor);
 
     /**
-     *
      * @return bound port
      */
     int boundPort();
+
 }
