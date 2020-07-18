@@ -17,7 +17,6 @@
 
 package com.alipay.sofa.jraft.rhea;
 
-import com.alipay.remoting.rpc.RpcServer;
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.Node;
 import com.alipay.sofa.jraft.RaftGroupService;
@@ -33,9 +32,10 @@ import com.alipay.sofa.jraft.rhea.storage.MetricsRawKVStore;
 import com.alipay.sofa.jraft.rhea.storage.RaftRawKVStore;
 import com.alipay.sofa.jraft.rhea.storage.RawKVStore;
 import com.alipay.sofa.jraft.rhea.util.Strings;
-import com.alipay.sofa.jraft.rhea.util.ThrowUtil;
+import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.Requires;
+import com.alipay.sofa.jraft.util.internal.ThrowUtil;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.ScheduledReporter;
 import com.codahale.metrics.Slf4jReporter;
@@ -98,7 +98,12 @@ public class RegionEngine implements Lifecycle<RegionEngineOptions> {
             // metricsReportPeriod > 0 means enable metrics
             nodeOpts.setEnableMetrics(true);
         }
-        nodeOpts.setInitialConf(new Configuration(JRaftHelper.toJRaftPeerIdList(this.region.getPeers())));
+        final Configuration initialConf = new Configuration();
+        if (!initialConf.parse(opts.getInitialServerList())) {
+            LOG.error("Fail to parse initial configuration {}.", opts.getInitialServerList());
+            return false;
+        }
+        nodeOpts.setInitialConf(initialConf);
         nodeOpts.setFsm(this.fsm);
         final String raftDataPath = opts.getRaftDataPath();
         try {

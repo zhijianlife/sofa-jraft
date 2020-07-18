@@ -14,12 +14,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.rhea;
 
-import com.alipay.remoting.rpc.RpcServer;
+import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.alipay.sofa.jraft.Lifecycle;
 import com.alipay.sofa.jraft.Status;
+import com.alipay.sofa.jraft.conf.Configuration;
+import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.entity.Task;
 import com.alipay.sofa.jraft.option.NodeOptions;
 import com.alipay.sofa.jraft.rhea.client.pd.HeartbeatSender;
@@ -51,28 +65,16 @@ import com.alipay.sofa.jraft.rhea.util.Maps;
 import com.alipay.sofa.jraft.rhea.util.NetUtil;
 import com.alipay.sofa.jraft.rhea.util.Strings;
 import com.alipay.sofa.jraft.rpc.RaftRpcServerFactory;
+import com.alipay.sofa.jraft.rpc.RpcServer;
 import com.alipay.sofa.jraft.util.BytesUtil;
 import com.alipay.sofa.jraft.util.Describer;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.ExecutorServiceHelper;
-import com.alipay.sofa.jraft.util.MetricThreadPoolExecutor;
 import com.alipay.sofa.jraft.util.Requires;
+import com.alipay.sofa.jraft.util.ThreadPoolMetricRegistry;
 import com.alipay.sofa.jraft.util.Utils;
 import com.codahale.metrics.ScheduledReporter;
 import com.codahale.metrics.Slf4jReporter;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.nio.ByteBuffer;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Storage engine, there is only one instance in a node,
@@ -82,42 +84,42 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class StoreEngine implements Lifecycle<StoreEngineOptions> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(StoreEngine.class);
+    private static final Logger                        LOG                  = LoggerFactory
+                                                                                .getLogger(StoreEngine.class);
 
     static {
         ExtSerializerSupports.init();
     }
 
     private final ConcurrentMap<Long, RegionKVService> regionKVServiceTable = Maps.newConcurrentMapLong();
-    private final ConcurrentMap<Long, RegionEngine> regionEngineTable = Maps.newConcurrentMapLong();
-    private final StateListenerContainer<Long> stateListenerContainer;
-    private final PlacementDriverClient pdClient;
-    private final long clusterId;
+    private final ConcurrentMap<Long, RegionEngine>    regionEngineTable    = Maps.newConcurrentMapLong();
+    private final StateListenerContainer<Long>         stateListenerContainer;
+    private final PlacementDriverClient                pdClient;
+    private final long                                 clusterId;
 
-    private Long storeId;
-    private final AtomicBoolean splitting = new AtomicBoolean(false);
+    private Long                                       storeId;
+    private final AtomicBoolean                        splitting            = new AtomicBoolean(false);
     // When the store is started (unix timestamp in milliseconds)
-    private long startTime = System.currentTimeMillis();
-    private File dbPath;
-    private RpcServer rpcServer;
-    /** 默认使用 RocksRawKVStore */
-    private BatchRawKVStore<?> rawKVStore;
-    private HeartbeatSender heartbeatSender;
-    private StoreEngineOptions storeOpts;
+    private long                                       startTime            = System.currentTimeMillis();
+    private File                                       dbPath;
+    private RpcServer                                  rpcServer;
+    private BatchRawKVStore<?>                         rawKVStore;
+    private HeartbeatSender                            heartbeatSender;
+    private StoreEngineOptions                         storeOpts;
 
     // Shared executor services
-    private ExecutorService readIndexExecutor;
-    private ExecutorService raftStateTrigger;
-    private ExecutorService snapshotExecutor;
-    private ExecutorService cliRpcExecutor;
-    private ExecutorService raftRpcExecutor;
-    private ExecutorService kvRpcExecutor;
+    private ExecutorService                            readIndexExecutor;
+    private ExecutorService                            raftStateTrigger;
+    private ExecutorService                            snapshotExecutor;
+    private ExecutorService                            cliRpcExecutor;
+    private ExecutorService                            raftRpcExecutor;
+    private ExecutorService                            kvRpcExecutor;
 
-    private ScheduledExecutorService metricsScheduler;
-    private ScheduledReporter kvMetricsReporter;
-    private ScheduledReporter threadPoolMetricsReporter;
+    private ScheduledExecutorService                   metricsScheduler;
+    private ScheduledReporter                          kvMetricsReporter;
+    private ScheduledReporter                          threadPoolMetricsReporter;
 
-    private boolean started;
+    private boolean                                    started;
 
     public StoreEngine(PlacementDriverClient pdClient, StateListenerContainer<Long> stateListenerContainer) {
         this.pdClient = Requires.requireNonNull(pdClient, "pdClient");
@@ -136,13 +138,11 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
         final int port = serverAddress.getPort();
         final String ip = serverAddress.getIp();
         if (ip == null || Utils.IP_ANY.equals(ip)) {
-            // 使用本地 IP
             serverAddress = new Endpoint(NetUtil.getLocalCanonicalHostName(), port);
             opts.setServerAddress(serverAddress);
         }
         final long metricsReportPeriod = opts.getMetricsReportPeriod();
-
-        // 初始化 RegionEngineOptions
+        // init region options
         List<RegionEngineOptions> rOptsList = opts.getRegionEngineOptionsList();
         if (rOptsList == null || rOptsList.isEmpty()) {
             // -1 region
@@ -152,36 +152,31 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             rOptsList.add(rOpts);
             opts.setRegionEngineOptionsList(rOptsList);
         }
-
-        // 获取集群名
         final String clusterName = this.pdClient.getClusterName();
-        // 遍历处理所有的 RegionEngineOptions
         for (final RegionEngineOptions rOpts : rOptsList) {
-            // 设置 groupId
             rOpts.setRaftGroupId(JRaftHelper.getJRaftGroupId(clusterName, rOpts.getRegionId()));
-            // 设置节点 IP
             rOpts.setServerAddress(serverAddress);
-            // 设置初始集群节点列表
-            rOpts.setInitialServerList(opts.getInitialServerList());
-            // 设置 Raft NodeOptions
+            if (Strings.isBlank(rOpts.getInitialServerList())) {
+                // if blank, extends parent's value
+                rOpts.setInitialServerList(opts.getInitialServerList());
+            }
             if (rOpts.getNodeOptions() == null) {
                 // copy common node options
-                rOpts.setNodeOptions(opts.getCommonNodeOptions() == null ? new NodeOptions() : opts.getCommonNodeOptions().copy());
+                rOpts.setNodeOptions(opts.getCommonNodeOptions() == null ? new NodeOptions() : opts
+                    .getCommonNodeOptions().copy());
             }
             if (rOpts.getMetricsReportPeriod() <= 0 && metricsReportPeriod > 0) {
                 // extends store opts
                 rOpts.setMetricsReportPeriod(metricsReportPeriod);
             }
         }
-
-        // 初始化当前物理存储节点，一个 Store 代表一个节点，名下有多个 Region
+        // init store
         final Store store = this.pdClient.getStoreMetadata(opts);
         if (store == null || store.getRegions() == null || store.getRegions().isEmpty()) {
             LOG.error("Empty store metadata: {}.", store);
             return false;
         }
         this.storeId = store.getId();
-
         // init executors
         if (this.readIndexExecutor == null) {
             this.readIndexExecutor = StoreEngineHelper.createReadIndexExecutor(opts.getReadIndexCoreThreads());
@@ -190,9 +185,9 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             this.raftStateTrigger = StoreEngineHelper.createRaftStateTrigger(opts.getLeaderStateTriggerCoreThreads());
         }
         if (this.snapshotExecutor == null) {
-            this.snapshotExecutor = StoreEngineHelper.createSnapshotExecutor(opts.getSnapshotCoreThreads(), opts.getSnapshotMaxThreads());
+            this.snapshotExecutor = StoreEngineHelper.createSnapshotExecutor(opts.getSnapshotCoreThreads(),
+                opts.getSnapshotMaxThreads());
         }
-
         // init rpc executors
         final boolean useSharedRpcExecutor = opts.isUseSharedRpcExecutor();
         if (!useSharedRpcExecutor) {
@@ -206,34 +201,29 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
                 this.kvRpcExecutor = StoreEngineHelper.createKvRpcExecutor(opts.getKvRpcCoreThreads());
             }
         }
-
         // init metrics
         startMetricReporters(metricsReportPeriod);
-
-        // 创建并启动 RPC 服务
-        this.rpcServer = new RpcServer(port, true, true);
-        RaftRpcServerFactory.addRaftRequestProcessors(this.rpcServer, this.raftRpcExecutor, this.cliRpcExecutor);
+        // init rpc server
+        this.rpcServer = RaftRpcServerFactory.createRaftRpcServer(serverAddress, this.raftRpcExecutor,
+            this.cliRpcExecutor);
         StoreEngineHelper.addKvStoreRequestProcessor(this.rpcServer, this);
-        if (!this.rpcServer.start()) {
+        if (!this.rpcServer.init(null)) {
             LOG.error("Fail to init [RpcServer].");
             return false;
         }
-
-        // 依据 DB 类型进行初始化，默认为 RocksDB
+        // init db store
         if (!initRawKVStore(opts)) {
             return false;
         }
         if (this.rawKVStore instanceof Describer) {
             DescriberManager.getInstance().addDescriber((Describer) this.rawKVStore);
         }
-
-        // 为每个 region 初始化对应的 RegionEngine
+        // init all region engine
         if (!initAllRegionEngine(opts, store)) {
             LOG.error("Fail to init all [RegionEngine].");
             return false;
         }
-
-        // 如果启用了自集群管理，则需要启动心跳发送器
+        // heartbeat sender
         if (this.pdClient instanceof RemotePlacementDriverClient) {
             HeartbeatOptions heartbeatOpts = opts.getHeartbeatOptions();
             if (heartbeatOpts == null) {
@@ -256,7 +246,7 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             return;
         }
         if (this.rpcServer != null) {
-            this.rpcServer.stop();
+            this.rpcServer.shutdown();
         }
         if (!this.regionEngineTable.isEmpty()) {
             for (final RegionEngine engine : this.regionEngineTable.values()) {
@@ -540,7 +530,7 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
                 baseRaftDataPath = "";
             }
             rOpts.setRaftDataPath(baseRaftDataPath + "raft_data_region_" + region.getId() + "_"
-                    + getSelfEndpoint().getPort());
+                                  + getSelfEndpoint().getPort());
             final RegionEngine engine = new RegionEngine(region, this);
             if (!engine.init(rOpts)) {
                 LOG.error("Fail to init [RegionEngine: {}].", region);
@@ -578,12 +568,12 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
             }
             // start kv store metrics reporter
             this.kvMetricsReporter = Slf4jReporter.forRegistry(KVMetrics.metricRegistry()) //
-                    .prefixedWith("store_" + this.storeId) //
-                    .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
-                    .outputTo(LOG) //
-                    .scheduleOn(this.metricsScheduler) //
-                    .shutdownExecutorOnStop(false) //
-                    .build();
+                .prefixedWith("store_" + this.storeId) //
+                .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
+                .outputTo(LOG) //
+                .scheduleOn(this.metricsScheduler) //
+                .shutdownExecutorOnStop(false) //
+                .build();
             this.kvMetricsReporter.start(metricsReportPeriod, TimeUnit.SECONDS);
         }
         if (this.threadPoolMetricsReporter == null) {
@@ -592,12 +582,12 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
                 this.metricsScheduler = StoreEngineHelper.createMetricsScheduler();
             }
             // start threadPool metrics reporter
-            this.threadPoolMetricsReporter = Slf4jReporter.forRegistry(MetricThreadPoolExecutor.metricRegistry()) //
-                    .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
-                    .outputTo(LOG) //
-                    .scheduleOn(this.metricsScheduler) //
-                    .shutdownExecutorOnStop(false) //
-                    .build();
+            this.threadPoolMetricsReporter = Slf4jReporter.forRegistry(ThreadPoolMetricRegistry.metricRegistry()) //
+                .withLoggingLevel(Slf4jReporter.LoggingLevel.INFO) //
+                .outputTo(LOG) //
+                .scheduleOn(this.metricsScheduler) //
+                .shutdownExecutorOnStop(false) //
+                .build();
             this.threadPoolMetricsReporter.start(metricsReportPeriod, TimeUnit.SECONDS);
         }
     }
@@ -676,16 +666,17 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
         final List<RegionEngineOptions> rOptsList = opts.getRegionEngineOptionsList();
         final List<Region> regionList = store.getRegions();
         Requires.requireTrue(rOptsList.size() == regionList.size());
-        // 遍历处理每个 Region
         for (int i = 0; i < rOptsList.size(); i++) {
             final RegionEngineOptions rOpts = rOptsList.get(i);
+            if (!inConfiguration(rOpts.getServerAddress().toString(), rOpts.getInitialServerList())) {
+                continue;
+            }
             final Region region = regionList.get(i);
             if (Strings.isBlank(rOpts.getRaftDataPath())) {
                 final String childPath = "raft_data_region_" + region.getId() + "_" + serverAddress.getPort();
                 rOpts.setRaftDataPath(Paths.get(baseRaftDataPath, childPath).toString());
             }
             Requires.requireNonNull(region.getRegionEpoch(), "regionEpoch");
-            // 为当前 Region 创建和初始化对应的 RegionEngine
             final RegionEngine engine = new RegionEngine(region, this);
             if (engine.init(rOpts)) {
                 final RegionKVService regionKVService = new DefaultRegionKVService(engine);
@@ -699,18 +690,30 @@ public class StoreEngine implements Lifecycle<StoreEngineOptions> {
         return true;
     }
 
+    private boolean inConfiguration(final String curr, final String all) {
+        final PeerId currPeer = new PeerId();
+        if (!currPeer.parse(curr)) {
+            return false;
+        }
+        final Configuration allConf = new Configuration();
+        if (!allConf.parse(all)) {
+            return false;
+        }
+        return allConf.contains(currPeer) || allConf.getLearners().contains(currPeer);
+    }
+
     private void registerRegionKVService(final RegionKVService regionKVService) {
         final RegionKVService preService = this.regionKVServiceTable.putIfAbsent(regionKVService.getRegionId(),
-                regionKVService);
+            regionKVService);
         if (preService != null) {
             throw new RheaRuntimeException("RegionKVService[region=" + regionKVService.getRegionId()
-                    + "] has already been registered, can not register again!");
+                                           + "] has already been registered, can not register again!");
         }
     }
 
     @Override
     public String toString() {
         return "StoreEngine{storeId=" + storeId + ", startTime=" + startTime + ", dbPath=" + dbPath + ", storeOpts="
-                + storeOpts + ", started=" + started + '}';
+               + storeOpts + ", started=" + started + '}';
     }
 }

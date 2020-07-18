@@ -14,14 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.alipay.sofa.jraft.rhea.client;
-
-import com.alipay.sofa.jraft.rhea.errors.NeverGetHereException;
-import com.alipay.sofa.jraft.rhea.util.Lists;
-import com.alipay.sofa.jraft.rhea.util.Maps;
-import com.alipay.sofa.jraft.rhea.util.ThrowUtil;
-import com.alipay.sofa.jraft.util.SystemPropertyUtil;
 
 import java.util.List;
 import java.util.Map;
@@ -30,7 +23,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.alipay.sofa.jraft.rhea.errors.NeverGetHereException;
+import com.alipay.sofa.jraft.rhea.util.Lists;
+import com.alipay.sofa.jraft.rhea.util.Maps;
+import com.alipay.sofa.jraft.util.internal.ThrowUtil;
+import com.alipay.sofa.jraft.util.SystemPropertyUtil;
+
 /**
+ *
  * @author jiachun.fjc
  */
 public final class FutureHelper {
