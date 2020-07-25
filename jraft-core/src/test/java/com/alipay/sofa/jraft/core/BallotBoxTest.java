@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.core;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+package com.alipay.sofa.jraft.core;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.FSMCaller;
@@ -31,17 +24,23 @@ import com.alipay.sofa.jraft.Status;
 import com.alipay.sofa.jraft.closure.ClosureQueueImpl;
 import com.alipay.sofa.jraft.entity.PeerId;
 import com.alipay.sofa.jraft.option.BallotBoxOptions;
-
+import org.junit.After;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.runners.MockitoJUnitRunner;
 
 @RunWith(value = MockitoJUnitRunner.class)
 public class BallotBoxTest {
-    private BallotBox        box;
+    private BallotBox box;
     @Mock
-    private FSMCaller        waiter;
+    private FSMCaller waiter;
     private ClosureQueueImpl closureQueue;
 
     @Before
@@ -73,24 +72,24 @@ public class BallotBoxTest {
         assertTrue(this.box.getPendingMetaQueue().isEmpty());
         assertTrue(this.closureQueue.getQueue().isEmpty());
         assertFalse(this.box.appendPendingTask(
-            JRaftUtils.getConfiguration("localhost:8081,localhost:8082,localhost:8083"),
-            JRaftUtils.getConfiguration("localhost:8081"), new Closure() {
+                JRaftUtils.getConfiguration("localhost:8081,localhost:8082,localhost:8083"),
+                JRaftUtils.getConfiguration("localhost:8081"), new Closure() {
 
-                @Override
-                public void run(Status status) {
+                    @Override
+                    public void run(Status status) {
 
-                }
-            }));
+                    }
+                }));
         assertTrue(box.resetPendingIndex(1));
         assertTrue(this.box.appendPendingTask(
-            JRaftUtils.getConfiguration("localhost:8081,localhost:8082,localhost:8083"),
-            JRaftUtils.getConfiguration("localhost:8081"), new Closure() {
+                JRaftUtils.getConfiguration("localhost:8081,localhost:8082,localhost:8083"),
+                JRaftUtils.getConfiguration("localhost:8081"), new Closure() {
 
-                @Override
-                public void run(Status status) {
+                    @Override
+                    public void run(Status status) {
 
-                }
-            }));
+                    }
+                }));
 
         assertEquals(1, this.box.getPendingMetaQueue().size());
         assertEquals(1, this.closureQueue.getQueue().size());
@@ -110,14 +109,14 @@ public class BallotBoxTest {
         assertFalse(this.box.commitAt(1, 3, new PeerId("localhost", 8081)));
         assertTrue(box.resetPendingIndex(1));
         assertTrue(this.box.appendPendingTask(
-            JRaftUtils.getConfiguration("localhost:8081,localhost:8082,localhost:8083"),
-            JRaftUtils.getConfiguration("localhost:8081"), new Closure() {
+                JRaftUtils.getConfiguration("localhost:8081,localhost:8082,localhost:8083"),
+                JRaftUtils.getConfiguration("localhost:8081"), new Closure() {
 
-                @Override
-                public void run(Status status) {
+                    @Override
+                    public void run(Status status) {
 
-                }
-            }));
+                    }
+                }));
         assertEquals(0, this.box.getLastCommittedIndex());
         try {
             this.box.commitAt(1, 3, new PeerId("localhost", 8081));

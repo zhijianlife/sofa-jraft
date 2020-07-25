@@ -14,32 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.impl;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import org.rocksdb.BlockBasedTableConfig;
-import org.rocksdb.ColumnFamilyDescriptor;
-import org.rocksdb.ColumnFamilyHandle;
-import org.rocksdb.ColumnFamilyOptions;
-import org.rocksdb.DBOptions;
-import org.rocksdb.Options;
-import org.rocksdb.ReadOptions;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.RocksIterator;
-import org.rocksdb.StringAppendOperator;
-import org.rocksdb.WriteBatch;
-import org.rocksdb.WriteOptions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.conf.Configuration;
 import com.alipay.sofa.jraft.conf.ConfigurationEntry;
@@ -59,6 +35,30 @@ import com.alipay.sofa.jraft.util.Describer;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.StorageOptionsFactory;
 import com.alipay.sofa.jraft.util.Utils;
+import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.ColumnFamilyDescriptor;
+import org.rocksdb.ColumnFamilyHandle;
+import org.rocksdb.ColumnFamilyOptions;
+import org.rocksdb.DBOptions;
+import org.rocksdb.Options;
+import org.rocksdb.ReadOptions;
+import org.rocksdb.RocksDB;
+import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
+import org.rocksdb.StringAppendOperator;
+import org.rocksdb.WriteBatch;
+import org.rocksdb.WriteOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Log storage based on rocksdb.
@@ -89,8 +89,8 @@ public class RocksDBLogStorage implements LogStorage, Describer {
 
     /**
      * A write context
-     * @author boyan(boyan@antfin.com)
      *
+     * @author boyan(boyan @ antfin.com)
      */
     public interface WriteContext {
         /**
@@ -114,6 +114,7 @@ public class RocksDBLogStorage implements LogStorage, Describer {
 
         /**
          * Set an exception to context.
+         *
          * @param e
          */
         default void setError(final Exception e) {
@@ -128,34 +129,34 @@ public class RocksDBLogStorage implements LogStorage, Describer {
 
     /**
      * An empty write context
-     * @author boyan(boyan@antfin.com)
      *
+     * @author boyan (boyan@antfin.com)
      */
     protected static class EmptyWriteContext implements WriteContext {
         static EmptyWriteContext INSTANCE = new EmptyWriteContext();
     }
 
-    private final String                    path;
-    private final boolean                   sync;
-    private final boolean                   openStatistics;
-    private RocksDB                         db;
-    private DBOptions                       dbOptions;
-    private WriteOptions                    writeOptions;
-    private final List<ColumnFamilyOptions> cfOptions     = new ArrayList<>();
-    private ColumnFamilyHandle              defaultHandle;
-    private ColumnFamilyHandle              confHandle;
-    private ReadOptions                     totalOrderReadOptions;
-    private DebugStatistics                 statistics;
-    private final ReadWriteLock             readWriteLock = new ReentrantReadWriteLock();
-    private final Lock                      readLock      = this.readWriteLock.readLock();
-    private final Lock                      writeLock     = this.readWriteLock.writeLock();
+    private final String path;
+    private final boolean sync;
+    private final boolean openStatistics;
+    private RocksDB db;
+    private DBOptions dbOptions;
+    private WriteOptions writeOptions;
+    private final List<ColumnFamilyOptions> cfOptions = new ArrayList<>();
+    private ColumnFamilyHandle defaultHandle;
+    private ColumnFamilyHandle confHandle;
+    private ReadOptions totalOrderReadOptions;
+    private DebugStatistics statistics;
+    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+    private final Lock readLock = this.readWriteLock.readLock();
+    private final Lock writeLock = this.readWriteLock.writeLock();
 
-    private volatile long                   firstLogIndex = 1;
+    private volatile long firstLogIndex = 1;
 
-    private volatile boolean                hasLoadFirstLogIndex;
+    private volatile boolean hasLoadFirstLogIndex;
 
-    private LogEntryEncoder                 logEntryEncoder;
-    private LogEntryDecoder                 logEntryDecoder;
+    private LogEntryEncoder logEntryEncoder;
+    private LogEntryDecoder logEntryDecoder;
 
     public RocksDBLogStorage(final String path, final RaftOptions raftOptions) {
         super();
@@ -183,11 +184,14 @@ public class RocksDBLogStorage implements LogStorage, Describer {
         Requires.requireNonNull(opts.getLogEntryCodecFactory(), "Null log entry codec factory");
         this.writeLock.lock();
         try {
+            // 已经初始化过，避免重复初始化
             if (this.db != null) {
                 LOG.warn("RocksDBLogStorage init() already.");
                 return true;
             }
+            // LogEntry 解码器，默认使用 AutoDetectDecoder，支持 V1 和 V2 版本
             this.logEntryDecoder = opts.getLogEntryCodecFactory().decoder();
+            // LogEntry 编码器，默认使用 V2Encoder
             this.logEntryEncoder = opts.getLogEntryCodecFactory().encoder();
             Requires.requireNonNull(this.logEntryDecoder, "Null log entry decoder");
             Requires.requireNonNull(this.logEntryEncoder, "Null log entry encoder");
@@ -197,11 +201,14 @@ public class RocksDBLogStorage implements LogStorage, Describer {
                 this.dbOptions.setStatistics(this.statistics);
             }
 
+            // 设置 RocksDB WriteOptions
             this.writeOptions = new WriteOptions();
             this.writeOptions.setSync(this.sync);
+            // 设置 RocksDB ReadOptions
             this.totalOrderReadOptions = new ReadOptions();
             this.totalOrderReadOptions.setTotalOrderSeek(true);
 
+            // 打开本地存储引擎 RocksDB，并从本地 conf 日志中恢复集群节点配置和 firstLogIndex 数据
             return initAndLoad(opts.getConfigurationManager());
         } catch (final RocksDBException e) {
             LOG.error("Fail to init RocksDBLogStorage, path={}.", this.path, e);
@@ -212,10 +219,18 @@ public class RocksDBLogStorage implements LogStorage, Describer {
 
     }
 
+    /**
+     * 打开本地存储引擎 RocksDB，并从本地 conf 日志中恢复集群节点配置和 firstLogIndex 数据
+     *
+     * @param confManager
+     * @return
+     * @throws RocksDBException
+     */
     private boolean initAndLoad(final ConfigurationManager confManager) throws RocksDBException {
         this.hasLoadFirstLogIndex = false;
         this.firstLogIndex = 1;
         final List<ColumnFamilyDescriptor> columnFamilyDescriptors = new ArrayList<>();
+        // 设置 RocksDB ColumnFamilyOptions
         final ColumnFamilyOptions cfOption = createColumnFamilyOptions();
         this.cfOptions.add(cfOption);
         // Column family to store configuration log entry.
@@ -223,8 +238,11 @@ public class RocksDBLogStorage implements LogStorage, Describer {
         // Default column family to store user data log entry.
         columnFamilyDescriptors.add(new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, cfOption));
 
+        // 打开 RocksDB，并初始化对应的 ColumnFamily
         openDB(columnFamilyDescriptors);
+        // 从 conf 中加载集群节点配置，以及 firstLogIndex 值，并从本地剔除 firstLogIndex 之前的 conf 和 data 数据
         load(confManager);
+        // 模板方法
         return onInitLoaded();
     }
 
@@ -235,17 +253,21 @@ public class RocksDBLogStorage implements LogStorage, Describer {
 
     private void load(final ConfigurationManager confManager) {
         checkState();
+        // 按顺序从头开始遍历处理 RocksDB Conf ColumnFamily 中的数据
         try (final RocksIterator it = this.db.newIterator(this.confHandle, this.totalOrderReadOptions)) {
             it.seekToFirst();
             while (it.isValid()) {
                 final byte[] ks = it.key();
                 final byte[] bs = it.value();
 
-                // LogEntry index
+                // key 的长度为 8，说明是一个 LogEntry 数据，LogEntry 数据的 key 是一个 long 型的 logIndex
                 if (ks.length == 8) {
+                    // 基于解码器解码
                     final LogEntry entry = this.logEntryDecoder.decode(bs);
                     if (entry != null) {
+                        // 仅处理 ENTRY_TYPE_CONFIGURATION 类型的 LogEntry
                         if (entry.getType() == EntryType.ENTRY_TYPE_CONFIGURATION) {
+                            // 基于日志数据设置集群节点配置
                             final ConfigurationEntry confEntry = new ConfigurationEntry();
                             confEntry.setId(new LogId(entry.getId().getIndex(), entry.getId().getTerm()));
                             confEntry.setConf(new Configuration(entry.getPeers(), entry.getLearners()));
@@ -257,16 +279,18 @@ public class RocksDBLogStorage implements LogStorage, Describer {
                             }
                         }
                     } else {
-                        LOG.warn("Fail to decode conf entry at index {}, the log data is: {}.", Bits.getLong(ks, 0),
-                            BytesUtil.toHex(bs));
+                        LOG.warn("Fail to decode conf entry at index {}, the log data is: {}.", Bits.getLong(ks, 0), BytesUtil.toHex(bs));
                     }
-                } else {
+                }
+                // 不是 LogEntry，目前只能是 meta/firstLogIndex，用于记录 firstLogIndex 值
+                else {
                     if (Arrays.equals(FIRST_LOG_IDX_KEY, ks)) {
+                        // 初始化 firstLogIndex
                         setFirstLogIndex(Bits.getLong(bs, 0));
+                        // 剔除 [0, firstLogIndex) 之间的 conf 和 data 数据
                         truncatePrefixInBackground(0L, this.firstLogIndex);
                     } else {
-                        LOG.warn("Unknown entry in configuration storage key={}, value={}.", BytesUtil.toHex(ks),
-                            BytesUtil.toHex(bs));
+                        LOG.warn("Unknown entry in configuration storage key={}, value={}.", BytesUtil.toHex(ks), BytesUtil.toHex(bs));
                     }
                 }
                 it.next();
@@ -298,6 +322,12 @@ public class RocksDBLogStorage implements LogStorage, Describer {
         }
     }
 
+    /**
+     * 打开 RocksDB，并初始化对应的 ColumnFamily
+     *
+     * @param columnFamilyDescriptors
+     * @throws RocksDBException
+     */
     private void openDB(final List<ColumnFamilyDescriptor> columnFamilyDescriptors) throws RocksDBException {
         final List<ColumnFamilyHandle> columnFamilyHandles = new ArrayList<>();
 
@@ -305,6 +335,7 @@ public class RocksDBLogStorage implements LogStorage, Describer {
         if (dir.exists() && !dir.isDirectory()) {
             throw new IllegalStateException("Invalid log path, it's a regular file: " + this.path);
         }
+        // 打开 RocksDB
         this.db = RocksDB.open(this.dbOptions, this.path, columnFamilyDescriptors, columnFamilyHandles);
 
         assert (columnFamilyHandles.size() == 2);
@@ -572,6 +603,12 @@ public class RocksDBLogStorage implements LogStorage, Describer {
 
     }
 
+    /**
+     * 剔除 [startIndex, firstIndexKept) 之间的 conf 和 data 数据
+     *
+     * @param startIndex
+     * @param firstIndexKept
+     */
     private void truncatePrefixInBackground(final long startIndex, final long firstIndexKept) {
         // delete logs in background.
         Utils.runInThread(() -> {
@@ -580,7 +617,9 @@ public class RocksDBLogStorage implements LogStorage, Describer {
                 if (this.db == null) {
                     return;
                 }
+                // 模板方法
                 onTruncatePrefix(startIndex, firstIndexKept);
+                // 剔除 [startIndex, firstIndexKept) 之间的 conf 和 data 数据
                 this.db.deleteRange(this.defaultHandle, getKeyBytes(startIndex), getKeyBytes(firstIndexKept));
                 this.db.deleteRange(this.confHandle, getKeyBytes(startIndex), getKeyBytes(firstIndexKept));
             } catch (final RocksDBException | IOException e) {
@@ -599,9 +638,9 @@ public class RocksDBLogStorage implements LogStorage, Describer {
                 onTruncateSuffix(lastIndexKept);
             } finally {
                 this.db.deleteRange(this.defaultHandle, this.writeOptions, getKeyBytes(lastIndexKept + 1),
-                    getKeyBytes(getLastLogIndex() + 1));
+                        getKeyBytes(getLastLogIndex() + 1));
                 this.db.deleteRange(this.confHandle, this.writeOptions, getKeyBytes(lastIndexKept + 1),
-                    getKeyBytes(getLastLogIndex() + 1));
+                        getKeyBytes(getLastLogIndex() + 1));
             }
             return true;
         } catch (final RocksDBException | IOException e) {
@@ -670,11 +709,10 @@ public class RocksDBLogStorage implements LogStorage, Describer {
     /**
      * Called after truncating prefix logs in rocksdb.
      *
-     * @param startIndex     the start index
+     * @param startIndex the start index
      * @param firstIndexKept the first index to kept
      */
-    protected void onTruncatePrefix(final long startIndex, final long firstIndexKept) throws RocksDBException,
-    IOException {
+    protected void onTruncatePrefix(final long startIndex, final long firstIndexKept) throws RocksDBException, IOException {
     }
 
     /**
@@ -703,7 +741,7 @@ public class RocksDBLogStorage implements LogStorage, Describer {
      * Called before appending data entry.
      *
      * @param logIndex the log index
-     * @param value    the data value in log entry.
+     * @param value the data value in log entry.
      * @return the new value
      */
     protected byte[] onDataAppend(final long logIndex, final byte[] value,
@@ -716,7 +754,7 @@ public class RocksDBLogStorage implements LogStorage, Describer {
      * Called after getting data from rocksdb.
      *
      * @param logIndex the log index
-     * @param value    the value in rocksdb
+     * @param value the value in rocksdb
      * @return the new value
      */
     protected byte[] onDataGet(final long logIndex, final byte[] value) throws IOException {

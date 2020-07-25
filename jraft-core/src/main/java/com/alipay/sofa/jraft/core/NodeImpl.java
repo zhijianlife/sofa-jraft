@@ -535,18 +535,30 @@ public class NodeImpl implements Node, RaftServerService {
         return this.snapshotExecutor.init(opts);
     }
 
+    /**
+     * 初始化日志数据存储
+     *
+     * @return
+     */
     private boolean initLogStorage() {
         Requires.requireNonNull(this.fsmCaller, "Null fsm caller");
+        // 实例化日志存储服务，基于 RocksDBLogStorage 实现类
         this.logStorage = this.serviceFactory.createLogStorage(this.options.getLogUri(), this.raftOptions);
+        // 创建并初始化日志管理器
         this.logManager = new LogManagerImpl();
         final LogManagerOptions opts = new LogManagerOptions();
+        // 设置 LogEntry 编解码器工厂，默认使用 LogEntryV2CodecFactory
         opts.setLogEntryCodecFactory(this.serviceFactory.createLogEntryCodecFactory());
+        // 设置日志存储服务
         opts.setLogStorage(this.logStorage);
+        // 设置集群节点配置管理器
         opts.setConfigurationManager(this.configManager);
+        // 设置状态机调度器
         opts.setFsmCaller(this.fsmCaller);
         opts.setNodeMetrics(this.metrics);
         opts.setDisruptorBufferSize(this.raftOptions.getDisruptorBufferSize());
         opts.setRaftOptions(this.raftOptions);
+        // 初始化 LogManager
         return this.logManager.init(opts);
     }
 
@@ -1331,8 +1343,8 @@ public class NodeImpl implements Node, RaftServerService {
         @Override
         public void run(final Status status) {
             if (status.isOk()) {
-                NodeImpl.this.ballotBox.commitAt(this.firstLogIndex, this.firstLogIndex + this.nEntries - 1,
-                        NodeImpl.this.serverId);
+                NodeImpl.this.ballotBox.commitAt(
+                        this.firstLogIndex, this.firstLogIndex + this.nEntries - 1, NodeImpl.this.serverId);
             } else {
                 LOG.error("Node {} append [{}, {}] failed, status={}.", getNodeId(), this.firstLogIndex,
                         this.firstLogIndex + this.nEntries - 1, status);

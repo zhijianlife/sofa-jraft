@@ -14,14 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.core;
-
-import java.util.concurrent.locks.StampedLock;
-
-import javax.annotation.concurrent.ThreadSafe;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.FSMCaller;
@@ -35,9 +29,15 @@ import com.alipay.sofa.jraft.util.Describer;
 import com.alipay.sofa.jraft.util.OnlyForTest;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.SegmentList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.locks.StampedLock;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Ballot box for voting.
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Apr-04 2:32:10 PM
@@ -45,14 +45,14 @@ import com.alipay.sofa.jraft.util.SegmentList;
 @ThreadSafe
 public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
 
-    private static final Logger       LOG                = LoggerFactory.getLogger(BallotBox.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BallotBox.class);
 
-    private FSMCaller                 waiter;
-    private ClosureQueue              closureQueue;
-    private final StampedLock         stampedLock        = new StampedLock();
-    private long                      lastCommittedIndex = 0;
-    private long                      pendingIndex;
-    private final SegmentList<Ballot> pendingMetaQueue   = new SegmentList<>(false);
+    private FSMCaller waiter;
+    private ClosureQueue closureQueue;
+    private final StampedLock stampedLock = new StampedLock();
+    private long lastCommittedIndex = 0;
+    private long pendingIndex;
+    private final SegmentList<Ballot> pendingMetaQueue = new SegmentList<>(false);
 
     @OnlyForTest
     long getPendingIndex() {
@@ -161,6 +161,7 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
      * According the the raft algorithm, the logs from previous terms can't be
      * committed until a log at the new term becomes committed, so
      * |newPendingIndex| should be |last_log_index| + 1.
+     *
      * @param newPendingIndex pending index of new leader
      * @return returns true if reset success
      */
@@ -169,12 +170,12 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
         try {
             if (!(this.pendingIndex == 0 && this.pendingMetaQueue.isEmpty())) {
                 LOG.error("resetPendingIndex fail, pendingIndex={}, pendingMetaQueueSize={}.", this.pendingIndex,
-                    this.pendingMetaQueue.size());
+                        this.pendingMetaQueue.size());
                 return false;
             }
             if (newPendingIndex <= this.lastCommittedIndex) {
                 LOG.error("resetPendingIndex fail, newPendingIndex={}, lastCommittedIndex={}.", newPendingIndex,
-                    this.lastCommittedIndex);
+                        this.lastCommittedIndex);
                 return false;
             }
             this.pendingIndex = newPendingIndex;
@@ -189,12 +190,13 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
      * Called by leader, otherwise the behavior is undefined
      * Store application context before replication.
      *
-     * @param conf      current configuration
-     * @param oldConf   old configuration
-     * @param done      callback
-     * @return          returns true on success
+     * @param conf current configuration
+     * @param oldConf old configuration
+     * @param done callback
+     * @return returns true on success
      */
     public boolean appendPendingTask(final Configuration conf, final Configuration oldConf, final Closure done) {
+        // 创建并初始化选票
         final Ballot bl = new Ballot();
         if (!bl.init(conf, oldConf)) {
             LOG.error("Fail to init ballot.");
@@ -227,8 +229,8 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
         try {
             if (this.pendingIndex != 0 || !this.pendingMetaQueue.isEmpty()) {
                 Requires.requireTrue(lastCommittedIndex < this.pendingIndex,
-                    "Node changes to leader, pendingIndex=%d, param lastCommittedIndex=%d", this.pendingIndex,
-                    lastCommittedIndex);
+                        "Node changes to leader, pendingIndex=%d, param lastCommittedIndex=%d", this.pendingIndex,
+                        lastCommittedIndex);
                 return false;
             }
             if (lastCommittedIndex < this.lastCommittedIndex) {
@@ -273,11 +275,8 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
                 this.stampedLock.unlockRead(stamp);
             }
         }
-        out.print("  lastCommittedIndex: ") //
-            .println(_lastCommittedIndex);
-        out.print("  pendingIndex: ") //
-            .println(_pendingIndex);
-        out.print("  pendingMetaQueueSize: ") //
-            .println(_pendingMetaQueueSize);
+        out.print("  lastCommittedIndex: ").println(_lastCommittedIndex);
+        out.print("  pendingIndex: ").println(_pendingIndex);
+        out.print("  pendingMetaQueueSize: ").println(_pendingMetaQueueSize);
     }
 }

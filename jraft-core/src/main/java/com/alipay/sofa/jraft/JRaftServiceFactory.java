@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft;
 
 import com.alipay.sofa.jraft.entity.codec.LogEntryCodecFactory;
@@ -25,37 +26,44 @@ import com.alipay.sofa.jraft.storage.SnapshotStorage;
 
 /**
  * Abstract factory to create services for SOFAJRaft.
- * @author boyan(boyan@antfin.com)
- * @since  1.2.6
+ *
+ * @author boyan (boyan@antfin.com)
+ * @since 1.2.6
  */
 public interface JRaftServiceFactory {
 
+    /* 基于 SPI 机制加载，默认使用 DefaultJRaftServiceFactory */
+
     /**
      * Creates a raft log storage.
-     * @param uri  The log storage uri from {@link NodeOptions#getSnapshotUri()}
-     * @param raftOptions  the raft options.
+     *
+     * @param uri The log storage uri from {@link NodeOptions#getSnapshotUri()}
+     * @param raftOptions the raft options.
      * @return storage to store raft log entires.
      */
     LogStorage createLogStorage(final String uri, final RaftOptions raftOptions);
 
     /**
      * Creates a raft snapshot storage
-     * @param uri  The snapshot storage uri from {@link NodeOptions#getSnapshotUri()}
-     * @param raftOptions  the raft options.
+     *
+     * @param uri The snapshot storage uri from {@link NodeOptions#getSnapshotUri()}
+     * @param raftOptions the raft options.
      * @return storage to store state machine snapshot.
      */
     SnapshotStorage createSnapshotStorage(final String uri, final RaftOptions raftOptions);
 
     /**
      * Creates a raft meta storage.
-     * @param uri  The meta storage uri from {@link NodeOptions#getRaftMetaUri()}
-     * @param raftOptions  the raft options.
+     *
+     * @param uri The meta storage uri from {@link NodeOptions#getRaftMetaUri()}
+     * @param raftOptions the raft options.
      * @return meta storage to store raft meta info.
      */
     RaftMetaStorage createRaftMetaStorage(final String uri, final RaftOptions raftOptions);
 
     /**
      * Creates a log entry codec factory.
+     *
      * @return a codec factory to create encoder/decoder for raft log entry.
      */
     LogEntryCodecFactory createLogEntryCodecFactory();

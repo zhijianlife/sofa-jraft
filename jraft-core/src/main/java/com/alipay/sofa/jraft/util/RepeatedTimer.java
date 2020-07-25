@@ -14,19 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.util.timer.HashedWheelTimer;
 import com.alipay.sofa.jraft.util.timer.Timeout;
 import com.alipay.sofa.jraft.util.timer.Timer;
 import com.alipay.sofa.jraft.util.timer.TimerTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Repeatable timer based on java.util.Timer.
@@ -37,17 +37,19 @@ import com.alipay.sofa.jraft.util.timer.TimerTask;
  */
 public abstract class RepeatedTimer implements Describer {
 
-    public static final Logger LOG  = LoggerFactory.getLogger(RepeatedTimer.class);
+    public static final Logger LOG = LoggerFactory.getLogger(RepeatedTimer.class);
 
-    private final Lock         lock = new ReentrantLock();
-    private final Timer        timer;
-    private Timeout            timeout;
-    private boolean            stopped;
-    private volatile boolean   running;
-    private volatile boolean   destroyed;
-    private volatile boolean   invoking;
-    private volatile int       timeoutMs;
-    private final String       name;
+    private final Lock lock = new ReentrantLock();
+    private final Timer timer;
+    private Timeout timeout;
+    /** 标识当前计时器已经停止 */
+    private boolean stopped;
+    private volatile boolean running;
+    /** 标识当前计时器已经被销毁 */
+    private volatile boolean destroyed;
+    private volatile boolean invoking;
+    private volatile int timeoutMs;
+    private final String name;
 
     public int getTimeoutMs() {
         return this.timeoutMs;
@@ -83,6 +85,7 @@ public abstract class RepeatedTimer implements Describer {
     public void run() {
         this.invoking = true;
         try {
+            // 调用业务逻辑
             onTrigger();
         } catch (final Throwable t) {
             LOG.error("Run timer failed.", t);
@@ -91,16 +94,20 @@ public abstract class RepeatedTimer implements Describer {
         this.lock.lock();
         try {
             this.invoking = false;
+            // 计时器被停止
             if (this.stopped) {
                 this.running = false;
                 invokeDestroyed = this.destroyed;
-            } else {
-                this.timeout = null;
+            }
+            // 本次任务调度完成，重新发起调度下一轮任务
+            else {
+                this.timeout = null; // 注意这里的 timeout 被置为 null
                 schedule();
             }
         } finally {
             this.lock.unlock();
         }
+        // 在计时器被停止时回调 onDestroy 方法
         if (invokeDestroyed) {
             onDestroy();
         }
@@ -134,9 +141,11 @@ public abstract class RepeatedTimer implements Describer {
     public void start() {
         this.lock.lock();
         try {
+            // 计时器已经被销毁，不允许再被启动
             if (this.destroyed) {
                 return;
             }
+            // 计时器处于运行中，不需要再启动
             if (!this.stopped) {
                 return;
             }
@@ -144,7 +153,9 @@ public abstract class RepeatedTimer implements Describer {
             if (this.running) {
                 return;
             }
+            // 标识计时器已经在运行
             this.running = true;
+            // 调度
             schedule();
         } finally {
             this.lock.unlock();
@@ -174,9 +185,11 @@ public abstract class RepeatedTimer implements Describer {
     }
 
     private void schedule() {
+        // 正常来说，这里的 timeout 应该为 null，否则说明上一轮任务还未执行完毕，尝试取消运行
         if (this.timeout != null) {
             this.timeout.cancel();
         }
+        // 创建一个新的任务
         final TimerTask timerTask = timeout -> {
             try {
                 RepeatedTimer.this.run();
@@ -184,6 +197,7 @@ public abstract class RepeatedTimer implements Describer {
                 LOG.error("Run timer task failed, taskName={}.", RepeatedTimer.this.name, t);
             }
         };
+        // 提交给 Timer 延迟运行（仅运行一次），这里会调用 adjustTimeout 方法，用于调整计时周期
         this.timeout = this.timer.newTimeout(timerTask, adjustTimeout(this.timeoutMs), TimeUnit.MILLISECONDS);
     }
 
@@ -282,14 +296,13 @@ public abstract class RepeatedTimer implements Describer {
         } finally {
             this.lock.unlock();
         }
-        out.print("  ") //
-            .println(_describeString);
+        out.print("  ").println(_describeString);
     }
 
     @Override
     public String toString() {
         return "RepeatedTimer{" + "timeout=" + this.timeout + ", stopped=" + this.stopped + ", running=" + this.running
-               + ", destroyed=" + this.destroyed + ", invoking=" + this.invoking + ", timeoutMs=" + this.timeoutMs
-               + ", name='" + this.name + '\'' + '}';
+                + ", destroyed=" + this.destroyed + ", invoking=" + this.invoking + ", timeoutMs=" + this.timeoutMs
+                + ", name='" + this.name + '\'' + '}';
     }
 }

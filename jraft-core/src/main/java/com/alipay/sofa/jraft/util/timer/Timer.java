@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util.timer;
 
 import java.util.Set;
@@ -21,8 +22,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Schedules {@link TimerTask}s for one-time future execution in a background
- * thread.
+ * Schedules {@link TimerTask}s for one-time future execution in a background thread.
  *
  * Forked from <a href="https://github.com/netty/netty">Netty</a>.
  */
@@ -33,8 +33,7 @@ public interface Timer {
      * the specified delay.
      *
      * @return a handle which is associated with the specified task
-     *
-     * @throws IllegalStateException       if this timer has been {@linkplain #stop() stopped} already
+     * @throws IllegalStateException      if this timer has been {@linkplain #stop() stopped} already
      * @throws RejectedExecutionException if the pending timeouts are too many and creating new timeout
      *                                    can cause instability in the system.
      */
@@ -45,7 +44,7 @@ public interface Timer {
      * tasks which were scheduled but not executed yet.
      *
      * @return the handles associated with the tasks which were canceled by
-     *         this method
+     * this method
      */
     Set<Timeout> stop();
 }

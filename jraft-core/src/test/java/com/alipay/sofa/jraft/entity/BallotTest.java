@@ -14,15 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import com.alipay.sofa.jraft.JRaftUtils;
-
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import org.junit.Before;
+import org.junit.Test;
 
 public class BallotTest {
 
@@ -48,4 +47,5 @@ public class BallotTest {
         this.ballot.grant(peer2);
         assertTrue(this.ballot.isGranted());
     }
+
 }

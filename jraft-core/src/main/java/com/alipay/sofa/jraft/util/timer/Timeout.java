@@ -12,6 +12,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package com.alipay.sofa.jraft.util.timer;
 
 /**
@@ -46,8 +47,7 @@ public interface Timeout {
 
     /**
      * Attempts to cancel the {@link TimerTask} associated with this handle.
-     * If the task has been executed or cancelled already, it will return with
-     * no side effect.
+     * If the task has been executed or cancelled already, it will return with no side effect.
      *
      * @return True if the cancellation completed successfully, otherwise false
      */

@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
+
+import com.alipay.sofa.jraft.conf.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import com.alipay.sofa.jraft.conf.Configuration;
 
 /**
  * A ballot to vote.
@@ -30,15 +31,18 @@ import com.alipay.sofa.jraft.conf.Configuration;
  */
 public class Ballot {
 
+    /**
+     * 封装 peers 和 oldPeers 对应的 idx
+     */
     public static final class PosHint {
         int pos0 = -1; // position in current peers
         int pos1 = -1; // position in old peers
     }
 
     public static class UnfoundPeerId {
-        PeerId  peerId;
+        PeerId peerId;
         boolean found;
-        int     index;
+        int index;
 
         public UnfoundPeerId(PeerId peerId, int index, boolean found) {
             super();
@@ -48,22 +52,28 @@ public class Ballot {
         }
     }
 
-    private final List<UnfoundPeerId> peers    = new ArrayList<>();
-    private int                       quorum;
+    // 计算当前集群节点配置
+    private final List<UnfoundPeerId> peers = new ArrayList<>();
+    private int quorum;
+
+    // 记录老的集群节点配置
     private final List<UnfoundPeerId> oldPeers = new ArrayList<>();
-    private int                       oldQuorum;
+    private int oldQuorum;
 
     /**
      * Init the ballot with current conf and old conf.
      *
-     * @param conf    current configuration
+     * @param conf current configuration
      * @param oldConf old configuration
      * @return true if init success
      */
     public boolean init(final Configuration conf, final Configuration oldConf) {
+        // 重置状态
         this.peers.clear();
         this.oldPeers.clear();
         this.quorum = this.oldQuorum = 0;
+
+        // 初始化节点列表
         int index = 0;
         if (conf != null) {
             for (final PeerId peer : conf) {
@@ -71,10 +81,15 @@ public class Ballot {
             }
         }
 
+        // 初始化仲裁值
         this.quorum = this.peers.size() / 2 + 1;
+
         if (oldConf == null) {
             return true;
         }
+
+        /* 初始化 old 配置相关 */
+
         index = 0;
         for (final PeerId peer : oldConf) {
             this.oldPeers.add(new UnfoundPeerId(peer, index++, false));
@@ -84,22 +99,20 @@ public class Ballot {
         return true;
     }
 
-    private UnfoundPeerId findPeer(final PeerId peerId, final List<UnfoundPeerId> peers, final int posHint) {
-        if (posHint < 0 || posHint >= peers.size() || !peers.get(posHint).peerId.equals(peerId)) {
-            for (final UnfoundPeerId ufp : peers) {
-                if (ufp.peerId.equals(peerId)) {
-                    return ufp;
-                }
-            }
-            return null;
-        }
-
-        return peers.get(posHint);
+    /**
+     * 给指定节点投上一票
+     *
+     * @param peerId
+     */
+    public void grant(final PeerId peerId) {
+        grant(peerId, new PosHint());
     }
 
     public PosHint grant(final PeerId peerId, final PosHint hint) {
+        // 获取指定的 UnfoundPeerId
         UnfoundPeerId peer = findPeer(peerId, this.peers, hint.pos0);
         if (peer != null) {
+            // 避免重复投票？
             if (!peer.found) {
                 peer.found = true;
                 this.quorum--;
@@ -126,16 +139,37 @@ public class Ballot {
         return hint;
     }
 
-    public void grant(final PeerId peerId) {
-        grant(peerId, new PosHint());
-    }
-
     /**
      * Returns true when the ballot is granted.
      *
      * @return true if the ballot is granted
      */
     public boolean isGranted() {
+        // 当获得一张选票，对应的 quorum 会递减，只有当 quorum <= 0 时才说明得到大部分节点的投票
         return this.quorum <= 0 && this.oldQuorum <= 0;
+    }
+
+    /**
+     * 从 peers 中获取指定 posHint 或 peerId 对应的 UnfoundPeerId
+     *
+     * @param peerId
+     * @param peers
+     * @param posHint
+     * @return
+     */
+    private UnfoundPeerId findPeer(final PeerId peerId, final List<UnfoundPeerId> peers, final int posHint) {
+        // posHint 已经越界
+        if (posHint < 0 || posHint >= peers.size()
+                // 对应下标的 peer 不是期望的
+                || !peers.get(posHint).peerId.equals(peerId)) {
+            for (final UnfoundPeerId ufp : peers) {
+                if (ufp.peerId.equals(peerId)) {
+                    return ufp;
+                }
+            }
+            return null;
+        }
+
+        return peers.get(posHint);
     }
 }
