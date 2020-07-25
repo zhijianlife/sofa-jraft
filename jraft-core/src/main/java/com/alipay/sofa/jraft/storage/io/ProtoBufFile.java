@@ -14,7 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.io;
+
+import com.alipay.sofa.jraft.rpc.ProtobufMsgFactory;
+import com.alipay.sofa.jraft.util.Bits;
+import com.alipay.sofa.jraft.util.Utils;
+import com.google.protobuf.Message;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -24,11 +30,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import com.alipay.sofa.jraft.rpc.ProtobufMsgFactory;
-import com.alipay.sofa.jraft.util.Bits;
-import com.alipay.sofa.jraft.util.Utils;
-import com.google.protobuf.Message;
-
 /**
  * A file to store protobuf message. Format:
  * <ul>
@@ -37,6 +38,7 @@ import com.google.protobuf.Message;
  * <li> msg length(4 bytes)</li>
  * <li>msg data</li>
  * </ul>
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-12 8:56:23 PM
@@ -66,7 +68,7 @@ public class ProtoBufFile {
 
         final byte[] lenBytes = new byte[4];
         try (final FileInputStream fin = new FileInputStream(file);
-                final BufferedInputStream input = new BufferedInputStream(fin)) {
+             final BufferedInputStream input = new BufferedInputStream(fin)) {
             readBytes(lenBytes, input);
             final int len = Bits.getInt(lenBytes, 0);
             if (len <= 0) {
@@ -93,7 +95,7 @@ public class ProtoBufFile {
     /**
      * Save a protobuf message to file.
      *
-     * @param msg  protobuf message
+     * @param msg protobuf message
      * @param sync if sync flush data to disk
      * @return true if save success
      */
@@ -101,7 +103,7 @@ public class ProtoBufFile {
         // Write message into temp file
         final File file = new File(this.path + ".tmp");
         try (final FileOutputStream fOut = new FileOutputStream(file);
-                final BufferedOutputStream output = new BufferedOutputStream(fOut)) {
+             final BufferedOutputStream output = new BufferedOutputStream(fOut)) {
             final byte[] lenBytes = new byte[4];
 
             // name len + name

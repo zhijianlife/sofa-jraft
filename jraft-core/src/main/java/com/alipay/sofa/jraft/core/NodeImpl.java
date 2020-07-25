@@ -562,14 +562,23 @@ public class NodeImpl implements Node, RaftServerService {
         return this.logManager.init(opts);
     }
 
+    /**
+     * 初始化元数据存储
+     *
+     * @return
+     */
     private boolean initMetaStorage() {
-        this.metaStorage = this.serviceFactory.createRaftMetaStorage(this.options.getRaftMetaUri(), this.raftOptions);
+        // 实例化元数据存储服务，基于 LocalRaftMetaStorage 实现类
+        this.metaStorage = this.serviceFactory
+                .createRaftMetaStorage(this.options.getRaftMetaUri(), this.raftOptions);
         RaftMetaStorageOptions opts = new RaftMetaStorageOptions();
         opts.setNode(this);
+        // 初始化元数据存储服务
         if (!this.metaStorage.init(opts)) {
             LOG.error("Node {} init meta storage failed, uri={}.", this.serverId, this.options.getRaftMetaUri());
             return false;
         }
+        // 基于本地元数据恢复 currentTerm 和 votedFor 属性值
         this.currTerm = this.metaStorage.getTerm();
         this.votedId = this.metaStorage.getVotedFor().copy();
         return true;

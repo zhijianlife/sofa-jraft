@@ -14,15 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.impl;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.core.NodeImpl;
 import com.alipay.sofa.jraft.core.NodeMetrics;
@@ -36,6 +29,13 @@ import com.alipay.sofa.jraft.option.RaftOptions;
 import com.alipay.sofa.jraft.storage.RaftMetaStorage;
 import com.alipay.sofa.jraft.storage.io.ProtoBufFile;
 import com.alipay.sofa.jraft.util.Utils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 
 /**
  * Raft meta storage,it's not thread-safe.
@@ -46,17 +46,17 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class LocalRaftMetaStorage implements RaftMetaStorage {
 
-    private static final Logger LOG       = LoggerFactory.getLogger(LocalRaftMetaStorage.class);
+    private static final Logger LOG = LoggerFactory.getLogger(LocalRaftMetaStorage.class);
     private static final String RAFT_META = "raft_meta";
 
-    private boolean             isInited;
-    private final String        path;
-    private long                term;
-    /** blank votedFor information*/
-    private PeerId              votedFor  = PeerId.emptyPeer();
-    private final RaftOptions   raftOptions;
-    private NodeMetrics         nodeMetrics;
-    private NodeImpl            node;
+    private boolean isInited;
+    private final String path;
+    private long term;
+    /** blank votedFor information */
+    private PeerId votedFor = PeerId.emptyPeer();
+    private final RaftOptions raftOptions;
+    private NodeMetrics nodeMetrics;
+    private NodeImpl node;
 
     public LocalRaftMetaStorage(final String path, final RaftOptions raftOptions) {
         super();
@@ -66,6 +66,7 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
 
     @Override
     public boolean init(final RaftMetaStorageOptions opts) {
+        // 已经初始化过，避免重复初始化
         if (this.isInited) {
             LOG.warn("Raft meta storage is already inited.");
             return true;
@@ -73,11 +74,13 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
         this.node = opts.getNode();
         this.nodeMetrics = this.node.getNodeMetrics();
         try {
+            // 创建本地文件存储路径
             FileUtils.forceMkdir(new File(this.path));
         } catch (final IOException e) {
             LOG.error("Fail to mkdir {}", this.path);
             return false;
         }
+        // 从本地加载元数据（即 currentTerm 和 votedFor），采用 protobuf 序列化存储
         if (load()) {
             this.isInited = true;
             return true;
@@ -110,9 +113,9 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
     private boolean save() {
         final long start = Utils.monotonicMs();
         final StablePBMeta meta = StablePBMeta.newBuilder() //
-            .setTerm(this.term) //
-            .setVotedfor(this.votedFor.toString()) //
-            .build();
+                .setTerm(this.term) //
+                .setVotedfor(this.votedFor.toString()) //
+                .build();
         final ProtoBufFile pbFile = newPbFile();
         try {
             if (!pbFile.save(meta, this.raftOptions.isSyncMeta())) {
@@ -130,13 +133,13 @@ public class LocalRaftMetaStorage implements RaftMetaStorage {
                 this.nodeMetrics.recordLatency("save-raft-meta", cost);
             }
             LOG.info("Save raft meta, path={}, term={}, votedFor={}, cost time={} ms", this.path, this.term,
-                this.votedFor, cost);
+                    this.votedFor, cost);
         }
     }
 
     private void reportIOError() {
         this.node.onError(new RaftException(ErrorType.ERROR_TYPE_META, RaftError.EIO,
-            "Fail to save raft meta, path=%s", this.path));
+                "Fail to save raft meta, path=%s", this.path));
     }
 
     @Override
