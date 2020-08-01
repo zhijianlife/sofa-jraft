@@ -1136,19 +1136,21 @@ public class LogManagerImpl implements LogManager {
         try {
             Requires.requireTrue(this.firstLogIndex > 0);
             Requires.requireTrue(this.lastLogIndex >= 0);
+            // 未生成过快照，所以 firstLogIndex 应该是 1
             if (this.lastSnapshotId.equals(new LogId(0, 0))) {
                 if (this.firstLogIndex == 1) {
                     return Status.OK();
                 }
                 return new Status(RaftError.EIO, "Missing logs in (0, %d)", this.firstLogIndex);
-            } else {
+            }
+            // 生成过快照，则需要保证快照与当前数据的连续性
+            else {
                 if (this.lastSnapshotId.getIndex() >= this.firstLogIndex - 1
                         && this.lastSnapshotId.getIndex() <= this.lastLogIndex) {
                     return Status.OK();
                 }
                 return new Status(RaftError.EIO, "There's a gap between snapshot={%d, %d} and log=[%d, %d] ",
-                        this.lastSnapshotId.toString(), this.lastSnapshotId.getTerm(), this.firstLogIndex,
-                        this.lastLogIndex);
+                        this.lastSnapshotId.toString(), this.lastSnapshotId.getTerm(), this.firstLogIndex, this.lastLogIndex);
             }
         } finally {
             this.readLock.unlock();

@@ -106,7 +106,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             return false;
         }
 
-        // delete temp snapshot
+        // 删除快照临时目录
         if (!this.filterBeforeCopyRemote) {
             final String tempSnapshotPath = this.path + File.separator + TEMP_PATH;
             final File tempFile = new File(tempSnapshotPath);
@@ -119,6 +119,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
                 }
             }
         }
+
         // delete old snapshot
         final List<Long> snapshots = new ArrayList<>();
         final File[] oldFiles = dir.listFiles();

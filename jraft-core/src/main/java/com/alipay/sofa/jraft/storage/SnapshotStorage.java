@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage;
 
 import com.alipay.sofa.jraft.Lifecycle;
@@ -32,8 +33,7 @@ import com.alipay.sofa.jraft.storage.snapshot.SnapshotWriter;
 public interface SnapshotStorage extends Lifecycle<Void>, Storage {
 
     /**
-     * Set filterBeforeCopyRemote to be true.When true,
-     * it will filter the data before copy to remote.
+     * Set filterBeforeCopyRemote to be true. When true, it will filter the data before copy to remote.
      */
     boolean setFilterBeforeCopyRemote();
 
@@ -50,7 +50,7 @@ public interface SnapshotStorage extends Lifecycle<Void>, Storage {
     /**
      * Copy data from remote uri.
      *
-     * @param uri  remote uri
+     * @param uri remote uri
      * @param opts copy options
      * @return a SnapshotReader instance
      */
@@ -59,7 +59,7 @@ public interface SnapshotStorage extends Lifecycle<Void>, Storage {
     /**
      * Starts a copy job to copy data from remote uri.
      *
-     * @param uri  remote uri
+     * @param uri remote uri
      * @param opts copy options
      * @return a SnapshotCopier instance
      */

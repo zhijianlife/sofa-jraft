@@ -516,11 +516,18 @@ public class NodeImpl implements Node, RaftServerService {
         LOG.info("The number of active nodes increment to {}.", num);
     }
 
+    /**
+     * 初始化快照数据存储
+     *
+     * @return
+     */
     private boolean initSnapshotStorage() {
+        // 未设置 snapshotUri，说明不希望启动快照模块
         if (StringUtils.isEmpty(this.options.getSnapshotUri())) {
             LOG.warn("Do not set snapshot uri, ignore initSnapshotStorage.");
             return true;
         }
+        // 实例化快照执行器，用于处理快照相关操作
         this.snapshotExecutor = new SnapshotExecutorImpl();
         final SnapshotExecutorOptions opts = new SnapshotExecutorOptions();
         opts.setUri(this.options.getSnapshotUri());
@@ -532,6 +539,7 @@ public class NodeImpl implements Node, RaftServerService {
         opts.setFilterBeforeCopyRemote(this.options.isFilterBeforeCopyRemote());
         // get snapshot throttle
         opts.setSnapshotThrottle(this.options.getSnapshotThrottle());
+        // 初始化快照执行器
         return this.snapshotExecutor.init(opts);
     }
 
@@ -727,11 +735,18 @@ public class NodeImpl implements Node, RaftServerService {
         return maxPriority;
     }
 
+    /**
+     * 初始化状态机调度器
+     *
+     * @param bootstrapId
+     * @return
+     */
     private boolean initFSMCaller(final LogId bootstrapId) {
         if (this.fsmCaller == null) {
             LOG.error("Fail to init fsm caller, null instance, bootstrapId={}.", bootstrapId);
             return false;
         }
+        // 创建封装 Closure 的队列，基于 LinkedList 实现
         this.closureQueue = new ClosureQueueImpl();
         final FSMCallerOptions opts = new FSMCallerOptions();
         opts.setAfterShutdown(status -> afterShutdown());
@@ -741,6 +756,7 @@ public class NodeImpl implements Node, RaftServerService {
         opts.setNode(this);
         opts.setBootstrapId(bootstrapId);
         opts.setDisruptorBufferSize(this.raftOptions.getDisruptorBufferSize());
+        // 初始化状态机调度器
         return this.fsmCaller.init(opts);
     }
 
@@ -1009,6 +1025,7 @@ public class NodeImpl implements Node, RaftServerService {
         this.ballotBox = new BallotBox();
         final BallotBoxOptions ballotBoxOpts = new BallotBoxOptions();
         ballotBoxOpts.setWaiter(this.fsmCaller);
+        // closureQueue 在初始化 FSMCaller 时创建，相互共用
         ballotBoxOpts.setClosureQueue(this.closureQueue);
         if (!this.ballotBox.init(ballotBoxOpts)) {
             LOG.error("Node {} init ballotBox failed.", getNodeId());
