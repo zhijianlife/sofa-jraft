@@ -859,21 +859,27 @@ public class LogManagerImpl implements LogManager {
         LastLogIdClosure c;
         this.readLock.lock();
         try {
+            // 从缓存中获取最新的 LogId
             if (!isFlush) {
                 if (this.lastLogIndex >= this.firstLogIndex) {
                     return new LogId(this.lastLogIndex, unsafeGetTerm(this.lastLogIndex));
                 }
                 return this.lastSnapshotId;
-            } else {
+            }
+            // 从磁盘中获取最新的 LogId
+            else {
                 if (this.lastLogIndex == this.lastSnapshotId.getIndex()) {
                     return this.lastSnapshotId;
                 }
                 c = new LastLogIdClosure();
+                // 往消息队列中发布一个 LAST_LOG_ID 事件
                 offerEvent(c, EventType.LAST_LOG_ID);
             }
         } finally {
             this.readLock.unlock();
         }
+
+        // 等待事件被执行
         try {
             c.await();
         } catch (final InterruptedException e) {

@@ -198,6 +198,7 @@ public class NodeImpl implements Node, RaftServerService {
     private ReadOnlyService readOnlyService;
     /** Timers */
     private Scheduler timerManager;
+    /** 预选举计时器 */
     private RepeatedTimer electionTimer;
     private RepeatedTimer voteTimer;
     private RepeatedTimer stepDownTimer;
@@ -217,7 +218,7 @@ public class NodeImpl implements Node, RaftServerService {
     /** ReplicatorStateListeners */
     private final CopyOnWriteArrayList<Replicator.ReplicatorStateListener> replicatorStateListeners = new CopyOnWriteArrayList<>();
     /** Node's target leader election priority value */
-    private volatile int targetPriority;
+    private volatile int targetPriority; // 目标优先级，用于控制当前节点是否继续发起预选举
     /** The number of elections time out for current node */
     private volatile int electionTimeoutCounter;
 
@@ -605,27 +606,37 @@ public class NodeImpl implements Node, RaftServerService {
         Utils.runInThread(() -> doSnapshot(null));
     }
 
+    /**
+     * 预选举
+     */
     private void handleElectionTimeout() {
         boolean doUnlock = true;
         this.writeLock.lock();
         try {
+            // 预选举必须由 Follower 节点发起
             if (this.state != State.STATE_FOLLOWER) {
                 return;
             }
+
+            // 与当前 Leader 节点的租约还有效，暂不发起预选举
             if (isCurrentLeaderValid()) {
                 return;
             }
-            resetLeaderId(PeerId.emptyPeer(), new Status(RaftError.ERAFTTIMEDOUT, "Lost connection from leader %s.",
-                    this.leaderId));
 
-            // Judge whether to launch a election.
+            /* 尝试开始发起预选举 */
+
+            // 清空本地记录的 leaderId
+            resetLeaderId(PeerId.emptyPeer(),
+                    new Status(RaftError.ERAFTTIMEDOUT, "Lost connection from leader %s.", this.leaderId));
+
+            // 基于节点优先级判断是否继续发起预选举
             if (!allowLaunchElection()) {
                 return;
             }
 
             doUnlock = false;
+            // 发起预选举
             preVote();
-
         } finally {
             if (doUnlock) {
                 this.writeLock.unlock();
@@ -645,22 +656,26 @@ public class NodeImpl implements Node, RaftServerService {
 
         // Priority 0 is a special value so that a node will never participate in election.
         if (this.serverId.isPriorityNotElected()) {
+            // 当前节点不参选
             return false;
         }
 
         // If this nodes disable priority election, then it can make a election.
         if (this.serverId.isPriorityDisabled()) {
+            // 当前节点未启用优先级策略
             return true;
         }
 
-        // If current node's priority < target_priority, it does not initiate leader,
-        // election and waits for the next election timeout.
+        // If current node's priority < target_priority,
+        // it does not initiate leader election and waits for the next election timeout.
         if (this.serverId.getPriority() < this.targetPriority) {
+            // 当前节点优先级小于目标优先级
             this.electionTimeoutCounter++;
 
-            // If next leader is not elected until next election timeout, it
-            // decays its local target priority exponentially.
+            // If next leader is not elected until next election timeout,
+            // it decays its local target priority exponentially.
             if (this.electionTimeoutCounter > 1) {
+                // 衰减目标优先级
                 decayTargetPriority();
                 this.electionTimeoutCounter = 0;
             }
@@ -674,7 +689,7 @@ public class NodeImpl implements Node, RaftServerService {
     }
 
     /**
-     * Decay targetPriority value based on gap value.
+     * Decay（衰变） targetPriority value based on gap value.
      */
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
     private void decayTargetPriority() {
@@ -1053,7 +1068,7 @@ public class NodeImpl implements Node, RaftServerService {
             checkAndSetConfiguration(false);
         } else {
             this.conf.setConf(this.options.getInitialConf());
-            // 以初始节点中的最大优先级初始化 targetPriority
+            // 以初始节点中的最大优先级初始化 targetPriority，用于控制当前节点是否继续发起预选举
             this.targetPriority = getMaxPriorityOfNodes(this.conf.getConf().getPeers());
         }
 
@@ -1214,9 +1229,12 @@ public class NodeImpl implements Node, RaftServerService {
 
     private void resetLeaderId(final PeerId newLeaderId, final Status status) {
         if (newLeaderId.isEmpty()) {
+            // 当前节点不是 Leader，且正追随着某个 Leader 节点，则 FSMCaller#onStopFollowing
             if (!this.leaderId.isEmpty() && this.state.compareTo(State.STATE_TRANSFERRING) > 0) {
-                this.fsmCaller.onStopFollowing(new LeaderChangeContext(this.leaderId.copy(), this.currTerm, status));
+                this.fsmCaller.onStopFollowing(
+                        new LeaderChangeContext(this.leaderId.copy(), this.currTerm, status));
             }
+            // 清空本地记录的 Leader 节点
             this.leaderId = PeerId.emptyPeer();
         } else {
             if (this.leaderId == null || this.leaderId.isEmpty()) {
@@ -2623,12 +2641,13 @@ public class NodeImpl implements Node, RaftServerService {
         long oldTerm;
         try {
             LOG.info("Node {} term {} start preVote.", getNodeId(), this.currTerm);
+            // 当前节点正在安装快照，则放弃预选举
             if (this.snapshotExecutor != null && this.snapshotExecutor.isInstallingSnapshot()) {
-                LOG.warn(
-                        "Node {} term {} doesn't do preVote when installing snapshot as the configuration may be out of date.",
+                LOG.warn("Node {} term {} doesn't do preVote when installing snapshot as the configuration may be out of date.",
                         getNodeId(), this.currTerm);
                 return;
             }
+            // 当前节点不是一个有效的节点
             if (!this.conf.contains(this.serverId)) {
                 LOG.warn("Node {} can't do preVote as it is not in conf <{}>.", getNodeId(), this.conf);
                 return;
@@ -2638,6 +2657,7 @@ public class NodeImpl implements Node, RaftServerService {
             this.writeLock.unlock();
         }
 
+        // 从本地磁盘获取最新的 LogId
         final LogId lastLogId = this.logManager.getLastLogId(true);
 
         boolean doUnlock = true;
@@ -2648,7 +2668,10 @@ public class NodeImpl implements Node, RaftServerService {
                 LOG.warn("Node {} raise term {} when get lastLogId.", getNodeId(), this.currTerm);
                 return;
             }
+
+            // 初始化预选举选票
             this.prevVoteCtx.init(this.conf.getConf(), this.conf.isStable() ? null : this.conf.getOldConf());
+            // 遍历向除自己以外所有的节点发送 RequestVoteRequest 请求
             for (final PeerId peer : this.conf.listPeers()) {
                 if (peer.equals(this.serverId)) {
                     continue;
@@ -2667,11 +2690,15 @@ public class NodeImpl implements Node, RaftServerService {
                         .setLastLogIndex(lastLogId.getIndex()) //
                         .setLastLogTerm(lastLogId.getTerm()) //
                         .build();
+                // 发送请求
                 this.rpcService.preVote(peer.getEndpoint(), done.request, done);
             }
+            // 自己给自己投上一票
             this.prevVoteCtx.grant(this.serverId);
+            // 检查是否赢得选票
             if (this.prevVoteCtx.isGranted()) {
                 doUnlock = false;
+                // 如果赢得选票，则继续发起选举进程
                 electSelf();
             }
         } finally {
