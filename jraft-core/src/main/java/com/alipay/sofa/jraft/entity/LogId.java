@@ -14,13 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.alipay.sofa.jraft.entity;
 
-import java.io.Serializable;
+package com.alipay.sofa.jraft.entity;
 
 import com.alipay.sofa.jraft.util.Bits;
 import com.alipay.sofa.jraft.util.Copiable;
 import com.alipay.sofa.jraft.util.CrcUtil;
+
+import java.io.Serializable;
 
 /**
  * Log identifier.
@@ -33,8 +34,8 @@ public class LogId implements Comparable<LogId>, Copiable<LogId>, Serializable, 
 
     private static final long serialVersionUID = -6680425579347357313L;
 
-    private long              index;
-    private long              term;
+    private long index;
+    private long term;
 
     @Override
     public LogId copy() {
@@ -94,6 +95,7 @@ public class LogId implements Comparable<LogId>, Copiable<LogId>, Serializable, 
     public int compareTo(final LogId o) {
         // Compare term at first
         final int c = Long.compare(getTerm(), o.getTerm());
+        // term 值相等，继续比较 logIndex
         if (c == 0) {
             return Long.compare(getIndex(), o.getIndex());
         } else {

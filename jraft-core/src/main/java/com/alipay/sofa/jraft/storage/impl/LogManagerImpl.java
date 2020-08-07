@@ -417,17 +417,19 @@ public class LogManagerImpl implements LogManager {
             this.nodeMetrics.recordSize("append-logs-count", entriesCount);
             try {
                 int writtenSize = 0;
+                // 计算数据量
                 for (int i = 0; i < entriesCount; i++) {
                     final LogEntry entry = toAppend.get(i);
                     writtenSize += entry.getData() != null ? entry.getData().remaining() : 0;
                 }
                 this.nodeMetrics.recordSize("append-logs-bytes", writtenSize);
+                // 将 LogEntry 写入 RocksDB
                 final int nAppent = this.logStorage.appendEntries(toAppend);
                 if (nAppent != entriesCount) {
-                    LOG.error("**Critical error**, fail to appendEntries, nAppent={}, toAppend={}", nAppent,
-                            toAppend.size());
+                    LOG.error("**Critical error**, fail to appendEntries, nAppent={}, toAppend={}", nAppent, toAppend.size());
                     reportError(RaftError.EIO.getNumber(), "Fail to append log entries");
                 }
+                // 获取最新的 LogId
                 if (nAppent > 0) {
                     lastId = toAppend.get(nAppent - 1).getId();
                 }
@@ -447,8 +449,7 @@ public class LogManagerImpl implements LogManager {
         List<LogEntry> toAppend;
         LogId lastId;
 
-        public AppendBatcher(final List<StableClosure> storage, final int cap, final List<LogEntry> toAppend,
-                             final LogId lastId) {
+        public AppendBatcher(final List<StableClosure> storage, final int cap, final List<LogEntry> toAppend, final LogId lastId) {
             super();
             this.storage = storage;
             this.cap = cap;
@@ -456,18 +457,27 @@ public class LogManagerImpl implements LogManager {
             this.lastId = lastId;
         }
 
+        /**
+         * 将内存中的数据刷盘
+         *
+         * @return
+         */
         LogId flush() {
             if (this.size > 0) {
+                // 将数据落盘，并返回最新的 LogId
                 this.lastId = appendToStorage(this.toAppend);
                 for (int i = 0; i < this.size; i++) {
+                    // 清空缓存的 LogEntry 数据
                     this.storage.get(i).getEntries().clear();
                     Status st = null;
                     try {
                         if (LogManagerImpl.this.hasError) {
+                            // LogManager 运行异常
                             st = new Status(RaftError.EIO, "Corrupted LogStorage");
                         } else {
                             st = Status.OK();
                         }
+                        // 回调响应
                         this.storage.get(i).run(st);
                     } catch (Throwable t) {
                         LOG.error("Fail to run closure with status: {}.", st, t);
@@ -498,8 +508,7 @@ public class LogManagerImpl implements LogManager {
     private class StableClosureEventHandler implements EventHandler<StableClosureEvent> {
         LogId lastId = LogManagerImpl.this.diskId;
         List<StableClosure> storage = new ArrayList<>(256);
-        AppendBatcher ab = new AppendBatcher(this.storage, 256, new ArrayList<>(),
-                LogManagerImpl.this.diskId);
+        AppendBatcher ab = new AppendBatcher(this.storage, 256, new ArrayList<>(), LogManagerImpl.this.diskId);
 
         @Override
         public void onEvent(final StableClosureEvent event, final long sequence, final boolean endOfBatch)
@@ -859,15 +868,16 @@ public class LogManagerImpl implements LogManager {
         LastLogIdClosure c;
         this.readLock.lock();
         try {
-            // 从缓存中获取最新的 LogId
+            // 直接返回内存中记录的 lastLogIndex，以及对应的 term 值
             if (!isFlush) {
                 if (this.lastLogIndex >= this.firstLogIndex) {
                     return new LogId(this.lastLogIndex, unsafeGetTerm(this.lastLogIndex));
                 }
                 return this.lastSnapshotId;
             }
-            // 从磁盘中获取最新的 LogId
+            // 将内存中的数据刷盘，并返回最新的 logIndex 和对应的 term 值
             else {
+                // 生成快照之后未产生新的数据
                 if (this.lastLogIndex == this.lastSnapshotId.getIndex()) {
                     return this.lastSnapshotId;
                 }
@@ -879,7 +889,7 @@ public class LogManagerImpl implements LogManager {
             this.readLock.unlock();
         }
 
-        // 等待事件被执行
+        // 等待刷盘完成
         try {
             c.await();
         } catch (final InterruptedException e) {

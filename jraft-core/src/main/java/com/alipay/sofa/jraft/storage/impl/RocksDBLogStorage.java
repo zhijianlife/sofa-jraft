@@ -566,16 +566,21 @@ public class RocksDBLogStorage implements LogStorage, Describer {
         final int entriesCount = entries.size();
         final boolean ret = executeBatch(batch -> {
             final WriteContext writeCtx = newWriteContext();
+            // 遍历分类型将 LogEntry 写入 RocksDB
             for (int i = 0; i < entriesCount; i++) {
                 final LogEntry entry = entries.get(i);
+                // 配置类型的 LogEntry，编码之后写入 default 和 conf column family
                 if (entry.getType() == EntryType.ENTRY_TYPE_CONFIGURATION) {
                     addConfBatch(entry, batch);
-                } else {
+                }
+                // 其它类型的 LogEntry，编码之后写入 default column family
+                else {
                     writeCtx.startJob();
                     addDataBatch(entry, batch, writeCtx);
                 }
             }
             writeCtx.joinAll();
+            // 模板方法
             doSync();
         });
 
