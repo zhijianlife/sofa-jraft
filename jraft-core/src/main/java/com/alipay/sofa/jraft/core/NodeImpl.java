@@ -170,6 +170,7 @@ public class NodeImpl implements Node, RaftServerService {
     private volatile State state;
     private volatile CountDownLatch shutdownLatch;
     private long currTerm;
+    /** 记录最近一次收到来自 leader 节点请求的时间戳 */
     private volatile long lastLeaderTimestamp;
     private PeerId leaderId = new PeerId();
     private PeerId votedId;
@@ -1264,17 +1265,22 @@ public class NodeImpl implements Node, RaftServerService {
     // in writeLock
     private void checkStepDown(final long requestTerm, final PeerId serverId) {
         final Status status = new Status();
+        // 请求的 term 值大于当前节点的 term 值
         if (requestTerm > this.currTerm) {
             status.setError(RaftError.ENEWLEADER, "Raft node receives message from new leader with higher term.");
             stepDown(requestTerm, false, status);
-        } else if (this.state != State.STATE_FOLLOWER) {
+        }
+        // 当前节点不是 FOLLOWER 角色
+        else if (this.state != State.STATE_FOLLOWER) {
             status.setError(RaftError.ENEWLEADER, "Candidate receives message from new leader with the same term.");
             stepDown(requestTerm, false, status);
-        } else if (this.leaderId.isEmpty()) {
+        }
+        // 当前节点不知道 leader 节点
+        else if (this.leaderId.isEmpty()) {
             status.setError(RaftError.ENEWLEADER, "Follower receives message from new leader with the same term.");
             stepDown(requestTerm, false, status);
         }
-        // save current leader
+        // 更新本地记录的 leader 节点
         if (this.leaderId == null || this.leaderId.isEmpty()) {
             resetLeaderId(serverId, status);
         }
@@ -1978,6 +1984,7 @@ public class NodeImpl implements Node, RaftServerService {
         this.writeLock.lock();
         final int entriesCount = request.getEntriesCount();
         try {
+            // 当前节点处于非活跃状态，响应错误
             if (!this.state.isActive()) {
                 LOG.warn("Node {} is not in active state, currTerm={}.", getNodeId(), this.currTerm);
                 return RpcFactoryHelper //
@@ -1986,43 +1993,47 @@ public class NodeImpl implements Node, RaftServerService {
                                 "Node %s is not in active state, state %s.", getNodeId(), this.state.name());
             }
 
+            // 解析请求来源节点 ID
             final PeerId serverId = new PeerId();
             if (!serverId.parse(request.getServerId())) {
-                LOG.warn("Node {} received AppendEntriesRequest from {} serverId bad format.", getNodeId(),
-                        request.getServerId());
+                // 解析失败，响应错误
+                LOG.warn("Node {} received AppendEntriesRequest from {} serverId bad format.", getNodeId(), request.getServerId());
                 return RpcFactoryHelper //
                         .responseFactory() //
-                        .newResponse(AppendEntriesResponse.getDefaultInstance(), RaftError.EINVAL,
-                                "Parse serverId failed: %s.", request.getServerId());
+                        .newResponse(AppendEntriesResponse.getDefaultInstance(),
+                                RaftError.EINVAL, "Parse serverId failed: %s.", request.getServerId());
             }
 
-            // Check stale term
+            // 校验请求的 term 值，如果小于当前节点，则拒绝请求并返回自己当前的 term 值
             if (request.getTerm() < this.currTerm) {
-                LOG.warn("Node {} ignore stale AppendEntriesRequest from {}, term={}, currTerm={}.", getNodeId(),
-                        request.getServerId(), request.getTerm(), this.currTerm);
+                LOG.warn("Node {} ignore stale AppendEntriesRequest from {}, term={}, currTerm={}.",
+                        getNodeId(), request.getServerId(), request.getTerm(), this.currTerm);
                 return AppendEntriesResponse.newBuilder() //
                         .setSuccess(false) //
                         .setTerm(this.currTerm) //
                         .build();
             }
 
-            // Check term and state to step down
+            // 基于请求和节点本地状态判断是否需要执行 stepdown
             checkStepDown(request.getTerm(), serverId);
+
+            // 请求来源节点并不是当前节点所知道的 leader 节点
             if (!serverId.equals(this.leaderId)) {
                 LOG.error("Another peer {} declares that it is the leader at term {} which was occupied by leader {}.",
                         serverId, this.currTerm, this.leaderId);
-                // Increase the term by 1 and make both leaders step down to minimize the
-                // loss of split brain
-                stepDown(request.getTerm() + 1, false, new Status(RaftError.ELEADERCONFLICT,
-                        "More than one leader in the same term."));
+                // Increase the term by 1 and make both leaders step down to minimize the loss of split brain
+                stepDown(request.getTerm() + 1, false,
+                        new Status(RaftError.ELEADERCONFLICT, "More than one leader in the same term."));
                 return AppendEntriesResponse.newBuilder() //
                         .setSuccess(false) //
                         .setTerm(request.getTerm() + 1) //
                         .build();
             }
 
+            // 更新本地记录的最近一次收到来自 leader 节点请求的时间戳
             updateLastLeaderTimestamp(Utils.monotonicMs());
 
+            // 当前是复制日志的 AppendEntries 请求，但是本地正在安装快照
             if (entriesCount > 0 && this.snapshotExecutor != null && this.snapshotExecutor.isInstallingSnapshot()) {
                 LOG.warn("Node {} received AppendEntriesRequest while installing snapshot.", getNodeId());
                 return RpcFactoryHelper //
@@ -2034,13 +2045,14 @@ public class NodeImpl implements Node, RaftServerService {
             final long prevLogIndex = request.getPrevLogIndex();
             final long prevLogTerm = request.getPrevLogTerm();
             final long localPrevLogTerm = this.logManager.getTerm(prevLogIndex);
+            // 请求中 logIndex 对应的 term 值与本地不匹配
             if (localPrevLogTerm != prevLogTerm) {
                 final long lastLogIndex = this.logManager.getLastLogIndex();
 
                 LOG.warn(
-                        "Node {} reject term_unmatched AppendEntriesRequest from {}, term={}, prevLogIndex={}, prevLogTerm={}, localPrevLogTerm={}, lastLogIndex={}, entriesSize={}.",
-                        getNodeId(), request.getServerId(), request.getTerm(), prevLogIndex, prevLogTerm, localPrevLogTerm,
-                        lastLogIndex, entriesCount);
+                        "Node {} reject term_unmatched AppendEntriesRequest from {}, " +
+                                "term={}, prevLogIndex={}, prevLogTerm={}, localPrevLogTerm={}, lastLogIndex={}, entriesSize={}.",
+                        getNodeId(), request.getServerId(), request.getTerm(), prevLogIndex, prevLogTerm, localPrevLogTerm, lastLogIndex, entriesCount);
 
                 return AppendEntriesResponse.newBuilder() //
                         .setSuccess(false) //
@@ -2049,8 +2061,9 @@ public class NodeImpl implements Node, RaftServerService {
                         .build();
             }
 
+            // 心跳或者探针请求
             if (entriesCount == 0) {
-                // heartbeat
+                // 返回本地当前的 term 值以及对应的 logIndex
                 final AppendEntriesResponse.Builder respBuilder = AppendEntriesResponse.newBuilder() //
                         .setSuccess(true) //
                         .setTerm(this.currTerm) //
@@ -2058,9 +2071,12 @@ public class NodeImpl implements Node, RaftServerService {
                 doUnlock = false;
                 this.writeLock.unlock();
                 // see the comments at FollowerStableClosure#run()
+                // 基于 leader 的 committedIndex 更新本地的 lastCommittedIndex 值
                 this.ballotBox.setLastCommittedIndex(Math.min(request.getCommittedIndex(), prevLogIndex));
                 return respBuilder.build();
             }
+
+            /* 复制日志数据请求 */
 
             // Parse request
             long index = prevLogIndex;
@@ -2263,7 +2279,7 @@ public class NodeImpl implements Node, RaftServerService {
     private void checkDeadNodes(final Configuration conf, final long monotonicNowMs) {
         // Check learner replicators at first.
         for (PeerId peer : conf.getLearners()) {
-            // 确定到所有 Leaner 节点的复制关系都建立了
+            // 确定到所有 Learner 节点的复制关系都建立了
             checkReplicator(peer);
         }
         // Ensure quorum nodes alive.

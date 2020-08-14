@@ -14,15 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.core;
 
 /**
  * Replicator role
- * @author boyan(boyan@antfin.com)
  *
+ * @author boyan (boyan@antfin.com)
  */
 public enum ReplicatorType {
-    Follower, Learner;
+    Follower,
+    Learner;
 
     public final boolean isFollower() {
         return this == Follower;

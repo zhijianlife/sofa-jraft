@@ -229,8 +229,7 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
         try {
             if (this.pendingIndex != 0 || !this.pendingMetaQueue.isEmpty()) {
                 Requires.requireTrue(lastCommittedIndex < this.pendingIndex,
-                        "Node changes to leader, pendingIndex=%d, param lastCommittedIndex=%d", this.pendingIndex,
-                        lastCommittedIndex);
+                        "Node changes to leader, pendingIndex=%d, param lastCommittedIndex=%d", this.pendingIndex, lastCommittedIndex);
                 return false;
             }
             if (lastCommittedIndex < this.lastCommittedIndex) {
