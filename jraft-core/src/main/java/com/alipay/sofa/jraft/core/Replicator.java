@@ -95,13 +95,13 @@ public class Replicator implements ThreadId.OnError {
     protected Stat statInfo = new Stat();
     private ScheduledFuture<?> blockTimer;
 
-    // Cached the latest RPC in-flight request.
+    /** 记录最近的 inflight RPC 请求 */
     private Inflight rpcInFly;
     // Heartbeat RPC future
     private Future<Message> heartbeatInFly;
     // Timeout request RPC future
     private Future<Message> timeoutNowInFly;
-    // In-flight RPC requests, FIFO queue
+    /** FIFO 队列，记录 inflight RPC 请求列表 */
     private final ArrayDeque<Inflight> inflights = new ArrayDeque<>();
 
     private long waitId = -1L;
@@ -116,14 +116,17 @@ public class Replicator implements ThreadId.OnError {
     private final NodeMetrics nodeMetrics;
     private volatile State state;
 
-    // Request sequence
+    /** 请求序列 */
     private int reqSeq = 0;
-    // Response sequence
+    /** 期望的响应序列 */
     private int requiredNextSeq = 0;
-    // Replicator state reset version
+    /** 状态版本，当重置 inflight 请求队列时会递增，以实现忽略版本不匹配的 inflight 请求响应 */
     private int version = 0;
 
-    // Pending response queue;
+    /**
+     * 记录已经收到但是还没有被处理的响应，按照请求序列从小到大排序，
+     * 响应的顺序是未知的，但是需要保证处理的顺序
+     */
     private final PriorityQueue<RpcResponse> pendingResponses = new PriorityQueue<>(50);
 
     private int getAndIncrementReqSeq() {
@@ -329,16 +332,17 @@ public class Replicator implements ThreadId.OnError {
      * @author dennis
      */
     static class Inflight {
-        // In-flight request count
+        /** 请求中的 LogEntry 数目 */
         final int count;
-        // Start log index
+        /** 请求对应的起始 nextIndex 值 */
         final long startIndex;
-        // Entries size in bytes
+        /** LogEntry 的总字节长度 */
         final int size;
-        // RPC future
+        /** RPC future */
         final Future<Message> rpcFuture;
+        /** 请求类型：复制日志 or 安装快照 */
         final RequestType requestType;
-        // Request sequence.
+        /** 请求序列，用于匹配请求和响应，保证按照请求的顺序处理响应 */
         final int seq;
 
         public Inflight(final RequestType requestType,
@@ -508,7 +512,9 @@ public class Replicator implements ThreadId.OnError {
                              final int size,
                              final int seq,
                              final Future<Message> rpcInfly) {
+        // 更新本地记录的最新的 inflight RPC 请求
         this.rpcInFly = new Inflight(reqType, startIndex, count, size, seq, rpcInfly);
+        // 标记当前请求为 inflight
         this.inflights.add(this.rpcInFly);
         this.nodeMetrics.recordSize("replicate-inflights-count", this.inflights.size());
     }
@@ -519,16 +525,18 @@ public class Replicator implements ThreadId.OnError {
      * @return next in-flight sending index
      */
     long getNextSendIndex() {
-        // Fast path
+        // 没有 inflight 请求，从 nextIndex 开始发送
         if (this.inflights.isEmpty()) {
             return this.nextIndex;
         }
-        // Too many in-flight requests.
+        // 太多 inflight 请求，暂停发送新的 AppendEntries 请求
         if (this.inflights.size() > this.raftOptions.getMaxReplicatorInflightMsgs()) {
             return -1L;
         }
         // Last request should be a AppendEntries request and has some entries.
+        // 最近一次发送的 RPC 请求是携带 LogEntry 的 AppendEntries 请求
         if (this.rpcInFly != null && this.rpcInFly.isSendingLogEntries()) {
+            // 计算并返回接下去待发送的 LogEntry 对应的 logIndex 值
             return this.rpcInFly.startIndex + this.rpcInFly.count;
         }
         return -1L;
@@ -617,10 +625,10 @@ public class Replicator implements ThreadId.OnError {
 
                         @Override
                         public void run(final Status status) {
-                            onRpcReturned(Replicator.this.id, RequestType.Snapshot, status, request, getResponse(), seq,
-                                    stateVersion, monotonicSendTimeMs);
+                            onRpcReturned(Replicator.this.id, RequestType.Snapshot, status, request, getResponse(), seq, stateVersion, monotonicSendTimeMs);
                         }
                     });
+            // 标记当前请求为 in-flight
             addInflight(RequestType.Snapshot, this.nextIndex, 0, 0, seq, rpcFuture);
         } finally {
             if (doUnlock) {
@@ -780,17 +788,33 @@ public class Replicator implements ThreadId.OnError {
         }
     }
 
-    boolean prepareEntry(final long nextSendingIndex, final int offset, final RaftOutter.EntryMeta.Builder emb,
-                         final RecyclableByteBufferList dateBuffer) {
-        if (dateBuffer.getCapacity() >= this.raftOptions.getMaxBodySize()) {
+    /**
+     * 获取指定 logIndex 的 LogEntry 数据，填充到 emb 和 dataBuffer 中
+     *
+     * @param nextSendingIndex
+     * @param offset
+     * @param emb
+     * @param dataBuffer
+     * @return 返回 false 说明已经填满
+     */
+    boolean prepareEntry(final long nextSendingIndex,
+                         final int offset,
+                         final RaftOutter.EntryMeta.Builder emb,
+                         final RecyclableByteBufferList dataBuffer) {
+        // 数据量已经超过阈值
+        if (dataBuffer.getCapacity() >= this.raftOptions.getMaxBodySize()) {
             return false;
         }
+        // 基于偏移量计算当前处理的 LogEntry 的 logIndex 值
         final long logIndex = nextSendingIndex + offset;
+        // 从本地获取对应的 LogEntry 实例
         final LogEntry entry = this.options.getLogManager().getEntry(logIndex);
         if (entry == null) {
             return false;
         }
+        // 将 LogEntry 拆分为元数据和数据体分别填充 EntryMeta 和 RecyclableByteBufferList
         emb.setTerm(entry.getId().getTerm());
+        // 设置 checksum
         if (entry.hasChecksum()) {
             emb.setChecksum(entry.getChecksum()); // since 1.2.6
         }
@@ -806,7 +830,7 @@ public class Replicator implements ThreadId.OnError {
         emb.setDataLen(remaining);
         if (entry.getData() != null) {
             // should slice entry data
-            dateBuffer.add(entry.getData().slice());
+            dataBuffer.add(entry.getData().slice());
         }
         return true;
     }
@@ -992,8 +1016,7 @@ public class Replicator implements ThreadId.OnError {
         final long dueTime = startTimeMs + this.options.getDynamicHeartBeatTimeoutMs();
         try {
             LOG.debug("Blocking {} for {} ms", this.options.getPeerId(), this.options.getDynamicHeartBeatTimeoutMs());
-            this.blockTimer = this.timerManager.schedule(() -> onBlockTimeout(this.id), dueTime - Utils.nowMs(),
-                    TimeUnit.MILLISECONDS);
+            this.blockTimer = this.timerManager.schedule(() -> onBlockTimeout(this.id), dueTime - Utils.nowMs(), TimeUnit.MILLISECONDS);
             this.statInfo.runningState = RunningState.BLOCKING;
             this.id.unlock();
         } catch (final Exception e) {
@@ -1244,7 +1267,7 @@ public class Replicator implements ThreadId.OnError {
             return;
         }
 
-        // version 发生变化，说明 inflight 队列被重置过，忽略重置之前请求对应的响应
+        // 状态版本发生变化，说明 inflight 队列被重置过，忽略重置之前请求对应的响应
         if (stateVersion != r.version) {
             LOG.debug("Replicator {} ignored old version response {}, current version is {}, request is {}\n, and response is {}\n, status is {}.",
                     r, stateVersion, r.version, request, response, status);
@@ -1279,6 +1302,7 @@ public class Replicator implements ThreadId.OnError {
             int processed = 0;
             // 遍历处理响应
             while (!holdingQueue.isEmpty()) {
+                // 获取收到的请求序列最小的响应
                 final RpcResponse queuedPipelinedResponse = holdingQueue.peek();
 
                 // Sequence mismatch, waiting for next response.
@@ -1296,18 +1320,21 @@ public class Replicator implements ThreadId.OnError {
                         return;
                     }
                 }
+
+                /* 开始处理请求对应的响应 */
+
                 holdingQueue.remove();
                 processed++;
                 // 获取 inflight 请求
                 final Inflight inflight = r.pollInflight();
                 if (inflight == null) {
-                    // 响应对应的请求已经被清除，忽略对应的响应
+                    // 响应对应的请求已经被清除，忽略当前响应
                     if (isLogDebugEnabled) {
                         sb.append("ignore response because request not found: ").append(queuedPipelinedResponse).append(",\n");
                     }
                     continue;
                 }
-                // 请求序列与响应中记录的请求序列匹配不上，重置请求 inflight 队列，重新发送探针请求
+                // 请求序列与响应中记录的请求序列匹配不上，重置请求 inflight 队列，阻塞一会后重新发送探针请求
                 if (inflight.seq != queuedPipelinedResponse.seq) {
                     // reset state
                     LOG.warn("Replicator {} response sequence out of order, expect {}, but it is {}, reset state to try again.",
@@ -1322,6 +1349,7 @@ public class Replicator implements ThreadId.OnError {
                 // 依据响应类型分别处理
                 try {
                     switch (queuedPipelinedResponse.requestType) {
+                        // 处理 AppendEntries 请求
                         case AppendEntries:
                             continueSendEntries = onAppendEntriesReturned(
                                     id,
@@ -1333,6 +1361,7 @@ public class Replicator implements ThreadId.OnError {
                                     startTimeMs,
                                     r);
                             break;
+                        // 处理 InstallSnapshot 请求
                         case Snapshot:
                             continueSendEntries = onInstallSnapshotReturned(
                                     id,
@@ -1377,6 +1406,19 @@ public class Replicator implements ThreadId.OnError {
         releaseReader();
     }
 
+    /**
+     * 处理 AppendEntries 请求响应
+     *
+     * @param id
+     * @param inflight
+     * @param status
+     * @param request
+     * @param response
+     * @param rpcSendTime
+     * @param startTimeMs
+     * @param r
+     * @return
+     */
     private static boolean onAppendEntriesReturned(final ThreadId id,
                                                    final Inflight inflight,
                                                    final Status status,
@@ -1385,7 +1427,7 @@ public class Replicator implements ThreadId.OnError {
                                                    final long rpcSendTime,
                                                    final long startTimeMs,
                                                    final Replicator r) {
-        // 对应的 logIndex 不匹配，重置请求 inflight 队列，重新发送探针请求
+        // inflight 请求与响应中记录的请求对应的 logIndex 不匹配，重置请求 inflight 队列，重新发送探针请求
         if (inflight.startIndex != request.getPrevLogIndex() + 1) {
             LOG.warn("Replicator {} received invalid AppendEntriesResponse, in-flight startIndex={}, request prevLogIndex={}, reset the replicator state and probe again.",
                     r, inflight.startIndex, request.getPrevLogIndex());
@@ -1433,6 +1475,7 @@ public class Replicator implements ThreadId.OnError {
                 LOG.warn("Fail to issue RPC to {}, consecutiveErrorTimes={}, error={}",
                         r.options.getPeerId(), r.consecutiveErrorTimes, status);
             }
+            // 重置 inflight 队列，阻塞一会儿重新发送探针请求
             r.resetInflights();
             r.state = State.Probe;
             // unlock in in block
@@ -1443,7 +1486,7 @@ public class Replicator implements ThreadId.OnError {
         /* 目标 Follower 节点运行正常 */
 
         r.consecutiveErrorTimes = 0;
-        // 目标 Follower 节点响应失败
+        // 目标 Follower 节点拒绝响应
         if (!response.getSuccess()) {
             // Follower 节点的 term 值更大
             if (response.getTerm() > r.options.getTerm()) {
@@ -1455,7 +1498,7 @@ public class Replicator implements ThreadId.OnError {
                 r.notifyOnCaughtUp(RaftError.EPERM.getNumber(), true);
                 // 销毁当前复制器 Replicator
                 r.destroy();
-                // 提升当前节点的 term 值
+                // 提升当前节点的 term 值，并执行 stepdown
                 node.increaseTermTo(response.getTerm(), new Status(RaftError.EHIGHERTERMRESPONSE,
                         "Leader receives higher term heartbeat_response from peer:%s", r.options.getPeerId()));
                 return false;
@@ -1470,14 +1513,17 @@ public class Replicator implements ThreadId.OnError {
             if (rpcSendTime > r.lastRpcSendTimestamp) {
                 r.lastRpcSendTimestamp = rpcSendTime;
             }
-            // Fail, reset the state to try again from nextIndex.
+            // 重置 inflight 队列，调整 nextIndex 之后重新发送探针请求
             r.resetInflights();
             // prev_log_index and prev_log_term doesn't match
             if (response.getLastLogIndex() + 1 < r.nextIndex) {
                 LOG.debug("LastLogIndex at peer={} is {}", r.options.getPeerId(), response.getLastLogIndex());
                 // The peer contains less logs than leader
                 r.nextIndex = response.getLastLogIndex() + 1;
-            } else {
+            }
+            // Follower 节点本地的 logIndex 更大，可能包含老的 Leader 节点复制的日志，
+            // 递减 nextIndex 之后重试，直到找到两个节点相同日志的交叉点为止
+            else {
                 // The peer contains logs from old term which should be truncated,
                 // decrease _last_log_at_peer by one to test the right index to keep
                 if (r.nextIndex > 1) {
@@ -1499,7 +1545,7 @@ public class Replicator implements ThreadId.OnError {
 
         /* 目标 Follower 节点响应成功 */
 
-        // term 值已经发生变化，重置请求 inflight 队列，重新发送探针请求
+        // 请求期间 term 值已经发生变化，当前节点可能已经不是 Leader 节点，清空 inflight 队列
         if (response.getTerm() != r.options.getTerm()) {
             r.resetInflights();
             r.state = State.Probe;
@@ -1593,8 +1639,10 @@ public class Replicator implements ThreadId.OnError {
         try {
             long prevSendIndex = -1;
             while (true) {
+                // 获取下一个待发送的 LogEntry 对应的 logIndex 值，如果返回 -1 表示暂停复制
                 final long nextSendingIndex = getNextSendIndex();
                 if (nextSendingIndex > prevSendIndex) {
+                    // 向目标节点复制 nextSendingIndex 位置之后的 LogEntry 数据
                     if (sendEntries(nextSendingIndex)) {
                         prevSendIndex = nextSendingIndex;
                     } else {
@@ -1611,7 +1659,6 @@ public class Replicator implements ThreadId.OnError {
                 this.id.unlock();
             }
         }
-
     }
 
     /**
@@ -1621,7 +1668,10 @@ public class Replicator implements ThreadId.OnError {
      * @return send result.
      */
     private boolean sendEntries(final long nextSendingIndex) {
+        // 构建 AppendEntries 请求
         final AppendEntriesRequest.Builder rb = AppendEntriesRequest.newBuilder();
+        // 为 AppendEntries 请求填充基础参数，包括当前节点的 term 值、groupId、节点 ID，以及 committedLogIndex 等等
+        // 如果返回 false 说明待发送的部分日志已经变为快照，需要先给目标节点安装快照
         if (!fillCommonFields(rb, nextSendingIndex - 1, false)) {
             // unlock id in installSnapshot
             installSnapshot();
@@ -1629,25 +1679,33 @@ public class Replicator implements ThreadId.OnError {
         }
 
         ByteBufferCollector dataBuf = null;
+        // 获取单次批量发送 LogEntry 的数目上线
         final int maxEntriesSize = this.raftOptions.getMaxEntriesSize();
         final RecyclableByteBufferList byteBufList = RecyclableByteBufferList.newInstance();
         try {
             for (int i = 0; i < maxEntriesSize; i++) {
                 final RaftOutter.EntryMeta.Builder emb = RaftOutter.EntryMeta.newBuilder();
+                // 获取指定 logIndex 的 LogEntry 数据，填充到 emb 和 byteBufList 中，
+                // 如果返回 false 说明容量已满
                 if (!prepareEntry(nextSendingIndex, i, emb, byteBufList)) {
                     break;
                 }
                 rb.addEntries(emb.build());
             }
+
+            // 未获取到任何 LogEntry 数据，可能目标数据已经变为快照了，也可能是真的没有数据可以复制
             if (rb.getEntriesCount() == 0) {
+                // nextSendingIndex < firstLogIndex，说明对应区间的数据已变为快照，需要先给目标节点安装快照
                 if (nextSendingIndex < this.options.getLogManager().getFirstLogIndex()) {
                     installSnapshot();
                     return false;
                 }
-                // _id is unlock in _wait_more
+                // 说明没有新的数据可以复制，设置一个回调等待新的数据到来之后重新触发 sendEntries 操作
                 waitMoreEntries(nextSendingIndex);
                 return false;
             }
+
+            // 将日志数据填充到 AppendEntries 请求中
             if (byteBufList.getCapacity() > 0) {
                 dataBuf = ByteBufferCollector.allocateByRecyclers(byteBufList.getCapacity());
                 for (final ByteBuffer b : byteBufList) {
@@ -1676,26 +1734,30 @@ public class Replicator implements ThreadId.OnError {
         final Recyclable recyclable = dataBuf;
         final int v = this.version;
         final long monotonicSendTimeMs = Utils.monotonicMs();
+        // 递增请求序列
         final int seq = getAndIncrementReqSeq();
 
         Future<Message> rpcFuture = null;
         try {
-            rpcFuture = this.rpcService.appendEntries(this.options.getPeerId().getEndpoint(), request, -1,
+            // 向目标节点发送 AppendEntries RPC 请求
+            rpcFuture = this.rpcService.appendEntries(
+                    this.options.getPeerId().getEndpoint(),
+                    request,
+                    -1,
                     new RpcResponseClosureAdapter<AppendEntriesResponse>() {
 
                         @Override
                         public void run(final Status status) {
                             RecycleUtil.recycle(recyclable); // TODO: recycle on send success, not response received.
-                            onRpcReturned(Replicator.this.id, RequestType.AppendEntries, status, request, getResponse(),
-                                    seq, v, monotonicSendTimeMs);
+                            onRpcReturned(Replicator.this.id, RequestType.AppendEntries, status, request, getResponse(), seq, v, monotonicSendTimeMs);
                         }
                     });
         } catch (final Throwable t) {
             RecycleUtil.recycle(recyclable);
             ThrowUtil.throwException(t);
         }
-        addInflight(RequestType.AppendEntries, nextSendingIndex, request.getEntriesCount(), request.getData().size(),
-                seq, rpcFuture);
+        // 将本次请求标记为 inflight
+        addInflight(RequestType.AppendEntries, nextSendingIndex, request.getEntriesCount(), request.getData().size(), seq, rpcFuture);
 
         return true;
     }

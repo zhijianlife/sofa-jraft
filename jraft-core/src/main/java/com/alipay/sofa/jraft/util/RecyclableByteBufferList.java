@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.util;
 
 import java.nio.ByteBuffer;
@@ -26,11 +27,11 @@ import java.util.Collection;
  */
 public final class RecyclableByteBufferList extends ArrayList<ByteBuffer> implements Recyclable {
 
-    private static final long serialVersionUID         = -8605125654176467947L;
+    private static final long serialVersionUID = -8605125654176467947L;
 
-    private static final int  DEFAULT_INITIAL_CAPACITY = 8;
+    private static final int DEFAULT_INITIAL_CAPACITY = 8;
 
-    private int               capacity                 = 0;
+    private int capacity = 0;
 
     /**
      * Create a new empty {@link RecyclableByteBufferList} instance
@@ -123,14 +124,14 @@ public final class RecyclableByteBufferList extends ArrayList<ByteBuffer> implem
         this.handle = handle;
     }
 
-    private transient final Recyclers.Handle                 handle;
+    private transient final Recyclers.Handle handle;
 
     private static final Recyclers<RecyclableByteBufferList> recyclers = new Recyclers<RecyclableByteBufferList>(512) {
 
-                                                                           @Override
-                                                                           protected RecyclableByteBufferList newObject(final Handle handle) {
-                                                                               return new RecyclableByteBufferList(
-                                                                                   handle);
-                                                                           }
-                                                                       };
+        @Override
+        protected RecyclableByteBufferList newObject(final Handle handle) {
+            return new RecyclableByteBufferList(
+                    handle);
+        }
+    };
 }

@@ -2004,7 +2004,7 @@ public class NodeImpl implements Node, RaftServerService {
                                 RaftError.EINVAL, "Parse serverId failed: %s.", request.getServerId());
             }
 
-            // 校验请求的 term 值，如果小于当前节点，则拒绝请求并返回自己当前的 term 值
+            // 校验请求中的 term 值，如果小于当前节点，则拒绝请求并返回自己当前的 term 值
             if (request.getTerm() < this.currTerm) {
                 LOG.warn("Node {} ignore stale AppendEntriesRequest from {}, term={}, currTerm={}.",
                         getNodeId(), request.getServerId(), request.getTerm(), this.currTerm);
@@ -2017,7 +2017,8 @@ public class NodeImpl implements Node, RaftServerService {
             // 基于请求和节点本地状态判断是否需要执行 stepdown
             checkStepDown(request.getTerm(), serverId);
 
-            // 请求来源节点并不是当前节点所知道的 leader 节点
+            // 请求来源节点并不是当前节点所知道的 leader 节点，
+            // 可能出现网络分区，尝试将 term 值加 1，以触发 leader 节点 stepdown
             if (!serverId.equals(this.leaderId)) {
                 LOG.error("Another peer {} declares that it is the leader at term {} which was occupied by leader {}.",
                         serverId, this.currTerm, this.leaderId);
@@ -2033,7 +2034,7 @@ public class NodeImpl implements Node, RaftServerService {
             // 更新本地记录的最近一次收到来自 leader 节点请求的时间戳
             updateLastLeaderTimestamp(Utils.monotonicMs());
 
-            // 当前是复制日志的 AppendEntries 请求，但是本地正在安装快照
+            // 当前是复制日志的 AppendEntries 请求，但是本地正在安装快照，响应错误
             if (entriesCount > 0 && this.snapshotExecutor != null && this.snapshotExecutor.isInstallingSnapshot()) {
                 LOG.warn("Node {} received AppendEntriesRequest while installing snapshot.", getNodeId());
                 return RpcFactoryHelper //
@@ -2048,9 +2049,7 @@ public class NodeImpl implements Node, RaftServerService {
             // 请求中 logIndex 对应的 term 值与本地不匹配
             if (localPrevLogTerm != prevLogTerm) {
                 final long lastLogIndex = this.logManager.getLastLogIndex();
-
-                LOG.warn(
-                        "Node {} reject term_unmatched AppendEntriesRequest from {}, " +
+                LOG.warn("Node {} reject term_unmatched AppendEntriesRequest from {}, " +
                                 "term={}, prevLogIndex={}, prevLogTerm={}, localPrevLogTerm={}, lastLogIndex={}, entriesSize={}.",
                         getNodeId(), request.getServerId(), request.getTerm(), prevLogIndex, prevLogTerm, localPrevLogTerm, lastLogIndex, entriesCount);
 
