@@ -15,15 +15,22 @@
  * limitations under the License.
  */
 
-package com.alipay.sofa.jraft.util;
+package com.alipay.sofa.jraft.example.pharos;
 
 /**
- * @author jiachun.fjc
+ * Leader state listener.
+ *
+ * @author dennis
  */
-public interface Recyclable {
+public interface LeaderStateListener {
 
     /**
-     * Recycle this instance.
+     * Called when current node becomes leader
      */
-    boolean recycle();
+    void onLeaderStart(final long leaderTerm);
+
+    /**
+     * Called when current node loses leadership.
+     */
+    void onLeaderStop(final long leaderTerm);
 }

@@ -736,9 +736,11 @@ public class LogManagerImpl implements LogManager {
     public LogEntry getEntry(final long index) {
         this.readLock.lock();
         try {
+            // index 越界
             if (index > this.lastLogIndex || index < this.firstLogIndex) {
                 return null;
             }
+            // 先尝试从内存中的获取
             final LogEntry entry = getEntryFromMemory(index);
             if (entry != null) {
                 return entry;
@@ -746,13 +748,15 @@ public class LogManagerImpl implements LogManager {
         } finally {
             this.readLock.unlock();
         }
+        // 从磁盘中读取
         final LogEntry entry = this.logStorage.getEntry(index);
         if (entry == null) {
             reportError(RaftError.EIO.getNumber(), "Corrupted entry at index=%d, not found", index);
         }
-        // Validate checksum
+        // 校验 checksum
         if (entry != null && this.raftOptions.isEnableLogEntryChecksum() && entry.isCorrupted()) {
-            String msg = String.format("Corrupted entry at index=%d, term=%d, expectedChecksum=%d, realChecksum=%d",
+            String msg = String.format(
+                    "Corrupted entry at index=%d, term=%d, expectedChecksum=%d, realChecksum=%d",
                     index, entry.getId().getTerm(), entry.getChecksum(), entry.checksum());
             // Report error to node and throw exception.
             reportError(RaftError.EIO.getNumber(), msg);

@@ -807,7 +807,7 @@ public class Replicator implements ThreadId.OnError {
         }
         // 基于偏移量计算当前处理的 LogEntry 的 logIndex 值
         final long logIndex = nextSendingIndex + offset;
-        // 从本地获取对应的 LogEntry 实例
+        // 从本地获取对应的 LogEntry 数据
         final LogEntry entry = this.options.getLogManager().getEntry(logIndex);
         if (entry == null) {
             return false;
@@ -818,6 +818,7 @@ public class Replicator implements ThreadId.OnError {
         if (entry.hasChecksum()) {
             emb.setChecksum(entry.getChecksum()); // since 1.2.6
         }
+        // 设置 LogEntry 类型
         emb.setType(entry.getType());
         if (entry.getPeers() != null) {
             Requires.requireTrue(!entry.getPeers().isEmpty(), "Empty peers at logIndex=%d", logIndex);
@@ -826,8 +827,10 @@ public class Replicator implements ThreadId.OnError {
             Requires.requireTrue(entry.getType() != EnumOutter.EntryType.ENTRY_TYPE_CONFIGURATION,
                     "Empty peers but is ENTRY_TYPE_CONFIGURATION type at logIndex=%d", logIndex);
         }
+        // 设置数据长度
         final int remaining = entry.getData() != null ? entry.getData().remaining() : 0;
         emb.setDataLen(remaining);
+        // 填充数据到 dataBuffer
         if (entry.getData() != null) {
             // should slice entry data
             dataBuffer.add(entry.getData().slice());

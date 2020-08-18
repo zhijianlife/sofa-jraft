@@ -1,10 +1,10 @@
-syntax="proto2";
+syntax = "proto2";
 
 package jraft;
 
 import "enum.proto";
 
-option java_package="com.alipay.sofa.jraft.entity";
+option java_package = "com.alipay.sofa.jraft.entity";
 option java_outer_classname = "RaftOutter";
 
 
@@ -13,8 +13,7 @@ message EntryMeta {
     required EntryType type = 2;
     repeated string peers = 3;
     optional int64 data_len = 4;
-    // Don't change field id of `old_peers' in the consideration of backward
-    // compatibility
+    // Don't change field id of `old_peers' in the consideration of backward compatibility
     repeated string old_peers = 5;
     // Checksum fot this log entry, since 1.2.6, added by boyan@antfin.com
     optional int64 checksum = 6;
