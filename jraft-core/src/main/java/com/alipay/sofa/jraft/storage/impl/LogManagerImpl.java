@@ -290,6 +290,7 @@ public class LogManagerImpl implements LogManager {
     @Override
     public void appendEntries(final List<LogEntry> entries, final StableClosure done) {
         Requires.requireNonNull(done, "done");
+        // 运行发生错误
         if (this.hasError) {
             entries.clear();
             Utils.runClosureInThread(done, new Status(RaftError.EIO, "Corrupted LogStorage"));
@@ -298,6 +299,8 @@ public class LogManagerImpl implements LogManager {
         boolean doUnlock = true;
         this.writeLock.lock();
         try {
+            // 对于 Leader 节点而言，基于本地 lastLogIndex 值设置各个 LogEntry 的 logIndex
+            // 对于 Follower 节点而言，检查待复制的日志与本地已有的日志是否存在冲突，如果存在冲突则强行覆盖本地日志
             if (!entries.isEmpty() && !checkAndResolveConflict(entries, done)) {
                 // If checkAndResolveConflict returns false, the done will be called in it.
                 entries.clear();
@@ -307,8 +310,11 @@ public class LogManagerImpl implements LogManager {
                 final LogEntry entry = entries.get(i);
                 // Set checksum after checkAndResolveConflict
                 if (this.raftOptions.isEnableLogEntryChecksum()) {
+                    // 设置 checksum 值
                     entry.setChecksum(entry.checksum());
                 }
+
+                // 对于 ENTRY_TYPE_CONFIGURATION 类型的 LogEntry，记录集群配置信息
                 if (entry.getType() == EntryType.ENTRY_TYPE_CONFIGURATION) {
                     Configuration oldConf = new Configuration();
                     if (entry.getOldPeers() != null) {
@@ -319,12 +325,15 @@ public class LogManagerImpl implements LogManager {
                     this.configManager.add(conf);
                 }
             }
+
+            // 更新内存数据
             if (!entries.isEmpty()) {
                 done.setFirstLogIndex(entries.get(0).getId().getIndex());
                 this.logsInMemory.addAll(entries);
             }
             done.setEntries(entries);
 
+            // 将修正后的 LogEntry 数据封装成事件投递给 Disruptor 队列，事件类型为 OTHER
             int retryTimes = 0;
             final EventTranslator<StableClosureEvent> translator = (event, sequence) -> {
                 event.reset();
@@ -336,6 +345,7 @@ public class LogManagerImpl implements LogManager {
                     break;
                 } else {
                     retryTimes++;
+                    // 最大重试 50 次
                     if (retryTimes > APPEND_LOG_RETRY_TIMES) {
                         reportError(RaftError.EBUSY.getNumber(), "LogManager is busy, disk queue overload.");
                         return;
@@ -344,6 +354,7 @@ public class LogManagerImpl implements LogManager {
                 }
             }
             doUnlock = false;
+            // 尝试触发等待新的可复制数据的回调，以继续向目标 Follower 节点发送数据
             if (!wakeupAllWaiter(this.writeLock)) {
                 notifyLastLogIndexListeners();
             }
@@ -477,7 +488,7 @@ public class LogManagerImpl implements LogManager {
                         } else {
                             st = Status.OK();
                         }
-                        // 回调响应
+                        // 应用回调
                         this.storage.get(i).run(st);
                     } catch (Throwable t) {
                         LOG.error("Fail to run closure with status: {}.", st, t);
@@ -748,12 +759,12 @@ public class LogManagerImpl implements LogManager {
         } finally {
             this.readLock.unlock();
         }
-        // 从磁盘中读取
+        // 从磁盘中读取 logIndex 对应的 LogEntry 数据
         final LogEntry entry = this.logStorage.getEntry(index);
         if (entry == null) {
             reportError(RaftError.EIO.getNumber(), "Corrupted entry at index=%d, not found", index);
         }
-        // 校验 checksum
+        // 如果启动了 checksum，则校验 checksum 值
         if (entry != null && this.raftOptions.isEnableLogEntryChecksum() && entry.isCorrupted()) {
             String msg = String.format(
                     "Corrupted entry at index=%d, term=%d, expectedChecksum=%d, realChecksum=%d",
@@ -1006,24 +1017,29 @@ public class LogManagerImpl implements LogManager {
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
     private boolean checkAndResolveConflict(final List<LogEntry> entries, final StableClosure done) {
         final LogEntry firstLogEntry = ArrayDeque.peekFirst(entries);
+        // Leader 节点，基于 lastLogIndex 设置 logIndex 值
         if (firstLogEntry.getId().getIndex() == 0) {
             // Node is currently the leader and |entries| are from the user who
-            // don't know the correct indexes the logs should assign to. So we have
-            // to assign indexes to the appending entries
+            // don't know the correct indexes the logs should assign to.
+            // So we have to assign indexes to the appending entries
             for (int i = 0; i < entries.size(); i++) {
                 entries.get(i).getId().setIndex(++this.lastLogIndex);
             }
             return true;
-        } else {
-            // Node is currently a follower and |entries| are from the leader. We
-            // should check and resolve the conflicts between the local logs and
-            // |entries|
+        }
+        // Follower 节点
+        else {
+            // Node is currently a follower and |entries| are from the leader.
+            // We should check and resolve the conflicts between the local logs and |entries|
             if (firstLogEntry.getId().getIndex() > this.lastLogIndex + 1) {
+                // 待写入的日志与本地已有的日志之间存在断层
                 Utils.runClosureInThread(done, new Status(RaftError.EINVAL,
-                        "There's gap between first_index=%d and last_log_index=%d", firstLogEntry.getId().getIndex(),
-                        this.lastLogIndex));
+                        "There's gap between first_index=%d and last_log_index=%d",
+                        firstLogEntry.getId().getIndex(), this.lastLogIndex));
                 return false;
             }
+
+            // 待写入的所有日志的 logIndex 都小于已经应用的日志的最大 logIndex，直接返回
             final long appliedIndex = this.appliedId.getIndex();
             final LogEntry lastLogEntry = ArrayDeque.peekLast(entries);
             if (lastLogEntry.getId().getIndex() <= appliedIndex) {
@@ -1034,29 +1050,34 @@ public class LogManagerImpl implements LogManager {
                 Utils.runClosureInThread(done);
                 return false;
             }
+
+            // 待追加的日志与本地已有的日志之前正好衔接上，直接更新 lastLogIndex
             if (firstLogEntry.getId().getIndex() == this.lastLogIndex + 1) {
                 // fast path
                 this.lastLogIndex = lastLogEntry.getId().getIndex();
-            } else {
+            }
+            // 说明待追加的日志与本地已有的日志之间存在交叉
+            else {
                 // Appending entries overlap the local ones. We should find if there
-                // is a conflicting index from which we should truncate the local
-                // ones.
+                // is a conflicting index from which we should truncate the local ones.
                 int conflictingIndex = 0;
+                // 从头开始遍历寻找第一个 term 值不匹配的 logIndex
                 for (; conflictingIndex < entries.size(); conflictingIndex++) {
-                    if (unsafeGetTerm(entries.get(conflictingIndex).getId().getIndex()) != entries
-                            .get(conflictingIndex).getId().getTerm()) {
+                    if (unsafeGetTerm(entries.get(conflictingIndex).getId().getIndex())
+                            != entries.get(conflictingIndex).getId().getTerm()) {
                         break;
                     }
                 }
+                // 日志数据存在冲突，将本地冲突之后的日志数据阶段
                 if (conflictingIndex != entries.size()) {
                     if (entries.get(conflictingIndex).getId().getIndex() <= this.lastLogIndex) {
-                        // Truncate all the conflicting entries to make local logs
-                        // consensus with the leader.
+                        // Truncate all the conflicting entries to make local logs consensus with the leader.
                         unsafeTruncateSuffix(entries.get(conflictingIndex).getId().getIndex() - 1);
                     }
                     this.lastLogIndex = lastLogEntry.getId().getIndex();
-                } // else this is a duplicated AppendEntriesRequest, we have
-                // nothing to do besides releasing all the entries
+                }
+                // else this is a duplicated AppendEntriesRequest, we have nothing to do besides releasing all the entries
+                // 将已经写入本地的日志数据从请求中剔除
                 if (conflictingIndex > 0) {
                     // Remove duplication
                     entries.subList(0, conflictingIndex).clear();
@@ -1102,6 +1123,7 @@ public class LogManagerImpl implements LogManager {
     private long notifyOnNewLog(final long expectedLastLogIndex, final WaitMeta wm) {
         this.writeLock.lock();
         try {
+            // 已经有新的日志可复制，或者当前 LogManager 已被停止
             if (expectedLastLogIndex != this.lastLogIndex || this.stopped) {
                 wm.errorCode = this.stopped ? RaftError.ESTOP.getNumber() : 0;
                 Utils.runInThread(() -> runOnNewLog(wm));
@@ -1111,6 +1133,7 @@ public class LogManagerImpl implements LogManager {
                 ++this.nextWaitId;
             }
             final long waitId = this.nextWaitId++;
+            // 记录等待的信息
             this.waitMap.put(waitId, wm);
             return waitId;
         } finally {

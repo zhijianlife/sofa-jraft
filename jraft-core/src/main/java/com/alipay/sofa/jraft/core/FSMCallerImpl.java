@@ -155,6 +155,7 @@ public class FSMCallerImpl implements FSMCaller {
     private StateMachine fsm;
     /** 基于 LinkedList 实现的 Closure 队列 */
     private ClosureQueue closureQueue;
+    /** 已经被状态机应用的日志的 logIndex */
     private final AtomicLong lastAppliedIndex;
     private long lastAppliedTerm;
     private Closure afterShutdown;
@@ -472,9 +473,11 @@ public class FSMCallerImpl implements FSMCaller {
     }
 
     private void doCommitted(final long committedIndex) {
+        // 状态机调度器运行异常
         if (!this.error.getStatus().isOk()) {
             return;
         }
+        // 获取最新被状态机应用的 LogEntry 对应的 logIndex 值
         final long lastAppliedIndex = this.lastAppliedIndex.get();
         // We can tolerate the disorder of committed_index
         if (lastAppliedIndex >= committedIndex) {
@@ -484,16 +487,22 @@ public class FSMCallerImpl implements FSMCaller {
         try {
             final List<Closure> closures = new ArrayList<>();
             final List<TaskClosure> taskClosures = new ArrayList<>();
+            // 获取 committedIndex 之前的 Task 的回调列表，填充到 closures，如果是 TaskClosure 类型，则顺便记录到 taskClosures 中
             final long firstClosureIndex = this.closureQueue.popClosureUntil(committedIndex, closures, taskClosures);
 
-            // Calls TaskClosure#onCommitted if necessary
+            // 应用 TaskClosure#onCommitted 方法
             onTaskCommitted(taskClosures);
 
             Requires.requireTrue(firstClosureIndex >= 0, "Invalid firstClosureIndex");
-            final IteratorImpl iterImpl = new IteratorImpl(this.fsm, this.logManager, closures, firstClosureIndex,
-                    lastAppliedIndex, committedIndex, this.applyingIndex);
+            // 迭代器，用于迭代 LogEntry
+            final IteratorImpl iterImpl = new IteratorImpl(
+                    this.fsm, this.logManager, closures, firstClosureIndex, lastAppliedIndex, committedIndex, this.applyingIndex);
+
+            // 如果是 good，则说明还有可以继续应用的日志
             while (iterImpl.isGood()) {
+                // 获取当前待处理的 LogEntry 对象
                 final LogEntry logEntry = iterImpl.entry();
+                // 系统内部的 LogEntry
                 if (logEntry.getType() != EnumOutter.EntryType.ENTRY_TYPE_DATA) {
                     if (logEntry.getType() == EnumOutter.EntryType.ENTRY_TYPE_CONFIGURATION) {
                         if (logEntry.getOldPeers() != null && !logEntry.getOldPeers().isEmpty()) {
@@ -511,7 +520,7 @@ public class FSMCallerImpl implements FSMCaller {
                     continue;
                 }
 
-                // Apply data task to user state machine
+                // 应用 StateMachine#onApply 方法
                 doApplyTasks(iterImpl);
             }
 
@@ -522,8 +531,10 @@ public class FSMCallerImpl implements FSMCaller {
             final long lastIndex = iterImpl.getIndex() - 1;
             final long lastTerm = this.logManager.getTerm(lastIndex);
             final LogId lastAppliedId = new LogId(lastIndex, lastTerm);
+            // 更新最新应用的日志对应的 logIndex 和 term 值
             this.lastAppliedIndex.set(lastIndex);
             this.lastAppliedTerm = lastTerm;
+            // 通知 LogManager，这些已经被应用的 LogEntry 可以从内存中移除了
             this.logManager.setAppliedId(lastAppliedId);
             notifyLastAppliedIndexUpdated(lastIndex);
         } finally {
@@ -548,6 +559,7 @@ public class FSMCallerImpl implements FSMCaller {
             this.nodeMetrics.recordLatency("fsm-apply-tasks", Utils.monotonicMs() - startApplyMs);
             this.nodeMetrics.recordSize("fsm-apply-tasks-count", iter.getIndex() - startIndex);
         }
+        // 对应的日志还没有被处理完
         if (iter.hasNext()) {
             LOG.error("Iterator is still valid, did you return before iterator reached the end?");
         }

@@ -1426,8 +1426,8 @@ public class NodeImpl implements Node, RaftServerService {
                 NodeImpl.this.ballotBox.commitAt(
                         this.firstLogIndex, this.firstLogIndex + this.nEntries - 1, NodeImpl.this.serverId);
             } else {
-                LOG.error("Node {} append [{}, {}] failed, status={}.", getNodeId(), this.firstLogIndex,
-                        this.firstLogIndex + this.nEntries - 1, status);
+                LOG.error("Node {} append [{}, {}] failed, status={}.",
+                        getNodeId(), this.firstLogIndex, this.firstLogIndex + this.nEntries - 1, status);
             }
         }
     }
@@ -1436,6 +1436,7 @@ public class NodeImpl implements Node, RaftServerService {
         this.writeLock.lock();
         try {
             final int size = tasks.size();
+            // 只有 Leader 节点允许处理 task
             if (this.state != State.STATE_LEADER) {
                 final Status st = new Status();
                 if (this.state != State.STATE_TRANSFERRING) {
@@ -1445,6 +1446,7 @@ public class NodeImpl implements Node, RaftServerService {
                 }
                 LOG.debug("Node {} can't apply, status={}.", getNodeId(), st);
                 final List<LogEntryAndClosure> savedTasks = new ArrayList<>(tasks);
+                // 快速失败
                 Utils.runInThread(() -> {
                     for (int i = 0; i < size; i++) {
                         savedTasks.get(i).done.run(st);
@@ -1453,18 +1455,21 @@ public class NodeImpl implements Node, RaftServerService {
                 return;
             }
             final List<LogEntry> entries = new ArrayList<>(size);
+            // 遍历处理 task 集合
             for (int i = 0; i < size; i++) {
                 final LogEntryAndClosure task = tasks.get(i);
+                // 如果 task 期望校验 term 值，则校验当前节点的 term 值是否是期望的 term 值
                 if (task.expectedTerm != -1 && task.expectedTerm != this.currTerm) {
-                    LOG.debug("Node {} can't apply task whose expectedTerm={} doesn't match currTerm={}.", getNodeId(),
-                            task.expectedTerm, this.currTerm);
+                    LOG.debug("Node {} can't apply task whose expectedTerm={} doesn't match currTerm={}.",
+                            getNodeId(), task.expectedTerm, this.currTerm);
                     if (task.done != null) {
-                        final Status st = new Status(RaftError.EPERM, "expected_term=%d doesn't match current_term=%d",
-                                task.expectedTerm, this.currTerm);
+                        final Status st = new Status(RaftError.EPERM,
+                                "expected_term=%d doesn't match current_term=%d", task.expectedTerm, this.currTerm);
                         Utils.runClosureInThread(task.done, st);
                     }
                     continue;
                 }
+                // 为每个 task 创建并初始化对应的选票，用于决策对应的 LogEntry 是否能够被提交
                 if (!this.ballotBox.appendPendingTask(this.conf.getConf(),
                         this.conf.isStable() ? null : this.conf.getOldConf(), task.done)) {
                     Utils.runClosureInThread(task.done, new Status(RaftError.EINTERNAL, "Fail to append task."));
@@ -1475,6 +1480,7 @@ public class NodeImpl implements Node, RaftServerService {
                 task.entry.setType(EnumOutter.EntryType.ENTRY_TYPE_DATA);
                 entries.add(task.entry);
             }
+            // 追加日志数据到本地文件系统，完成之后回调 LeaderStableClosure
             this.logManager.appendEntries(entries, new LeaderStableClosure(entries));
             // update conf.first
             checkAndSetConfiguration(true);
@@ -1681,16 +1687,19 @@ public class NodeImpl implements Node, RaftServerService {
 
     @Override
     public void apply(final Task task) {
+        // 当前节点被关闭
         if (this.shutdownLatch != null) {
             Utils.runClosureInThread(task.getDone(), new Status(RaftError.ENODESHUTDOWN, "Node is shutting down."));
             throw new IllegalStateException("Node is shutting down");
         }
         Requires.requireNonNull(task, "Null task");
 
+        // 创建一个 LogEntry 对象，用于封装 Task 中的数据
         final LogEntry entry = new LogEntry();
         entry.setData(task.getData());
         int retryTimes = 0;
         try {
+            // 将 Task 及其对应的 LogEntry 对象以事件的形式投递给 Disruptor 队列
             final EventTranslator<LogEntryAndClosure> translator = (event, sequence) -> {
                 event.reset();
                 event.done = task.getDone();
@@ -1701,6 +1710,7 @@ public class NodeImpl implements Node, RaftServerService {
                 if (this.applyQueue.tryPublishEvent(translator)) {
                     break;
                 } else {
+                    // 重试 3 次
                     retryTimes++;
                     if (retryTimes > MAX_APPLY_RETRY_TIMES) {
                         Utils.runClosureInThread(task.getDone(),
@@ -2086,33 +2096,36 @@ public class NodeImpl implements Node, RaftServerService {
             }
 
             final List<RaftOutter.EntryMeta> entriesList = request.getEntriesList();
+            // 遍历逐一解析请求中的 LogEntry 数据，记录到 entries 列表中
             for (int i = 0; i < entriesCount; i++) {
                 index++;
+                // 获取 LogEntry 元数据信息
                 final RaftOutter.EntryMeta entry = entriesList.get(i);
 
+                // 基于元数据和数据体构造 LogEntry 对象
                 final LogEntry logEntry = logEntryFromMeta(index, allData, entry);
 
                 if (logEntry != null) {
-                    // Validate checksum
+                    // 如果启用了 checksum 机制，则校验 checksum 值
                     if (this.raftOptions.isEnableLogEntryChecksum() && logEntry.isCorrupted()) {
+                        // checksum 值不匹配，说明数据可能被篡改
                         long realChecksum = logEntry.checksum();
                         LOG.error(
                                 "Corrupted log entry received from leader, index={}, term={}, expectedChecksum={}, realChecksum={}",
-                                logEntry.getId().getIndex(), logEntry.getId().getTerm(), logEntry.getChecksum(),
-                                realChecksum);
+                                logEntry.getId().getIndex(), logEntry.getId().getTerm(), logEntry.getChecksum(), realChecksum);
                         return RpcFactoryHelper //
                                 .responseFactory() //
                                 .newResponse(AppendEntriesResponse.getDefaultInstance(), RaftError.EINVAL,
                                         "The log entry is corrupted, index=%d, term=%d, expectedChecksum=%d, realChecksum=%d",
-                                        logEntry.getId().getIndex(), logEntry.getId().getTerm(), logEntry.getChecksum(),
-                                        realChecksum);
+                                        logEntry.getId().getIndex(), logEntry.getId().getTerm(), logEntry.getChecksum(), realChecksum);
                     }
                     entries.add(logEntry);
                 }
             }
 
-            final FollowerStableClosure closure = new FollowerStableClosure(request, AppendEntriesResponse.newBuilder()
-                    .setTerm(this.currTerm), this, done, this.currTerm);
+            final FollowerStableClosure closure = new FollowerStableClosure(request,
+                    AppendEntriesResponse.newBuilder().setTerm(this.currTerm), this, done, this.currTerm);
+            // 将 LogEntry 数据写入本地磁盘
             this.logManager.appendEntries(entries, closure);
             // update configuration after _log_manager updated its memory status
             checkAndSetConfiguration(true);
@@ -2127,13 +2140,17 @@ public class NodeImpl implements Node, RaftServerService {
     }
 
     private LogEntry logEntryFromMeta(final long index, final ByteBuffer allData, final RaftOutter.EntryMeta entry) {
+        // 忽略 ENTRY_TYPE_UNKNOWN 类型的 LogEntry 数据
         if (entry.getType() != EnumOutter.EntryType.ENTRY_TYPE_UNKNOWN) {
+            // 给 LogEntry 对象填充基本的元数据信息
             final LogEntry logEntry = new LogEntry();
             logEntry.setId(new LogId(index, entry.getTerm()));
             logEntry.setType(entry.getType());
             if (entry.hasChecksum()) {
                 logEntry.setChecksum(entry.getChecksum()); // since 1.2.6
             }
+
+            // 基于元数据中记录的数据长度获取对应的 LogEntry 数据体，并填充到 LogEntry 对象中
             final long dataLen = entry.getDataLen();
             if (dataLen > 0) {
                 final byte[] bs = new byte[(int) dataLen];
@@ -2142,13 +2159,15 @@ public class NodeImpl implements Node, RaftServerService {
                 logEntry.setData(ByteBuffer.wrap(bs));
             }
 
+            // 针对 ENTRY_TYPE_CONFIGURATION 类型的 LogEntry，解析并填充集群节点配置数据
+
             if (entry.getPeersCount() > 0) {
                 if (entry.getType() != EnumOutter.EntryType.ENTRY_TYPE_CONFIGURATION) {
                     throw new IllegalStateException(
-                            "Invalid log entry that contains peers but is not ENTRY_TYPE_CONFIGURATION type: "
-                                    + entry.getType());
+                            "Invalid log entry that contains peers but is not ENTRY_TYPE_CONFIGURATION type: " + entry.getType());
                 }
 
+                // 填充集群节点配置信息
                 fillLogEntryPeers(entry, logEntry);
             } else if (entry.getType() == EnumOutter.EntryType.ENTRY_TYPE_CONFIGURATION) {
                 throw new IllegalStateException(

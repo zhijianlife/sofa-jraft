@@ -463,12 +463,15 @@ public class RocksDBLogStorage implements LogStorage, Describer {
     public LogEntry getEntry(final long index) {
         this.readLock.lock();
         try {
+            // index 值越界
             if (this.hasLoadFirstLogIndex && index < this.firstLogIndex) {
                 return null;
             }
             final byte[] keyBytes = getKeyBytes(index);
+            // 从 RocksDB 中获取 logIndex 对应的 LogEntry 数据
             final byte[] bs = onDataGet(index, getValueFromRocksDB(keyBytes));
             if (bs != null) {
+                // 解码
                 final LogEntry entry = this.logEntryDecoder.decode(bs);
                 if (entry != null) {
                     return entry;
