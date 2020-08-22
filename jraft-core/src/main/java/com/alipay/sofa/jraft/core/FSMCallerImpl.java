@@ -481,16 +481,18 @@ public class FSMCallerImpl implements FSMCaller {
         final long lastAppliedIndex = this.lastAppliedIndex.get();
         // We can tolerate the disorder of committed_index
         if (lastAppliedIndex >= committedIndex) {
+            // 当前 committedIndex 对应的 LogEntry 已经被处理过，无需重复处理
             return;
         }
         final long startMs = Utils.monotonicMs();
         try {
             final List<Closure> closures = new ArrayList<>();
             final List<TaskClosure> taskClosures = new ArrayList<>();
-            // 获取 committedIndex 之前的 Task 的回调列表，填充到 closures，如果是 TaskClosure 类型，则顺便记录到 taskClosures 中
+            // 获取 committedIndex 之前的 Task 的回调列表，填充到 closures 集合中，
+            // 如果是 TaskClosure 类型，则顺便记录到 taskClosures 中，主要是为了回调 TaskClosure#onCommitted 方法
             final long firstClosureIndex = this.closureQueue.popClosureUntil(committedIndex, closures, taskClosures);
 
-            // 应用 TaskClosure#onCommitted 方法
+            // 对于 TaskClosure 类型的 Task 回调，应用 TaskClosure#onCommitted 方法
             onTaskCommitted(taskClosures);
 
             Requires.requireTrue(firstClosureIndex >= 0, "Invalid firstClosureIndex");
@@ -498,11 +500,11 @@ public class FSMCallerImpl implements FSMCaller {
             final IteratorImpl iterImpl = new IteratorImpl(
                     this.fsm, this.logManager, closures, firstClosureIndex, lastAppliedIndex, committedIndex, this.applyingIndex);
 
-            // 如果是 good，则说明还有可以继续应用的日志
+            // 如果是 good，则说明还有可以继续处理的日志
             while (iterImpl.isGood()) {
                 // 获取当前待处理的 LogEntry 对象
                 final LogEntry logEntry = iterImpl.entry();
-                // 系统内部的 LogEntry
+                // 系统内部的 LogEntry 对象
                 if (logEntry.getType() != EnumOutter.EntryType.ENTRY_TYPE_DATA) {
                     if (logEntry.getType() == EnumOutter.EntryType.ENTRY_TYPE_CONFIGURATION) {
                         if (logEntry.getOldPeers() != null && !logEntry.getOldPeers().isEmpty()) {
@@ -520,10 +522,11 @@ public class FSMCallerImpl implements FSMCaller {
                     continue;
                 }
 
-                // 应用 StateMachine#onApply 方法
+                // 连续处理一批业务操作产生的日志，应用 StateMachine#onApply 方法
                 doApplyTasks(iterImpl);
             }
 
+            // 发生错误，将错误透传给业务和当前节点
             if (iterImpl.hasError()) {
                 setError(iterImpl.getError());
                 iterImpl.runTheRestClosureWithError();
@@ -554,12 +557,13 @@ public class FSMCallerImpl implements FSMCaller {
         final long startApplyMs = Utils.monotonicMs();
         final long startIndex = iter.getIndex();
         try {
+            // 应用 StateMachine#onApply 方法
             this.fsm.onApply(iter);
         } finally {
             this.nodeMetrics.recordLatency("fsm-apply-tasks", Utils.monotonicMs() - startApplyMs);
             this.nodeMetrics.recordSize("fsm-apply-tasks-count", iter.getIndex() - startIndex);
         }
-        // 对应的日志还没有被处理完
+        // 迭代器中的日志还没有被处理完，但是业务已经退出了 onApply 方法
         if (iter.hasNext()) {
             LOG.error("Iterator is still valid, did you return before iterator reached the end?");
         }

@@ -211,7 +211,7 @@ public class BallotBox implements Lifecycle<BallotBoxOptions>, Describer {
         }
         final long stamp = this.stampedLock.writeLock();
         try {
-            // 节点成功 Leader 之后必须调用 BallotBox#resetPendingIndex 方法重置 pendingIndex
+            // 节点成功 Leader 之后必须调用 BallotBox#resetPendingIndex 方法重置 pendingIndex 值
             if (this.pendingIndex <= 0) {
                 LOG.error("Fail to appendingTask, pendingIndex={}.", this.pendingIndex);
                 return false;

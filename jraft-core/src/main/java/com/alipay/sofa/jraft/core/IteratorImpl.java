@@ -51,8 +51,12 @@ public class IteratorImpl {
     private final AtomicLong applyingIndex;
     private RaftException error;
 
-    public IteratorImpl(final StateMachine fsm, final LogManager logManager, final List<Closure> closures,
-                        final long firstClosureIndex, final long lastAppliedIndex, final long committedIndex,
+    public IteratorImpl(final StateMachine fsm,
+                        final LogManager logManager,
+                        final List<Closure> closures,
+                        final long firstClosureIndex,
+                        final long lastAppliedIndex,
+                        final long committedIndex,
                         final AtomicLong applyingIndex) {
         super();
         this.fsm = fsm;
