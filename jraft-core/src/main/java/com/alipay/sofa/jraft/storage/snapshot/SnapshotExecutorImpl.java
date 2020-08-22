@@ -143,6 +143,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         }
 
         void continueRun(final Status st) {
+            // 更新已经被快照的 logIndex 和 term 状态值，更新 LogManager 状态
             final int ret = onSnapshotSaveDone(st, this.meta, this.writer);
             if (ret != 0 && st.isOk()) {
                 st.setError(ret, "node call onSnapshotSaveDone failed");
@@ -305,24 +306,28 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         boolean doUnlock = true;
         this.lock.lock();
         try {
+            // SnapshotExecutor 已被停止
             if (this.stopped) {
                 Utils.runClosureInThread(done, new Status(RaftError.EPERM, "Is stopped."));
                 return;
             }
+
+            // 正在安装快照
             if (this.downloadingSnapshot.get() != null) {
                 Utils.runClosureInThread(done, new Status(RaftError.EBUSY, "Is loading another snapshot."));
                 return;
             }
 
+            // 正在生成快照，不允许重复执行
             if (this.savingSnapshot) {
                 Utils.runClosureInThread(done, new Status(RaftError.EBUSY, "Is saving another snapshot."));
                 return;
             }
 
+            // 状态机调度器最后应用的 LogEntry 已经被快照，说明没有新的数据可以被快照
             if (this.fsmCaller.getLastAppliedIndex() == this.lastSnapshotIndex) {
-                // There might be false positive as the getLastAppliedIndex() is being
-                // updated. But it's fine since we will do next snapshot saving in a
-                // predictable time.
+                // There might be false positive as the getLastAppliedIndex() is being updated.
+                // But it's fine since we will do next snapshot saving in a predictable time.
                 doUnlock = false;
                 this.lock.unlock();
                 this.logManager.clearBufferedLogs();
@@ -330,13 +335,13 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 return;
             }
 
+            // 可以被快照的数据量小于阈值，暂不生成快照
             final long distance = this.fsmCaller.getLastAppliedIndex() - this.lastSnapshotIndex;
             if (distance < this.node.getOptions().getSnapshotLogIndexMargin()) {
                 // If state machine's lastAppliedIndex value minus lastSnapshotIndex value is
                 // less than snapshotLogIndexMargin value, then directly return.
                 if (this.node != null) {
-                    LOG.debug(
-                            "Node {} snapshotLogIndexMargin={}, distance={}, so ignore this time of snapshot by snapshotLogIndexMargin setting.",
+                    LOG.debug("Node {} snapshotLogIndexMargin={}, distance={}, so ignore this time of snapshot by snapshotLogIndexMargin setting.",
                             this.node.getNodeId(), distance, this.node.getOptions().getSnapshotLogIndexMargin());
                 }
                 doUnlock = false;
@@ -345,15 +350,20 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 return;
             }
 
+            // 创建并初始化快照写入器，默认使用 LocalSnapshotWriter 实现类
             final SnapshotWriter writer = this.snapshotStorage.create();
             if (writer == null) {
                 Utils.runClosureInThread(done, new Status(RaftError.EIO, "Fail to create writer."));
                 reportError(RaftError.EIO.getNumber(), "Fail to create snapshot writer.");
                 return;
             }
+
+            // 标记当前正在安装快照
             this.savingSnapshot = true;
+            // 创建一个回调，用于感知异步快照生成状态
             final SaveSnapshotDone saveSnapshotDone = new SaveSnapshotDone(writer, done, null);
             if (!this.fsmCaller.onSnapshotSave(saveSnapshotDone)) {
+                // 往 Disruptor 队列投递事件失败
                 Utils.runClosureInThread(done, new Status(RaftError.EHOSTDOWN, "The raft node is down."));
                 return;
             }
@@ -374,6 +384,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             // InstallSnapshot can break SaveSnapshot, check InstallSnapshot when SaveSnapshot
             // because upstream Snapshot maybe newer than local Snapshot.
             if (st.isOk()) {
+                // 已安装的快照相对于本次生成的快照数据要新
                 if (meta.getLastIncludedIndex() <= this.lastSnapshotIndex) {
                     ret = RaftError.ESTALE.getNumber();
                     if (this.node != null) {
@@ -387,16 +398,21 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             this.lock.unlock();
         }
 
+        // 生成快照成功
         if (ret == 0) {
+            // 记录快照元数据信息
             if (!writer.saveMeta(meta)) {
                 LOG.warn("Fail to save snapshot {}.", writer.getPath());
                 ret = RaftError.EIO.getNumber();
             }
-        } else {
+        }
+        // 生成快照失败
+        else {
             if (writer.isOk()) {
                 writer.setError(ret, "Fail to do snapshot.");
             }
         }
+        // 关闭快照写入器
         try {
             writer.close();
         } catch (final IOException e) {
@@ -406,11 +422,14 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         boolean doUnlock = true;
         this.lock.lock();
         try {
+            // 生成快照成功
             if (ret == 0) {
+                // 更新最新快照对应的 logIndex 和 term 值
                 this.lastSnapshotIndex = meta.getLastIncludedIndex();
                 this.lastSnapshotTerm = meta.getLastIncludedTerm();
                 doUnlock = false;
                 this.lock.unlock();
+                // 更新 LogManager 状态，并将本地已快照的日志剔除
                 this.logManager.setSnapshot(meta); // should be out of lock
                 doUnlock = true;
                 this.lock.lock();
@@ -418,6 +437,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             if (ret == RaftError.EIO.getNumber()) {
                 reportError(RaftError.EIO.getNumber(), "Fail to save snapshot.");
             }
+            // 清除正在生成快照的标记
             this.savingSnapshot = false;
             this.runningJobs.countDown();
             return ret;
@@ -479,12 +499,16 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
     }
 
     @Override
-    public void installSnapshot(final InstallSnapshotRequest request, final InstallSnapshotResponse.Builder response,
+    public void installSnapshot(final InstallSnapshotRequest request,
+                                final InstallSnapshotResponse.Builder response,
                                 final RpcRequestClosure done) {
+        // 从请求中获取快照元数据信息
         final SnapshotMeta meta = request.getMeta();
+        // 新建一个下载快照的任务
         final DownloadingSnapshot ds = new DownloadingSnapshot(request, response, done);
         // DON'T access request, response, and done after this point
         // as the retry snapshot will replace this one.
+        // 尝试注册当前任务，可能存在有其它任务正在运行的情况
         if (!registerDownloadingSnapshot(ds)) {
             LOG.warn("Fail to register downloading snapshot.");
             // This RPC will be responded by the previous session
@@ -492,6 +516,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         }
         Requires.requireNonNull(this.curCopier, "curCopier");
         try {
+            // 等待从 Leader 复制快照数据完成
             this.curCopier.join();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -499,6 +524,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             return;
         }
 
+        // 加载刚刚从 Leader 复制过来的快照数据
         loadDownloadingSnapshot(ds, meta);
     }
 
@@ -506,12 +532,14 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         SnapshotReader reader;
         this.lock.lock();
         try {
+            // 当前任务已经失效，有新的任务在执行
             if (ds != this.downloadingSnapshot.get()) {
-                // It is interrupted and response by other request,just return
+                // It is interrupted and response by other request, just return
                 return;
             }
             Requires.requireNonNull(this.curCopier, "curCopier");
             reader = this.curCopier.getReader();
+            // 从 leader 节点复制快照数据异常
             if (!this.curCopier.isOk()) {
                 if (this.curCopier.getCode() == RaftError.EIO.getNumber()) {
                     reportError(this.curCopier.getCode(), this.curCopier.getErrorMsg());
@@ -526,13 +554,14 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             }
             Utils.closeQuietly(this.curCopier);
             this.curCopier = null;
+            // 快照读取器状态异常
             if (reader == null || !reader.isOk()) {
                 Utils.closeQuietly(reader);
                 this.downloadingSnapshot.set(null);
                 ds.done.sendResponse(RpcFactoryHelper //
                         .responseFactory() //
-                        .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINTERNAL,
-                                "Fail to copy snapshot from %s", ds.request.getUri()));
+                        .newResponse(InstallSnapshotResponse.getDefaultInstance(),
+                                RaftError.EINTERNAL, "Fail to copy snapshot from %s", ds.request.getUri()));
                 this.runningJobs.countDown();
                 return;
             }
@@ -541,8 +570,11 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         } finally {
             this.lock.unlock();
         }
+
+        // 创建一个回调，用于感知异步快照加载状态
         final InstallSnapshotDone installSnapshotDone = new InstallSnapshotDone(reader);
         if (!this.fsmCaller.onSnapshotLoad(installSnapshotDone)) {
+            // 往 Disruptor 队列投递事件失败
             LOG.warn("Fail to call fsm onSnapshotLoad.");
             installSnapshotDone.run(new Status(RaftError.EHOSTDOWN, "This raft node is down"));
         }
@@ -555,31 +587,31 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
 
         this.lock.lock();
         try {
+            // SnapshotExecutor 已被停止
             if (this.stopped) {
                 LOG.warn("Register DownloadingSnapshot failed: node is stopped.");
-                ds.done
-                        .sendResponse(RpcFactoryHelper //
-                                .responseFactory() //
-                                .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EHOSTDOWN,
-                                        "Node is stopped."));
+                ds.done.sendResponse(RpcFactoryHelper //
+                        .responseFactory() //
+                        .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EHOSTDOWN, "Node is stopped."));
                 return false;
             }
+            // 正在生成快照
             if (this.savingSnapshot) {
                 LOG.warn("Register DownloadingSnapshot failed: is saving snapshot.");
                 ds.done.sendResponse(RpcFactoryHelper //
-                        .responseFactory().newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EBUSY,
-                                "Node is saving snapshot."));
+                        .responseFactory().newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EBUSY, "Node is saving snapshot."));
                 return false;
             }
 
             ds.responseBuilder.setTerm(this.term);
+            // 校验请求的 term 值
             if (ds.request.getTerm() != this.term) {
-                LOG.warn("Register DownloadingSnapshot failed: term mismatch, expect {} but {}.", this.term,
-                        ds.request.getTerm());
+                LOG.warn("Register DownloadingSnapshot failed: term mismatch, expect {} but {}.", this.term, ds.request.getTerm());
                 ds.responseBuilder.setSuccess(false);
                 ds.done.sendResponse(ds.responseBuilder.build());
                 return false;
             }
+            // 需要安装的快照数据已经被快照
             if (ds.request.getMeta().getLastIncludedIndex() <= this.lastSnapshotIndex) {
                 LOG.warn(
                         "Register DownloadingSnapshot failed: snapshot is not newer, request lastIncludedIndex={}, lastSnapshotIndex={}.",
@@ -589,35 +621,40 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 return false;
             }
             final DownloadingSnapshot m = this.downloadingSnapshot.get();
+            // null 表示当前没有正在进行中的安装快照操作
             if (m == null) {
                 this.downloadingSnapshot.set(ds);
                 Requires.requireTrue(this.curCopier == null, "Current copier is not null");
+                // 从指定的 URI 下载快照数据
                 this.curCopier = this.snapshotStorage.startToCopyFrom(ds.request.getUri(), newCopierOpts());
                 if (this.curCopier == null) {
                     this.downloadingSnapshot.set(null);
                     LOG.warn("Register DownloadingSnapshot failed: fail to copy file from {}.", ds.request.getUri());
                     ds.done.sendResponse(RpcFactoryHelper //
                             .responseFactory() //
-                            .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINVAL,
-                                    "Fail to copy from: %s", ds.request.getUri()));
+                            .newResponse(InstallSnapshotResponse.getDefaultInstance(),
+                                    RaftError.EINVAL, "Fail to copy from: %s", ds.request.getUri()));
                     return false;
                 }
                 this.runningJobs.incrementAndGet();
                 return true;
             }
 
-            // A previous snapshot is under installing, check if this is the same
-            // snapshot and resume it, otherwise drop previous snapshot as this one is
-            // newer
+            // A previous snapshot is under installing, check if this is the same snapshot and resume it,
+            // otherwise drop previous snapshot as this one is newer
 
+            // m 为正在安装快照的任务，ds 为当前任务
+
+            // 当前和正在执行的安装快照属于同一个任务
             if (m.request.getMeta().getLastIncludedIndex() == ds.request.getMeta().getLastIncludedIndex()) {
                 // m is a retry
-                // Copy |*ds| to |*m| so that the former session would respond
-                // this RPC.
+                // Copy |*ds| to |*m| so that the former session would respond this RPC.
                 saved = m;
                 this.downloadingSnapshot.set(ds);
                 result = false;
-            } else if (m.request.getMeta().getLastIncludedIndex() > ds.request.getMeta().getLastIncludedIndex()) {
+            }
+            // 正在执行的安装快照任务操作的数据更新，忽略当前任务
+            else if (m.request.getMeta().getLastIncludedIndex() > ds.request.getMeta().getLastIncludedIndex()) {
                 // |is| is older
                 LOG.warn("Register DownloadingSnapshot failed: is installing a newer one, lastIncludeIndex={}.",
                         m.request.getMeta().getLastIncludedIndex());
@@ -626,26 +663,29 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                         .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINVAL,
                                 "A newer snapshot is under installing"));
                 return false;
-            } else {
-                // |is| is newer
+            }
+            // 当前安装快照任务操作的数据相对于正在执行的任务更新
+            else {
+                // 正在执行的任务已经进入了 loading 阶段
                 if (this.loadingSnapshot) {
                     LOG.warn("Register DownloadingSnapshot failed: is loading an older snapshot, lastIncludeIndex={}.",
                             m.request.getMeta().getLastIncludedIndex());
                     ds.done.sendResponse(RpcFactoryHelper //
                             .responseFactory() //
-                            .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EBUSY,
-                                    "A former snapshot is under loading"));
+                            .newResponse(InstallSnapshotResponse.getDefaultInstance(),
+                                    RaftError.EBUSY, "A former snapshot is under loading"));
                     return false;
                 }
                 Requires.requireNonNull(this.curCopier, "curCopier");
+                // 停止当前正在执行的任务
                 this.curCopier.cancel();
                 LOG.warn(
                         "Register DownloadingSnapshot failed: an older snapshot is under installing, cancel downloading, lastIncludeIndex={}.",
                         m.request.getMeta().getLastIncludedIndex());
                 ds.done.sendResponse(RpcFactoryHelper //
                         .responseFactory() //
-                        .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EBUSY,
-                                "A former snapshot is under installing, trying to cancel"));
+                        .newResponse(InstallSnapshotResponse.getDefaultInstance(),
+                                RaftError.EBUSY, "A former snapshot is under installing, trying to cancel"));
                 return false;
             }
         } finally {
@@ -656,8 +696,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             LOG.warn("Register DownloadingSnapshot failed: interrupted by retry installling request.");
             saved.done.sendResponse(RpcFactoryHelper //
                     .responseFactory() //
-                    .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINTR,
-                            "Interrupted by the retry InstallSnapshotRequest"));
+                    .newResponse(InstallSnapshotResponse.getDefaultInstance(),
+                            RaftError.EINTR, "Interrupted by the retry InstallSnapshotRequest"));
         }
         return result;
     }

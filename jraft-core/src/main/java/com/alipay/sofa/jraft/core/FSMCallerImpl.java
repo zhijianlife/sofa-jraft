@@ -394,12 +394,14 @@ public class FSMCallerImpl implements FSMCaller {
                     case COMMITTED:
                         Requires.requireTrue(false, "Impossible");
                         break;
+                    // 处理生成快照事件
                     case SNAPSHOT_SAVE:
                         this.currTask = TaskType.SNAPSHOT_SAVE;
                         if (passByStatus(task.done)) {
                             doSnapshotSave((SaveSnapshotClosure) task.done);
                         }
                         break;
+                    // 处理加载快照事件
                     case SNAPSHOT_LOAD:
                         this.currTask = TaskType.SNAPSHOT_LOAD;
                         if (passByStatus(task.done)) {
@@ -571,17 +573,23 @@ public class FSMCallerImpl implements FSMCaller {
         iter.next();
     }
 
+    /**
+     * 生成快照
+     *
+     * @param done
+     */
     private void doSnapshotSave(final SaveSnapshotClosure done) {
         Requires.requireNonNull(done, "SaveSnapshotClosure is null");
         final long lastAppliedIndex = this.lastAppliedIndex.get();
+        // 构造快照元数据信息，封装当前被状态机应用的 LogEntry 的 logIndex 和 term 值，以及对应的集群节点配置信息
         final RaftOutter.SnapshotMeta.Builder metaBuilder = RaftOutter.SnapshotMeta.newBuilder() //
                 .setLastIncludedIndex(lastAppliedIndex) //
                 .setLastIncludedTerm(this.lastAppliedTerm);
         final ConfigurationEntry confEntry = this.logManager.getConfiguration(lastAppliedIndex);
         if (confEntry == null || confEntry.isEmpty()) {
             LOG.error("Empty conf entry for lastAppliedIndex={}", lastAppliedIndex);
-            Utils.runClosureInThread(done, new Status(RaftError.EINVAL, "Empty conf entry for lastAppliedIndex=%s",
-                    lastAppliedIndex));
+            Utils.runClosureInThread(done, new Status(RaftError.EINVAL,
+                    "Empty conf entry for lastAppliedIndex=%s", lastAppliedIndex));
             return;
         }
         for (final PeerId peer : confEntry.getConf()) {
@@ -598,11 +606,13 @@ public class FSMCallerImpl implements FSMCaller {
                 metaBuilder.addOldLearners(peer.toString());
             }
         }
+        // 记录快照元数据
         final SnapshotWriter writer = done.start(metaBuilder.build());
         if (writer == null) {
             done.run(new Status(RaftError.EINVAL, "snapshot_storage create SnapshotWriter failed"));
             return;
         }
+        // 调用状态机 StateMachine#onSnapshotSave 方法生成快照
         this.fsm.onSnapshotSave(writer, done);
     }
 
@@ -646,25 +656,33 @@ public class FSMCallerImpl implements FSMCaller {
         return sb.append(']').toString();
     }
 
+    /**
+     * 加载快照
+     *
+     * @param done
+     */
     private void doSnapshotLoad(final LoadSnapshotClosure done) {
         Requires.requireNonNull(done, "LoadSnapshotClosure is null");
+        // 获取快照数据读取器
         final SnapshotReader reader = done.start();
         if (reader == null) {
             done.run(new Status(RaftError.EINVAL, "open SnapshotReader failed"));
             return;
         }
+        // 获取快照元数据信息
         final RaftOutter.SnapshotMeta meta = reader.load();
         if (meta == null) {
             done.run(new Status(RaftError.EINVAL, "SnapshotReader load meta failed"));
             if (reader.getRaftError() == RaftError.EIO) {
-                final RaftException err = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_SNAPSHOT, RaftError.EIO,
-                        "Fail to load snapshot meta");
+                final RaftException err = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_SNAPSHOT,
+                        RaftError.EIO, "Fail to load snapshot meta");
                 setError(err);
             }
             return;
         }
         final LogId lastAppliedId = new LogId(this.lastAppliedIndex.get(), this.lastAppliedTerm);
         final LogId snapshotId = new LogId(meta.getLastIncludedIndex(), meta.getLastIncludedTerm());
+        // 本地已经应用的日志 logIndex 和 term 值相对于当前正在安装的快照更新，说明待加载的快照数据已经过期
         if (lastAppliedId.compareTo(snapshotId) > 0) {
             done.run(new Status(
                     RaftError.ESTALE,
@@ -672,6 +690,7 @@ public class FSMCallerImpl implements FSMCaller {
                     lastAppliedId.getIndex(), lastAppliedId.getTerm(), snapshotId.getIndex(), snapshotId.getTerm()));
             return;
         }
+        // 调用状态机 StateMachine#onSnapshotLoad 方法加载快照
         if (!this.fsm.onSnapshotLoad(reader)) {
             done.run(new Status(-1, "StateMachine onSnapshotLoad failed"));
             final RaftException e = new RaftException(EnumOutter.ErrorType.ERROR_TYPE_STATE_MACHINE,
@@ -689,6 +708,7 @@ public class FSMCallerImpl implements FSMCaller {
             }
             this.fsm.onConfigurationCommitted(conf);
         }
+        // 更新状态数据
         this.lastAppliedIndex.set(meta.getLastIncludedIndex());
         this.lastAppliedTerm = meta.getLastIncludedTerm();
         done.run(Status.OK());

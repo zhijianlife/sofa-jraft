@@ -558,6 +558,7 @@ public class Replicator implements ThreadId.OnError {
     }
 
     void installSnapshot() {
+        // 正在给目标 Follower 节点安装快照，无需重复执行
         if (this.state == State.Snapshot) {
             LOG.warn("Replicator {} is installing snapshot, ignore the new request.", this.options.getPeerId());
             this.id.unlock();
@@ -566,8 +567,8 @@ public class Replicator implements ThreadId.OnError {
         boolean doUnlock = true;
         try {
             Requires.requireTrue(this.reader == null,
-                    "Replicator %s already has a snapshot reader, current state is %s", this.options.getPeerId(),
-                    this.state);
+                    "Replicator %s already has a snapshot reader, current state is %s", this.options.getPeerId(), this.state);
+            // 创建并初始化快照读取器，具体实现为 LocalSnapshotReader 类
             this.reader = this.options.getSnapshotStorage().open();
             if (this.reader == null) {
                 final NodeImpl node = this.options.getNode();
@@ -578,6 +579,7 @@ public class Replicator implements ThreadId.OnError {
                 node.onError(error);
                 return;
             }
+            // 生一个快照访问地址
             final String uri = this.reader.generateURIForCopy();
             if (uri == null) {
                 final NodeImpl node = this.options.getNode();
@@ -589,6 +591,7 @@ public class Replicator implements ThreadId.OnError {
                 node.onError(error);
                 return;
             }
+            // 加载快照元数据信息
             final RaftOutter.SnapshotMeta meta = this.reader.load();
             if (meta == null) {
                 final String snapshotPath = this.reader.getPath();
@@ -601,6 +604,7 @@ public class Replicator implements ThreadId.OnError {
                 node.onError(error);
                 return;
             }
+            // 构造安装快照请求
             final InstallSnapshotRequest.Builder rb = InstallSnapshotRequest.newBuilder();
             rb.setTerm(this.options.getTerm());
             rb.setGroupId(this.options.getGroupId());
@@ -614,14 +618,19 @@ public class Replicator implements ThreadId.OnError {
             this.statInfo.lastTermIncluded = meta.getLastIncludedTerm();
 
             final InstallSnapshotRequest request = rb.build();
+            // 标记当前运行状态为正在给目标节点安装快照
             this.state = State.Snapshot;
             // noinspection NonAtomicOperationOnVolatileField
             this.installSnapshotCounter++;
             final long monotonicSendTimeMs = Utils.monotonicMs();
             final int stateVersion = this.version;
+            // 递增请求序列
             final int seq = getAndIncrementReqSeq();
-            final Future<Message> rpcFuture = this.rpcService.installSnapshot(this.options.getPeerId().getEndpoint(),
-                    request, new RpcResponseClosureAdapter<InstallSnapshotResponse>() {
+            // 向目标节点发送安装快照请求
+            final Future<Message> rpcFuture = this.rpcService.installSnapshot(
+                    this.options.getPeerId().getEndpoint(),
+                    request,
+                    new RpcResponseClosureAdapter<InstallSnapshotResponse>() {
 
                         @Override
                         public void run(final Status status) {

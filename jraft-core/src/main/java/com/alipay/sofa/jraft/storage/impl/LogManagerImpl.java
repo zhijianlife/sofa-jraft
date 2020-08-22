@@ -629,8 +629,8 @@ public class LogManagerImpl implements LogManager {
             final Configuration conf = confFromMeta(meta);
             final Configuration oldConf = oldConfFromMeta(meta);
 
-            final ConfigurationEntry entry = new ConfigurationEntry(new LogId(meta.getLastIncludedIndex(),
-                    meta.getLastIncludedTerm()), conf, oldConf);
+            final ConfigurationEntry entry = new ConfigurationEntry(
+                    new LogId(meta.getLastIncludedIndex(), meta.getLastIncludedTerm()), conf, oldConf);
             this.configManager.setSnapshot(entry);
             final long term = unsafeGetTerm(meta.getLastIncludedIndex());
             final long savedLastSnapshotIndex = this.lastSnapshotId.getIndex();

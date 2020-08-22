@@ -3230,8 +3230,14 @@ public class NodeImpl implements Node, RaftServerService {
         doSnapshot(done);
     }
 
+    /**
+     * 生成快照，可能是快照计时器超时触发，也可以是 CLI 主动调用
+     *
+     * @param done
+     */
     private void doSnapshot(final Closure done) {
         if (this.snapshotExecutor != null) {
+            // 调用 SnapshotExecutor 生成快照
             this.snapshotExecutor.doSnapshot(done);
         } else {
             if (done != null) {
@@ -3379,55 +3385,61 @@ public class NodeImpl implements Node, RaftServerService {
 
     @Override
     public Message handleInstallSnapshot(final InstallSnapshotRequest request, final RpcRequestClosure done) {
+        // 当前节点未启动快照机制
         if (this.snapshotExecutor == null) {
             return RpcFactoryHelper //
                     .responseFactory() //
                     .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINVAL, "Not supported snapshot");
         }
+
+        // 解析请求来源节点 ID
         final PeerId serverId = new PeerId();
         if (!serverId.parse(request.getServerId())) {
+            // 解析失败
             LOG.warn("Node {} ignore InstallSnapshotRequest from {} bad server id.", getNodeId(), request.getServerId());
             return RpcFactoryHelper //
                     .responseFactory() //
-                    .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINVAL,
-                            "Parse serverId failed: %s", request.getServerId());
+                    .newResponse(InstallSnapshotResponse.getDefaultInstance(),
+                            RaftError.EINVAL, "Parse serverId failed: %s", request.getServerId());
         }
 
         this.writeLock.lock();
         try {
+            // 当前节点处于非活跃状态
             if (!this.state.isActive()) {
-                LOG.warn("Node {} ignore InstallSnapshotRequest as it is not in active state {}.", getNodeId(),
-                        this.state);
+                LOG.warn("Node {} ignore InstallSnapshotRequest as it is not in active state {}.", getNodeId(), this.state);
                 return RpcFactoryHelper //
                         .responseFactory() //
                         .newResponse(InstallSnapshotResponse.getDefaultInstance(), RaftError.EINVAL,
                                 "Node %s:%s is not in active state, state %s.", this.groupId, this.serverId, this.state.name());
             }
 
+            // 请求节点的 term 值小于当前节点
             if (request.getTerm() < this.currTerm) {
-                LOG.warn("Node {} ignore stale InstallSnapshotRequest from {}, term={}, currTerm={}.", getNodeId(),
-                        request.getPeerId(), request.getTerm(), this.currTerm);
+                LOG.warn("Node {} ignore stale InstallSnapshotRequest from {}, term={}, currTerm={}.",
+                        getNodeId(), request.getPeerId(), request.getTerm(), this.currTerm);
                 return InstallSnapshotResponse.newBuilder() //
                         .setTerm(this.currTerm) //
                         .setSuccess(false) //
                         .build();
             }
 
+            // 基于请求和节点本地状态判断是否需要执行 stepdown
             checkStepDown(request.getTerm(), serverId);
 
+            // 请求来源节点并不是当前节点所知道的 leader 节点，
+            // 可能出现网络分区，尝试将 term 值加 1，以触发 leader 节点 stepdown
             if (!serverId.equals(this.leaderId)) {
                 LOG.error("Another peer {} declares that it is the leader at term {} which was occupied by leader {}.",
                         serverId, this.currTerm, this.leaderId);
-                // Increase the term by 1 and make both leaders step down to minimize the
-                // loss of split brain
-                stepDown(request.getTerm() + 1, false, new Status(RaftError.ELEADERCONFLICT,
-                        "More than one leader in the same term."));
+                // Increase the term by 1 and make both leaders step down to minimize the loss of split brain
+                stepDown(request.getTerm() + 1, false,
+                        new Status(RaftError.ELEADERCONFLICT, "More than one leader in the same term."));
                 return InstallSnapshotResponse.newBuilder() //
                         .setTerm(request.getTerm() + 1) //
                         .setSuccess(false) //
                         .build();
             }
-
         } finally {
             this.writeLock.unlock();
         }
@@ -3436,9 +3448,9 @@ public class NodeImpl implements Node, RaftServerService {
             if (LOG.isInfoEnabled()) {
                 LOG.info(
                         "Node {} received InstallSnapshotRequest from {}, lastIncludedLogIndex={}, lastIncludedLogTerm={}, lastLogId={}.",
-                        getNodeId(), request.getServerId(), request.getMeta().getLastIncludedIndex(), request.getMeta()
-                                .getLastIncludedTerm(), this.logManager.getLastLogId(false));
+                        getNodeId(), request.getServerId(), request.getMeta().getLastIncludedIndex(), request.getMeta().getLastIncludedTerm(), this.logManager.getLastLogId(false));
             }
+            // 调用快照执行器 SnapshotExecutor 安装快照
             this.snapshotExecutor.installSnapshot(request, InstallSnapshotResponse.newBuilder(), done);
             return null;
         } finally {
