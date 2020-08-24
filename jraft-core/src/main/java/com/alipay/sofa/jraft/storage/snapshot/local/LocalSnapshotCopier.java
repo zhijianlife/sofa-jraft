@@ -14,22 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.snapshot.local;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Set;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.Future;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.entity.LocalFileMetaOutter.FileSource;
 import com.alipay.sofa.jraft.entity.LocalFileMetaOutter.LocalFileMeta;
@@ -46,6 +32,20 @@ import com.alipay.sofa.jraft.util.ArrayDeque;
 import com.alipay.sofa.jraft.util.ByteBufferCollector;
 import com.alipay.sofa.jraft.util.Requires;
 import com.alipay.sofa.jraft.util.Utils;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.Future;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Copy another machine snapshot to local.
@@ -56,25 +56,25 @@ import com.alipay.sofa.jraft.util.Utils;
  */
 public class LocalSnapshotCopier extends SnapshotCopier {
 
-    private static final Logger          LOG  = LoggerFactory.getLogger(LocalSnapshotCopier.class);
+    private static final Logger LOG = LoggerFactory.getLogger(LocalSnapshotCopier.class);
 
-    private final Lock                   lock = new ReentrantLock();
-    /** The copy job future object*/
-    private volatile Future<?>           future;
-    private boolean                      cancelled;
+    private final Lock lock = new ReentrantLock();
+    /** The copy job future object */
+    private volatile Future<?> future;
+    private boolean cancelled;
     /** snapshot writer */
-    private LocalSnapshotWriter          writer;
+    private LocalSnapshotWriter writer;
     /** snapshot reader */
     private volatile LocalSnapshotReader reader;
-    /** snapshot storage*/
-    private LocalSnapshotStorage         storage;
-    private boolean                      filterBeforeCopyRemote;
-    private LocalSnapshot                remoteSnapshot;
-    /** remote file copier*/
-    private RemoteFileCopier             copier;
-    /** current copying session*/
-    private Session                      curSession;
-    private SnapshotThrottle             snapshotThrottle;
+    /** snapshot storage */
+    private LocalSnapshotStorage storage;
+    private boolean filterBeforeCopyRemote;
+    private LocalSnapshot remoteSnapshot;
+    /** remote file copier */
+    private RemoteFileCopier copier;
+    /** current copying session */
+    private Session curSession;
+    private SnapshotThrottle snapshotThrottle;
 
     public void setSnapshotThrottle(final SnapshotThrottle snapshotThrottle) {
         this.snapshotThrottle = snapshotThrottle;
@@ -215,8 +215,8 @@ public class LocalSnapshotCopier extends SnapshotCopier {
                 setError(-1, "Bad meta_table format from remote");
                 return;
             }
-            Requires.requireTrue(this.remoteSnapshot.getMetaTable().hasMeta(), "Invalid remote snapshot meta:%s",
-                this.remoteSnapshot.getMetaTable().getMeta());
+            Requires.requireTrue(this.remoteSnapshot.getMetaTable().hasMeta(),
+                    "Invalid remote snapshot meta:%s", this.remoteSnapshot.getMetaTable().getMeta());
         } finally {
             if (session != null) {
                 Utils.closeQuietly(session);
@@ -269,7 +269,7 @@ public class LocalSnapshotCopier extends SnapshotCopier {
             }
 
             LOG.info("Found the same file ={} checksum={} in lastSnapshot={}", fileName, remoteMeta.getChecksum(),
-                lastSnapshot.getPath());
+                    lastSnapshot.getPath());
             if (localMeta.getSource() == FileSource.FILE_SOURCE_LOCAL) {
                 final String sourcePath = lastSnapshot.getPath() + File.separator + fileName;
                 final String destPath = writer.getPath() + File.separator + fileName;

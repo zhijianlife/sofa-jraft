@@ -532,7 +532,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
         SnapshotReader reader;
         this.lock.lock();
         try {
-            // 当前任务已经失效，有新的任务在执行
+            // 当前任务已经失效，说明有新的任务被注册
             if (ds != this.downloadingSnapshot.get()) {
                 // It is interrupted and response by other request, just return
                 return;
@@ -565,6 +565,8 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
                 this.runningJobs.countDown();
                 return;
             }
+
+            // 标记正在加载快照数据
             this.loadingSnapshot = true;
             this.loadingSnapshotMeta = meta;
         } finally {
@@ -604,7 +606,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
             }
 
             ds.responseBuilder.setTerm(this.term);
-            // 校验请求的 term 值
+            // 安装快照请求中的 term 值与当前节点的 term 值不匹配
             if (ds.request.getTerm() != this.term) {
                 LOG.warn("Register DownloadingSnapshot failed: term mismatch, expect {} but {}.", this.term, ds.request.getTerm());
                 ds.responseBuilder.setSuccess(false);
@@ -645,7 +647,7 @@ public class SnapshotExecutorImpl implements SnapshotExecutor {
 
             // m 为正在安装快照的任务，ds 为当前任务
 
-            // 当前和正在执行的安装快照属于同一个任务
+            // 当前新注册的任务与正在执行的任务安装的是同一份快照数据
             if (m.request.getMeta().getLastIncludedIndex() == ds.request.getMeta().getLastIncludedIndex()) {
                 // m is a retry
                 // Copy |*ds| to |*m| so that the former session would respond this RPC.

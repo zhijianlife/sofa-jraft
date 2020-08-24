@@ -647,10 +647,13 @@ public class Replicator implements ThreadId.OnError {
     }
 
     @SuppressWarnings("unused")
-    static boolean onInstallSnapshotReturned(final ThreadId id, final Replicator r, final Status status,
+    static boolean onInstallSnapshotReturned(final ThreadId id,
+                                             final Replicator r,
+                                             final Status status,
                                              final InstallSnapshotRequest request,
                                              final InstallSnapshotResponse response) {
         boolean success = true;
+        // 关闭快照数据读取器
         r.releaseReader();
         // noinspection ConstantConditions
         do {
@@ -659,6 +662,7 @@ public class Replicator implements ThreadId.OnError {
                     append(" received InstallSnapshotResponse from ").append(r.options.getPeerId()). //
                     append(" lastIncludedIndex=").append(request.getMeta().getLastIncludedIndex()). //
                     append(" lastIncludedTerm=").append(request.getMeta().getLastIncludedTerm());
+            // 目标 Follower 节点运行异常
             if (!status.isOk()) {
                 sb.append(" error:").append(status);
                 LOG.info(sb.toString());
@@ -669,19 +673,21 @@ public class Replicator implements ThreadId.OnError {
                 success = false;
                 break;
             }
+            // 目标 Follower 节点拒绝本次安装快照的请求
             if (!response.getSuccess()) {
                 sb.append(" success=false");
                 LOG.info(sb.toString());
                 success = false;
                 break;
             }
-            // success
+            // 目标 Follower 节点成功处理本次安装快照的请求，更新 nextIndex
             r.nextIndex = request.getMeta().getLastIncludedIndex() + 1;
             sb.append(" success=true");
             LOG.info(sb.toString());
         } while (false);
         // We don't retry installing the snapshot explicitly.
         // id is unlock in sendEntries
+        // 给目标节点安装快照失败，清空 inflight 请求，重新发送探针请求
         if (!success) {
             //should reset states
             r.resetInflights();
@@ -690,6 +696,7 @@ public class Replicator implements ThreadId.OnError {
             return false;
         }
         r.hasSucceeded = true;
+        // 回调 CatchUpClosure
         r.notifyOnCaughtUp(RaftError.SUCCESS.getNumber(), false);
         if (r.timeoutNowIndex > 0 && r.timeoutNowIndex < r.nextIndex) {
             r.sendTimeoutNow(false, false);
@@ -1609,6 +1616,7 @@ public class Replicator implements ThreadId.OnError {
         // 更新待发送的下一个 logIndex 位置
         r.nextIndex += entriesSize;
         r.hasSucceeded = true;
+        // 回调 CatchUpClosure
         r.notifyOnCaughtUp(RaftError.SUCCESS.getNumber(), false);
         // dummy_id is unlock in _send_entries
         if (r.timeoutNowIndex > 0 && r.timeoutNowIndex < r.nextIndex) {

@@ -14,16 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.storage.snapshot.remote;
-
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.core.Scheduler;
 import com.alipay.sofa.jraft.option.CopyOptions;
@@ -37,9 +29,18 @@ import com.alipay.sofa.jraft.util.ByteBufferCollector;
 import com.alipay.sofa.jraft.util.Endpoint;
 import com.alipay.sofa.jraft.util.OnlyForTest;
 import com.alipay.sofa.jraft.util.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 
 /**
  * Remote file copier
+ *
  * @author boyan (boyan@alibaba-inc.com)
  *
  * 2018-Mar-23 2:03:14 PM
@@ -48,12 +49,12 @@ public class RemoteFileCopier {
 
     private static final Logger LOG = LoggerFactory.getLogger(RemoteFileCopier.class);
 
-    private long                readId;
-    private RaftClientService   rpcService;
-    private Endpoint            endpoint;
-    private RaftOptions         raftOptions;
-    private Scheduler           timerManager;
-    private SnapshotThrottle    snapshotThrottle;
+    private long readId;
+    private RaftClientService rpcService;
+    private Endpoint endpoint;
+    private RaftOptions raftOptions;
+    private Scheduler timerManager;
+    private SnapshotThrottle snapshotThrottle;
 
     @OnlyForTest
     long getReaderId() {
@@ -100,13 +101,13 @@ public class RemoteFileCopier {
     /**
      * Copy `source` from remote to local dest.
      *
-     * @param source   source from remote
+     * @param source source from remote
      * @param destPath local path
-     * @param opts     options of copy
+     * @param opts options of copy
      * @return true if copy success
      */
     public boolean copyToFile(final String source, final String destPath, final CopyOptions opts) throws IOException,
-                                                                                                 InterruptedException {
+                                                                                                         InterruptedException {
         final Session session = startCopyToFile(source, destPath, opts);
         if (session == null) {
             return false;
@@ -119,8 +120,7 @@ public class RemoteFileCopier {
         }
     }
 
-    public Session startCopyToFile(final String source, final String destPath, final CopyOptions opts)
-                                                                                                      throws IOException {
+    public Session startCopyToFile(final String source, final String destPath, final CopyOptions opts) throws IOException {
         final File file = new File(destPath);
 
         // delete exists file.
@@ -152,21 +152,22 @@ public class RemoteFileCopier {
 
     private CopySession newCopySession(final String source) {
         final GetFileRequest.Builder reqBuilder = GetFileRequest.newBuilder() //
-            .setFilename(source) //
-            .setReaderId(this.readId);
+                .setFilename(source) //
+                .setReaderId(this.readId);
         return new CopySession(this.rpcService, this.timerManager, this.snapshotThrottle, this.raftOptions, reqBuilder,
-            this.endpoint);
+                this.endpoint);
     }
 
     /**
      * Copy `source` from remote to  buffer.
-     * @param source  source from remote
+     *
+     * @param source source from remote
      * @param destBuf buffer of dest
-     * @param opt     options of copy
+     * @param opt options of copy
      * @return true if copy success
      */
     public boolean copy2IoBuffer(final String source, final ByteBufferCollector destBuf, final CopyOptions opt)
-                                                                                                               throws InterruptedException {
+            throws InterruptedException {
         final Session session = startCopy2IoBuffer(source, destBuf, opt);
         if (session == null) {
             return false;

@@ -140,16 +140,19 @@ public class CounterStateMachine extends StateMachineAdapter {
 
     @Override
     public boolean onSnapshotLoad(final SnapshotReader reader) {
+        // Leader 节点不应该执行安装快照的操作
         if (isLeader()) {
             LOG.warn("Leader is not supposed to load snapshot");
             return false;
         }
+        // 获取快照文件对应的元数据信息
         if (reader.getFileMeta("data") == null) {
             LOG.error("Fail to find data file in {}", reader.getPath());
             return false;
         }
         final CounterSnapshotFile snapshot = new CounterSnapshotFile(reader.getPath() + File.separator + "data");
         try {
+            // 加载快照数据，并更新数据值
             this.value.set(snapshot.load());
             return true;
         } catch (final IOException e) {
