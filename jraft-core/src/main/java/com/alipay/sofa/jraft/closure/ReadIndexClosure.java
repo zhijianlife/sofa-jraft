@@ -14,13 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.closure;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.alipay.sofa.jraft.Closure;
 import com.alipay.sofa.jraft.JRaftUtils;
@@ -31,6 +26,11 @@ import com.alipay.sofa.jraft.util.SystemPropertyUtil;
 import com.alipay.sofa.jraft.util.timer.Timeout;
 import com.alipay.sofa.jraft.util.timer.Timer;
 import com.alipay.sofa.jraft.util.timer.TimerTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * Read index closure
@@ -39,31 +39,31 @@ import com.alipay.sofa.jraft.util.timer.TimerTask;
  */
 public abstract class ReadIndexClosure implements Closure {
 
-    private static final Logger                                      LOG               = LoggerFactory
-                                                                                           .getLogger(ReadIndexClosure.class);
+    private static final Logger LOG = LoggerFactory
+            .getLogger(ReadIndexClosure.class);
 
-    private static final AtomicIntegerFieldUpdater<ReadIndexClosure> STATE_UPDATER     = AtomicIntegerFieldUpdater
-                                                                                           .newUpdater(
-                                                                                               ReadIndexClosure.class,
-                                                                                               "state");
+    private static final AtomicIntegerFieldUpdater<ReadIndexClosure> STATE_UPDATER = AtomicIntegerFieldUpdater
+            .newUpdater(
+                    ReadIndexClosure.class,
+                    "state");
 
-    private static final long                                        DEFAULT_TIMEOUT   = SystemPropertyUtil.getInt(
-                                                                                           "jraft.read-index.timeout",
-                                                                                           2 * 1000);
+    private static final long DEFAULT_TIMEOUT = SystemPropertyUtil.getInt(
+            "jraft.read-index.timeout",
+            2 * 1000);
 
-    private static final int                                         PENDING           = 0;
-    private static final int                                         COMPLETE          = 1;
-    private static final int                                         TIMEOUT           = 2;
+    private static final int PENDING = 0;
+    private static final int COMPLETE = 1;
+    private static final int TIMEOUT = 2;
 
     /**
      * Invalid log index -1.
      */
-    public static final long                                         INVALID_LOG_INDEX = -1;
+    public static final long INVALID_LOG_INDEX = -1;
 
-    private long                                                     index             = INVALID_LOG_INDEX;
-    private byte[]                                                   requestContext;
+    private long index = INVALID_LOG_INDEX;
+    private byte[] requestContext;
 
-    private volatile int                                             state;
+    private volatile int state;
 
     public ReadIndexClosure() {
         this(DEFAULT_TIMEOUT);
@@ -86,7 +86,7 @@ public abstract class ReadIndexClosure implements Closure {
      * Called when ReadIndex can be executed.
      *
      * @param status the readIndex status.
-     * @param index  the committed index when starts readIndex.
+     * @param index the committed index when starts readIndex.
      * @param reqCtx the request context passed by {@link Node#readIndex(byte[], ReadIndexClosure)}.
      * @see Node#readIndex(byte[], ReadIndexClosure)
      */
@@ -95,7 +95,7 @@ public abstract class ReadIndexClosure implements Closure {
     /**
      * Set callback result, called by jraft.
      *
-     * @param index  the committed index.
+     * @param index the committed index.
      * @param reqCtx the request context passed by {@link Node#readIndex(byte[], ReadIndexClosure)}.
      */
     public void setResult(final long index, final byte[] reqCtx) {

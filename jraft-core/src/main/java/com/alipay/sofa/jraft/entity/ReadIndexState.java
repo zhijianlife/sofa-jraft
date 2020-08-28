@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.alipay.sofa.jraft.entity;
 
 import com.alipay.sofa.jraft.closure.ReadIndexClosure;
@@ -21,19 +22,19 @@ import com.alipay.sofa.jraft.util.Bytes;
 
 /**
  * ReadIndex state
- * @author dennis
  *
+ * @author dennis
  */
 public class ReadIndexState {
 
-    /** The committed log index*/
-    private long                   index = -1;
-    /** User request context*/
-    private final Bytes            requestContext;
-    /** User ReadIndex closure*/
+    /** The committed log index */
+    private long index = -1;
+    /** User request context */
+    private final Bytes requestContext;
+    /** User ReadIndex closure */
     private final ReadIndexClosure done;
-    /** Request start timestamp*/
-    private final long             startTimeMs;
+    /** Request start timestamp */
+    private final long startTimeMs;
 
     public ReadIndexState(Bytes requestContext, ReadIndexClosure done, long startTimeMs) {
         super();

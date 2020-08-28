@@ -541,6 +541,7 @@ public class FSMCallerImpl implements FSMCaller {
             this.lastAppliedTerm = lastTerm;
             // 通知 LogManager，这些已经被应用的 LogEntry 可以从内存中移除了
             this.logManager.setAppliedId(lastAppliedId);
+            // 通知 LastAppliedLogIndexListener 监听器
             notifyLastAppliedIndexUpdated(lastIndex);
         } finally {
             this.nodeMetrics.recordLatency("fsm-commit", Utils.monotonicMs() - startMs);

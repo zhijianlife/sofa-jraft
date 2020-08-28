@@ -170,7 +170,10 @@ public class NodeImpl implements Node, RaftServerService {
     private volatile State state;
     private volatile CountDownLatch shutdownLatch;
     private long currTerm;
-    /** 记录最近一次收到来自 leader 节点请求的时间戳 */
+    /**
+     * 对于 Follower 节点而言，记录最近一次收到来自 leader 节点请求的时间戳，
+     * 对于 Leader 节点而言，记录最近一次检查当前 Leader 节点是否有效的时间戳（向所有活跃节点发送 RPC 请求的最小时间戳）
+     */
     private volatile long lastLeaderTimestamp;
     private PeerId leaderId = new PeerId();
     private PeerId votedId;
@@ -1511,11 +1514,15 @@ public class NodeImpl implements Node, RaftServerService {
 
     @Override
     public void readIndex(final byte[] requestContext, final ReadIndexClosure done) {
+        // 当前节点正在被关闭
         if (this.shutdownLatch != null) {
-            Utils.runClosureInThread(done, new Status(RaftError.ENODESHUTDOWN, "Node is shutting down."));
+            Utils.runClosureInThread(done,
+                    new Status(RaftError.ENODESHUTDOWN, "Node is shutting down."));
             throw new IllegalStateException("Node is shutting down");
         }
         Requires.requireNonNull(done, "Null closure");
+        // 向 ReadOnlyService 提交一个 ReadIndex 请求，
+        // 当本地数据与 Leader 节点数据在特定的位置（lastCommittedIndex）同步时，响应回调
         this.readOnlyService.addRequest(requestContext, done);
     }
 
@@ -1580,12 +1587,17 @@ public class NodeImpl implements Node, RaftServerService {
         this.readLock.lock();
         try {
             switch (this.state) {
+                // 当前节点是 LEADER 角色
                 case STATE_LEADER:
+                    // 基于 ReadIndexRead 或 LeaseRead 策略验证当前 Leader 节点是否仍然有效
                     readLeader(request, ReadIndexResponse.newBuilder(), done);
                     break;
+                // 当前节点是 FOLLOWER 角色
                 case STATE_FOLLOWER:
+                    // 向 Leader 节点发送 ReadIndex 请求
                     readFollower(request, done);
                     break;
+                // 当前正在执行 LEADER 节点切换
                 case STATE_TRANSFERRING:
                     done.run(new Status(RaftError.EBUSY, "Is transferring leadership."));
                     break;
@@ -1621,9 +1633,13 @@ public class NodeImpl implements Node, RaftServerService {
         this.rpcService.readIndex(this.leaderId.getEndpoint(), newRequest, -1, closure);
     }
 
-    private void readLeader(final ReadIndexRequest request, final ReadIndexResponse.Builder respBuilder,
+    private void readLeader(final ReadIndexRequest request,
+                            final ReadIndexResponse.Builder respBuilder,
                             final RpcResponseClosure<ReadIndexResponse> closure) {
+        // 获取仲裁值，即集群节点的半数加 1
         final int quorum = getQuorum();
+
+        // 当前集群只有一个节点，直接返回 lastCommittedIndex 值
         if (quorum <= 1) {
             // Only one peer, fast path.
             respBuilder.setSuccess(true) //
@@ -1633,29 +1649,35 @@ public class NodeImpl implements Node, RaftServerService {
             return;
         }
 
+        // 获取本地记录的 lastCommittedIndex 值
         final long lastCommittedIndex = this.ballotBox.getLastCommittedIndex();
+        // 校验 term 值是否发生变化，以保证对应的 lastCommittedIndex 值是有效的
         if (this.logManager.getTerm(lastCommittedIndex) != this.currTerm) {
             // Reject read only request when this leader has not committed any log entry at its term
-            closure
-                    .run(new Status(
-                            RaftError.EAGAIN,
-                            "ReadIndex request rejected because leader has not committed any log entry at its term, logIndex=%d, currTerm=%d.",
-                            lastCommittedIndex, this.currTerm));
+            closure.run(new Status(
+                    RaftError.EAGAIN,
+                    "ReadIndex request rejected because leader has not committed any log entry at its term, logIndex=%d, currTerm=%d.",
+                    lastCommittedIndex, this.currTerm));
             return;
         }
+        // 记录 lastCommittedIndex 到请求响应对象中
         respBuilder.setIndex(lastCommittedIndex);
 
+        // 对于来自 Follower 节点或 Learner 节点的请求，peerId 字段会记录这些节点已知的 leaderId 值，所以不为 null
         if (request.getPeerId() != null) {
             // request from follower or learner, check if the follower/learner is in current conf.
             final PeerId peer = new PeerId();
             peer.parse(request.getServerId());
+            // 请求来源节点并不是当前 Leader 节点管理范围内的节点
             if (!this.conf.contains(peer) && !this.conf.containsLearner(peer)) {
-                closure
-                        .run(new Status(RaftError.EPERM, "Peer %s is not in current configuration: %s.", peer, this.conf));
+                closure.run(new Status(RaftError.EPERM,
+                        "Peer %s is not in current configuration: %s.", peer, this.conf));
                 return;
             }
         }
 
+        // 基于参数决策是走 ReadIndexRead 还是 LeaseRead 策略，默认走 ReadIndexRead 策略，
+        // 如果是 LeaseRead，则基于时间戳检查集群中是否有过半数的节点仍然认可当前 Leader 节点，
         ReadOnlyOption readOnlyOpt = this.raftOptions.getReadOnlyOptions();
         if (readOnlyOpt == ReadOnlyOption.ReadOnlyLeaseBased && !isLeaderLeaseValid()) {
             // If leader lease timeout, we must change option to ReadOnlySafe
@@ -1663,11 +1685,13 @@ public class NodeImpl implements Node, RaftServerService {
         }
 
         switch (readOnlyOpt) {
+            // ReadIndexRead 策略
             case ReadOnlySafe:
                 final List<PeerId> peers = this.conf.getConf().getPeers();
                 Requires.requireTrue(peers != null && !peers.isEmpty(), "Empty peers");
-                final ReadIndexHeartbeatResponseClosure heartbeatDone = new ReadIndexHeartbeatResponseClosure(closure,
-                        respBuilder, quorum, peers.size());
+                // 向所有的 Follower 节点发送心跳请求，以检查当前 Leader 节点是否仍然有效
+                final ReadIndexHeartbeatResponseClosure heartbeatDone =
+                        new ReadIndexHeartbeatResponseClosure(closure, respBuilder, quorum, peers.size());
                 // Send heartbeat requests to followers
                 for (final PeerId peer : peers) {
                     if (peer.equals(this.serverId)) {
@@ -1676,6 +1700,7 @@ public class NodeImpl implements Node, RaftServerService {
                     this.replicatorGroup.sendHeartbeat(peer, heartbeatDone);
                 }
                 break;
+            // LeaseRead 策略，能够走到这里，说明集群中有超过半数的节点仍然认可当前 Leader 节点
             case ReadOnlyLeaseBased:
                 // Responses to followers and local node.
                 respBuilder.setSuccess(true);
@@ -1809,14 +1834,17 @@ public class NodeImpl implements Node, RaftServerService {
     // in read_lock
     private boolean isLeaderLeaseValid() {
         final long monotonicNowMs = Utils.monotonicMs();
+        // 检查距离最近校验当前 Leader 节点有效性的时间是否在租约范围内
         if (checkLeaderLease(monotonicNowMs)) {
             return true;
         }
+        // 检查管理的所有 Follower 节点是否有超过半数仍然认为当前 Leader 节点有效
         checkDeadNodes0(this.conf.getConf().getPeers(), monotonicNowMs, false, null);
         return checkLeaderLease(monotonicNowMs);
     }
 
     private boolean checkLeaderLease(final long monotonicNowMs) {
+        // 最近一次向所有活跃 Follower 节点成功发送 RPC 请求的最早时间距离指定时间是否在有效租约范围内
         return monotonicNowMs - this.lastLeaderTimestamp < this.options.getLeaderLeaseTimeoutMs();
     }
 
@@ -2322,6 +2350,7 @@ public class NodeImpl implements Node, RaftServerService {
         // 获取租约时长，默认为选举超时的 90%
         final int leaderLeaseTimeoutMs = this.options.getLeaderLeaseTimeoutMs();
         int aliveCount = 0;
+        // 记录向所有活跃节点发送 RPC 请求的最小时间戳
         long startLease = Long.MAX_VALUE;
         // 遍历逐个检查目标 Follower 节点
         for (final PeerId peer : peers) {
@@ -2333,10 +2362,12 @@ public class NodeImpl implements Node, RaftServerService {
             if (checkReplicator) {
                 checkReplicator(peer);
             }
+            // 获取最近一次成功向目标节点发送 RPC 请求的时间戳
             final long lastRpcSendTimestamp = this.replicatorGroup.getLastRpcSendTimestamp(peer);
-            // 到目标节点的租约仍然有效
+            // 到目标节点的租约仍然有效，则视目标节点仍然活跃
             if (monotonicNowMs - lastRpcSendTimestamp <= leaderLeaseTimeoutMs) {
                 aliveCount++; // 活跃节点数加 1
+                // 更新向所有活跃节点发送 RPC 请求的最小时间戳
                 if (startLease > lastRpcSendTimestamp) {
                     startLease = lastRpcSendTimestamp;
                 }
@@ -2347,7 +2378,7 @@ public class NodeImpl implements Node, RaftServerService {
                 deadNodes.addPeer(peer);
             }
         }
-        // 活跃节点数过半，则视为
+        // 活跃节点数过半，说明当前 Leader 节点仍然有效，更新时间戳（向所有活跃节点发送 RPC 请求的最小时间戳）
         if (aliveCount >= peers.size() / 2 + 1) {
             updateLastLeaderTimestamp(startLease);
             return true;
