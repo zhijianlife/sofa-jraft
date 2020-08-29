@@ -120,13 +120,13 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             }
         }
 
-        // delete old snapshot
+        // 基于快照文件名获取快照对应的 index 值
         final List<Long> snapshots = new ArrayList<>();
         final File[] oldFiles = dir.listFiles();
         if (oldFiles != null) {
             for (final File sFile : oldFiles) {
                 final String name = sFile.getName();
-                if (!name.startsWith(Snapshot.JRAFT_SNAPSHOT_PREFIX)) {
+                if (!name.startsWith(Snapshot.JRAFT_SNAPSHOT_PREFIX)) { // snapshot_
                     continue;
                 }
                 final long index = Long.parseLong(name.substring(Snapshot.JRAFT_SNAPSHOT_PREFIX.length()));
@@ -136,7 +136,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
 
         // TODO: add snapshot watcher
 
-        // get last_snapshot_index
+        // 删除除最后一个快照文件之外的其它快照文件
         if (!snapshots.isEmpty()) {
             Collections.sort(snapshots);
             final int snapshotCount = snapshots.size();
@@ -144,6 +144,7 @@ public class LocalSnapshotStorage implements SnapshotStorage {
             for (int i = 0; i < snapshotCount - 1; i++) {
                 final long index = snapshots.get(i);
                 final String snapshotPath = getSnapshotPath(index);
+                // 删除快照数据
                 if (!destroySnapshot(snapshotPath)) {
                     return false;
                 }

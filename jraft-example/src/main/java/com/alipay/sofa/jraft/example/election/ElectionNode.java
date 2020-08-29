@@ -52,12 +52,13 @@ public class ElectionNode implements Lifecycle<ElectionNodeOptions> {
 
     @Override
     public boolean init(final ElectionNodeOptions opts) {
+        // 已经启动，避免重复启动
         if (this.started) {
             LOG.info("[ElectionNode: {}] already started.", opts.getServerAddress());
             return true;
         }
 
-        // raft node options
+        // 构造 Raft 节点配置对象
         NodeOptions nodeOpts = opts.getNodeOptions();
         if (nodeOpts == null) {
             nodeOpts = new NodeOptions();
