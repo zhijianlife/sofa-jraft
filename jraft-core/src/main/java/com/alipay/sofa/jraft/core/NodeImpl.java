@@ -1240,7 +1240,7 @@ public class NodeImpl implements Node, RaftServerService {
             this.voteCtx.grant(this.serverId);
             // 检查是否竞选成功
             if (this.voteCtx.isGranted()) {
-                // 成为 leader
+                // 成为 leader 节点
                 becomeLeader();
             }
         } finally {
@@ -1306,7 +1306,7 @@ public class NodeImpl implements Node, RaftServerService {
         // 设置复制器组的 term 值
         this.replicatorGroup.resetTerm(this.currTerm);
 
-        // 处理非 learner 节点：遍历将集群中除自己以外的非 learner 节点纳为自己的 follower，并建立到这些节点的复制关系
+        // 处理 Follower 节点：遍历将集群中除自己以外的 Follower 节点纳为自己的 Follower，并建立到这些节点的复制关系
         for (final PeerId peer : this.conf.listPeers()) {
             if (peer.equals(this.serverId)) {
                 continue;
@@ -1317,8 +1317,8 @@ public class NodeImpl implements Node, RaftServerService {
             }
         }
 
-        // 处理 learner 节点：遍历将集群中除自己以外的 learner 节点纳为自己的 follower，并建立到这些节点的复制关系
-        // learner 节点只是作为 follower 复制日志，不会对日志的提交做决策
+        // 处理 Learner 节点：遍历将集群中除自己以外的 Learner 节点纳为自己的 Learner，并建立到这些节点的复制关系
+        // Learner 节点只是复制日志，不会对日志的提交做决策
         for (final PeerId peer : this.conf.listLearners()) {
             LOG.debug("Node {} add a learner replicator, term={}, peer={}.", getNodeId(), this.currTerm, peer);
             if (!this.replicatorGroup.addReplicator(peer, ReplicatorType.Learner)) {
@@ -1439,7 +1439,7 @@ public class NodeImpl implements Node, RaftServerService {
         this.writeLock.lock();
         try {
             final int size = tasks.size();
-            // 只有 Leader 节点允许处理 task
+            // 只有 Leader 节点允许处理 Task
             if (this.state != State.STATE_LEADER) {
                 final Status st = new Status();
                 if (this.state != State.STATE_TRANSFERRING) {
@@ -1458,10 +1458,10 @@ public class NodeImpl implements Node, RaftServerService {
                 return;
             }
             final List<LogEntry> entries = new ArrayList<>(size);
-            // 遍历处理 task 集合
+            // 遍历处理 Task 集合
             for (int i = 0; i < size; i++) {
                 final LogEntryAndClosure task = tasks.get(i);
-                // 如果 task 期望校验 term 值，则校验当前节点的 term 值是否是期望的 term 值
+                // 如果 Task 期望校验 term 值，则校验当前节点的 term 值是否是期望的 term 值
                 if (task.expectedTerm != -1 && task.expectedTerm != this.currTerm) {
                     LOG.debug("Node {} can't apply task whose expectedTerm={} doesn't match currTerm={}.",
                             getNodeId(), task.expectedTerm, this.currTerm);
@@ -1472,7 +1472,7 @@ public class NodeImpl implements Node, RaftServerService {
                     }
                     continue;
                 }
-                // 为每个 task 创建并初始化对应的选票，用于决策对应的 LogEntry 是否能够被提交
+                // 为每个 task 创建并初始化对应的选票，用于决策对应的 LogEntry 是否允许被提交
                 if (!this.ballotBox.appendPendingTask(this.conf.getConf(),
                         this.conf.isStable() ? null : this.conf.getOldConf(), task.done)) {
                     Utils.runClosureInThread(task.done, new Status(RaftError.EINTERNAL, "Fail to append task."));
@@ -1809,7 +1809,7 @@ public class NodeImpl implements Node, RaftServerService {
                 this.writeLock.lock();
                 // 封装请求中的 logIndex 和 term 值
                 final LogId requestLastLogId = new LogId(request.getLastLogIndex(), request.getLastLogTerm());
-                // 如果请求的 term 值更大，或者在 term 值相等的前提下，请求的 logIndex 大于等于当前节点的 logIndex 值
+                // 如果请求的 term 值更大，或者在 term 值相等的前提下，请求的 logIndex 不小于当前节点的 logIndex 值，
                 // 则投上自己的一票
                 granted = requestLastLogId.compareTo(lastLogId) >= 0;
 
@@ -1921,7 +1921,7 @@ public class NodeImpl implements Node, RaftServerService {
                     break;
                 }
 
-                // 如果 logIsOk，则说明候选节点的 term 值大于当前节点，或者 term 相同，但是候选节点的 logIndex 不必当前节点小
+                // 如果 logIsOk，则说明候选节点的 term 值大于当前节点，或者 term 相同，但是候选节点的 logIndex 不比当前节点小
                 final boolean logIsOk = new LogId(request.getLastLogIndex(), request.getLastLogTerm())
                         .compareTo(lastLogId) >= 0;
 
@@ -2055,8 +2055,8 @@ public class NodeImpl implements Node, RaftServerService {
             // 基于请求和节点本地状态判断是否需要执行 stepdown
             checkStepDown(request.getTerm(), serverId);
 
-            // 请求来源节点并不是当前节点所知道的 leader 节点，
-            // 可能出现网络分区，尝试将 term 值加 1，以触发 leader 节点 stepdown
+            // 请求来源节点并不是当前节点所知道的 Leader 节点，
+            // 可能出现网络分区，尝试将 term 值加 1，以触发 Leader 节点 stepdown
             if (!serverId.equals(this.leaderId)) {
                 LOG.error("Another peer {} declares that it is the leader at term {} which was occupied by leader {}.",
                         serverId, this.currTerm, this.leaderId);
@@ -2069,7 +2069,7 @@ public class NodeImpl implements Node, RaftServerService {
                         .build();
             }
 
-            // 更新本地记录的最近一次收到来自 leader 节点请求的时间戳
+            // 更新本地记录的最近一次收到来自 Leader 节点请求的时间戳
             updateLastLeaderTimestamp(Utils.monotonicMs());
 
             // 当前是复制日志的 AppendEntries 请求，但是本地正在安装快照，响应错误
@@ -2108,7 +2108,7 @@ public class NodeImpl implements Node, RaftServerService {
                 doUnlock = false;
                 this.writeLock.unlock();
                 // see the comments at FollowerStableClosure#run()
-                // 基于 leader 的 committedIndex 更新本地的 lastCommittedIndex 值
+                // 基于 Leader 的 committedIndex 更新本地的 lastCommittedIndex 值
                 this.ballotBox.setLastCommittedIndex(Math.min(request.getCommittedIndex(), prevLogIndex));
                 return respBuilder.build();
             }
@@ -2646,7 +2646,7 @@ public class NodeImpl implements Node, RaftServerService {
     public void handleRequestVoteResponse(final PeerId peerId, final long term, final RequestVoteResponse response) {
         this.writeLock.lock();
         try {
-            // 当前节点以及不是 CANDIDATE 角色，可能以及竞选成功，或者被打回 FOLLOWER 角色了，忽略响应
+            // 当前节点已经不是 CANDIDATE 角色，可能以及竞选成功，或者被打回 FOLLOWER 角色了，忽略响应
             if (this.state != State.STATE_CANDIDATE) {
                 LOG.warn("Node {} received invalid RequestVoteResponse from {}, state not in STATE_CANDIDATE but {}.",
                         getNodeId(), peerId, this.state);
@@ -2719,7 +2719,7 @@ public class NodeImpl implements Node, RaftServerService {
         boolean doUnlock = true;
         this.writeLock.lock();
         try {
-            // 当前节点已经不是 Follower 角色，可能已经预选举成功了，忽略响应
+            // 当前节点已经不是 FOLLOWER 角色，可能已经预选举成功了，忽略响应
             if (this.state != State.STATE_FOLLOWER) {
                 LOG.warn("Node {} received invalid PreVoteResponse from {}, " +
                         "state not in STATE_FOLLOWER but {}.", getNodeId(), peerId, this.state);

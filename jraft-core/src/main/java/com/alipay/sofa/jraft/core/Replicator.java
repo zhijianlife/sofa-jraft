@@ -512,7 +512,7 @@ public class Replicator implements ThreadId.OnError {
                              final int size,
                              final int seq,
                              final Future<Message> rpcInfly) {
-        // 更新本地记录的最新的 inflight RPC 请求
+        // 更新本地记录的最近一次发送的 inflight RPC 请求
         this.rpcInFly = new Inflight(reqType, startIndex, count, size, seq, rpcInfly);
         // 标记当前请求为 inflight
         this.inflights.add(this.rpcInFly);
